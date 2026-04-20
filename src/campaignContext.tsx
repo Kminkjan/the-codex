@@ -34,6 +34,7 @@ const mapPerson = (r: any) => ({
   location: r.location_id ?? undefined,
   faction: r.faction_id ?? undefined,
   lastSeen: r.last_seen_session_id ?? undefined,
+  imageUrl: r.image_url ?? undefined,
   notes: r.notes ?? undefined,
 });
 

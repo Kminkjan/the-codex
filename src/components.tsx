@@ -120,7 +120,9 @@ export function PosterCard({ person }: { person: any }) {
           : "✦ Of Note ✦"}
       </div>
       <div className="portrait">
-        <span className="silhouette" />
+        {person.imageUrl
+          ? <img src={person.imageUrl} alt={person.name} className="portrait-img" />
+          : <span className="silhouette" />}
       </div>
       <div className="name">{person.name}</div>
       <div className="desc">— {person.epithet}</div>

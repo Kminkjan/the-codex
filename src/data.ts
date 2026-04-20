@@ -27,6 +27,7 @@ export interface Person {
   location?: string;
   faction?: string;
   lastSeen?: string;
+  imageUrl?: string;
   notes?: string;
 }
 
@@ -121,7 +122,7 @@ export interface Campaign {
   notes: Record<string, PartyNote[]>;
 }
 
-export const CURRENT_CAMPAIGN_ID = "ember-accord";
+export const CURRENT_CAMPAIGN_ID = "fendwick";
 
 export interface KindDef {
   key: KindKey;

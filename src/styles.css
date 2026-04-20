@@ -619,6 +619,12 @@ body {
                 radial-gradient(ellipse 60% 80% at 50% 90%, #000 55%, transparent 56%) no-repeat;
   -webkit-mask-composite: source-over;
 }
+.card-poster .portrait .portrait-img {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  filter: sepia(.25) contrast(.95);
+}
 .card-poster .name {
   font-family: var(--font-fell-sc);
   font-size: 14px;
@@ -973,6 +979,12 @@ body {
   content: '';
   position: absolute; inset: 6px;
   border: 1px solid var(--ink-faded);
+}
+.sb-portrait .sb-portrait-img {
+  position: absolute; inset: 6px;
+  width: calc(100% - 12px); height: calc(100% - 12px);
+  object-fit: cover;
+  filter: sepia(.2) contrast(.95);
 }
 .sb-portrait .silhouette {
   position: absolute; bottom: 0; left: 50%;

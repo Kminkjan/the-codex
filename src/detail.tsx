@@ -101,7 +101,11 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
 
           <div className="statblock">
             {kind === "people" ? (
-              <div className="sb-portrait"><span className="silhouette" /></div>
+              <div className="sb-portrait">
+                {(entity as any).imageUrl
+                  ? <img src={(entity as any).imageUrl} alt={entityLabel(entity)} className="sb-portrait-img" />
+                  : <span className="silhouette" />}
+              </div>
             ) : (
               <div className="sb-portrait" style={{ background: "var(--paper-tan)" }}>
                 <div style={{ position: "absolute", inset: 6, border: "1px solid var(--ink-faded)", display: "grid", placeItems: "center" }}>
