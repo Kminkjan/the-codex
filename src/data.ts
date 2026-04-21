@@ -16,7 +16,13 @@ export interface Session {
   date: string;
 }
 
-export interface Person {
+export interface ArchivableFields {
+  archived?: boolean;
+  pinned?: boolean;
+  updatedAt?: string;
+}
+
+export interface Person extends ArchivableFields {
   id: string;
   name: string;
   epithet?: string;
@@ -31,7 +37,7 @@ export interface Person {
   notes?: string;
 }
 
-export interface Location {
+export interface Location extends ArchivableFields {
   id: string;
   name: string;
   kind: string;
@@ -42,7 +48,7 @@ export interface Location {
   notes?: string;
 }
 
-export interface Quest {
+export interface Quest extends ArchivableFields {
   id: string;
   title: string;
   status?: Status;
@@ -53,7 +59,7 @@ export interface Quest {
   hooks?: string;
 }
 
-export interface Goal {
+export interface Goal extends ArchivableFields {
   id: string;
   text: string;
   owner: string;
@@ -61,7 +67,7 @@ export interface Goal {
   status?: Status;
 }
 
-export interface Faction {
+export interface Faction extends ArchivableFields {
   id: string;
   name: string;
   sigil: string;
@@ -70,7 +76,7 @@ export interface Faction {
   imageUrl?: string;
 }
 
-export interface Item {
+export interface Item extends ArchivableFields {
   id: string;
   name: string;
   kind: string;
@@ -78,10 +84,18 @@ export interface Item {
   imageUrl?: string;
 }
 
-export interface Lore {
+export interface Lore extends ArchivableFields {
   id: string;
   title: string;
   text: string;
+}
+
+export const ARCHIVABLE_KINDS: ReadonlyArray<KindKey> = [
+  "people", "locations", "quests", "goals", "factions", "items", "lore",
+];
+
+export function isArchivableKind(k: KindKey): boolean {
+  return ARCHIVABLE_KINDS.includes(k);
 }
 
 export type BoardPosition = { x: number; y: number; rot: number; kind: KindKey };
@@ -164,4 +178,29 @@ export function findEntity(
 
 export function entityLabel(e: any): string {
   return e?.name || e?.title || e?.text || "—";
+}
+
+export function isArchived(e: any): boolean {
+  return !!(e && e.archived);
+}
+
+export function isPinned(e: any): boolean {
+  return !!(e && e.pinned);
+}
+
+// Sort: pinned first, then active by most recently updated, then archived at the bottom.
+export function sortForDisplay<T extends { id: string; updatedAt?: string; archived?: boolean; pinned?: boolean }>(
+  items: T[],
+): T[] {
+  return items.slice().sort((a, b) => {
+    const pa = a.pinned ? 1 : 0;
+    const pb = b.pinned ? 1 : 0;
+    if (pa !== pb) return pb - pa;
+    const aa = a.archived ? 1 : 0;
+    const ab = b.archived ? 1 : 0;
+    if (aa !== ab) return aa - ab;
+    const ta = a.updatedAt ? Date.parse(a.updatedAt) : 0;
+    const tb = b.updatedAt ? Date.parse(b.updatedAt) : 0;
+    return tb - ta;
+  });
 }

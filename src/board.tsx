@@ -1,6 +1,8 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   type KindKey,
+  sortForDisplay,
+  isArchivableKind,
 } from "./data";
 import { CompassRose, Icon, kindIcon } from "./icons";
 import { useCampaign, useFindEntity, useKinds } from "./hooks";
@@ -52,6 +54,7 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
     });
     return f;
   });
+  const [showArchived, setShowArchived] = useState(false);
   const [scale, setScale] = useState(0.9);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [panning, setPanning] = useState(false);
@@ -64,6 +67,9 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
     const pos = positions[id];
     if (!pos) return false;
     if (!(filters as any)[pos.kind]) return false;
+    const ent = findEntity(id);
+    if (!ent) return false;
+    if (!showArchived && (ent as any).archived) return false;
     return true;
   };
 
@@ -188,6 +194,16 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
               {k.label}
             </span>
           ))}
+        </div>
+
+        <div className="filter-group">
+          <span
+            className={`filter-pill ${showArchived ? "active" : ""}`}
+            onClick={() => setShowArchived((v) => !v)}
+            title="Include archived cards on the board"
+          >
+            {showArchived ? "✓ Archived" : "Show archived"}
+          </span>
         </div>
 
         <div className="filter-group">
@@ -344,6 +360,7 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
             if (!(filters as any)[pos.kind]) return null;
             const entity = findEntity(id);
             if (!entity) return null;
+            if (!showArchived && (entity as any).archived) return null;
             return (
               <PinnedCard
                 key={id}
@@ -400,29 +417,56 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
 
 export function KindList({ kind, onOpenEntity }: { kind: string; onOpenEntity: (id: string) => void }) {
   const kinds = useKinds();
+  const [showArchived, setShowArchived] = useState(false);
   const k = kinds.find((x) => x.key === kind);
   if (!k) return null;
-  const items = k.list();
+
+  const archivable = isArchivableKind(k.key);
+  const all = k.list() as any[];
+  const { archivedCount, sorted } = useMemo(() => {
+    if (!archivable) return { archivedCount: 0, sorted: all };
+    const archived = all.filter((e) => e.archived).length;
+    const visible = showArchived ? all : all.filter((e) => !e.archived);
+    return { archivedCount: archived, sorted: sortForDisplay(visible) };
+  }, [all, archivable, showArchived]);
+
   return (
     <div style={{ flex: 1, overflow: "auto", padding: "28px 40px 60px", background: "var(--vellum)", position: "relative" }} className="tex-vellum">
       <div style={{ position: "relative", zIndex: 1 }}>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 16, marginBottom: 8 }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 16, marginBottom: 8, flexWrap: "wrap" }}>
           <h1 style={{ margin: 0, fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 40, color: "var(--ink)", letterSpacing: ".01em" }}>{k.label}</h1>
           <span style={{ fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 16, color: "var(--ink-faded)" }}>
-            {items.length} {k.plural} of note
+            {sorted.length} {k.plural} of note
           </span>
+          {archivable && archivedCount > 0 && (
+            <button
+              onClick={() => setShowArchived((v) => !v)}
+              className="cleanup-link-btn"
+              style={{ marginLeft: "auto" }}
+            >
+              {showArchived ? `hide ${archivedCount} archived` : `show ${archivedCount} archived`}
+            </button>
+          )}
         </div>
         <div className="scratch-divider"><em>✦ ✦ ✦</em></div>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 20, marginTop: 24 }}>
-          {items.map((e: any) => (
-            <div key={e.id}
-                 onClick={() => onOpenEntity(e.id)}
-                 style={{ cursor: "pointer", transform: `rotate(${(e.id.charCodeAt(1) % 5 - 2) * 0.6}deg)` }}
-            >
-              <CardBody entity={e} kind={k.key as KindKey} />
-            </div>
-          ))}
+          {sorted.map((e: any) => {
+            const classes = [
+              "kind-card",
+              e.archived ? "archived" : "",
+              e.pinned ? "is-pinned" : "",
+            ].filter(Boolean).join(" ");
+            return (
+              <div key={e.id}
+                   onClick={() => onOpenEntity(e.id)}
+                   className={classes}
+                   style={{ transform: `rotate(${(e.id.charCodeAt(1) % 5 - 2) * 0.6}deg)` }}
+              >
+                <CardBody entity={e} kind={k.key as KindKey} />
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

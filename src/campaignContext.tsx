@@ -23,6 +23,12 @@ export const CampaignContext = createContext<CampaignContextValue>({
 });
 
 // Map a DB row (snake_case, `desc`) to the app's object shape (camelCase).
+const archiveFields = (r: any) => ({
+  archived: !!r.archived,
+  pinned: !!r.pinned,
+  updatedAt: r.updated_at ?? undefined,
+});
+
 const mapPerson = (r: any) => ({
   id: r.id,
   name: r.name,
@@ -36,6 +42,7 @@ const mapPerson = (r: any) => ({
   lastSeen: r.last_seen_session_id ?? undefined,
   imageUrl: r.image_url ?? undefined,
   notes: r.notes ?? undefined,
+  ...archiveFields(r),
 });
 
 const mapLocation = (r: any) => ({
@@ -47,6 +54,7 @@ const mapLocation = (r: any) => ({
   ruler: r.ruler ?? undefined,
   imageUrl: r.image_url ?? undefined,
   notes: r.notes ?? undefined,
+  ...archiveFields(r),
 });
 
 const mapQuest = (r: any) => ({
@@ -58,6 +66,7 @@ const mapQuest = (r: any) => ({
   session: r.session_id ?? undefined,
   desc: r.desc ?? undefined,
   hooks: r.hooks ?? undefined,
+  ...archiveFields(r),
 });
 
 const mapGoal = (r: any) => ({
@@ -66,6 +75,7 @@ const mapGoal = (r: any) => ({
   owner: r.owner,
   kind: r.kind,
   status: r.status ?? undefined,
+  ...archiveFields(r),
 });
 
 const mapFaction = (r: any) => ({
@@ -75,6 +85,7 @@ const mapFaction = (r: any) => ({
   desc: r.desc ?? undefined,
   allegiance: r.allegiance ?? undefined,
   imageUrl: r.image_url ?? undefined,
+  ...archiveFields(r),
 });
 
 const mapItem = (r: any) => ({
@@ -83,12 +94,14 @@ const mapItem = (r: any) => ({
   kind: r.kind,
   desc: r.desc ?? undefined,
   imageUrl: r.image_url ?? undefined,
+  ...archiveFields(r),
 });
 
 const mapLore = (r: any) => ({
   id: r.id,
   title: r.title,
   text: r.text,
+  ...archiveFields(r),
 });
 
 const mapSession = (r: any) => ({

@@ -7,6 +7,7 @@ import { Sidebar, Topbar } from "./components";
 import { NoticeBoard, KindList } from "./board";
 import { DetailSheet } from "./detail";
 import { CommandPalette, useCommandPaletteHotkey } from "./commandPalette";
+import { CleanupPanel } from "./cleanupPanel";
 
 function LoadingSheet() {
   return (
@@ -59,6 +60,7 @@ function AppLoaded() {
   const [tweaksOpen, setTweaksOpen] = useState(false);
   const [shareToast, setShareToast] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [cleanupOpen, setCleanupOpen] = useState(false);
 
   const togglePalette = useCallback(() => setPaletteOpen((o) => !o), []);
   useCommandPaletteHotkey(togglePalette);
@@ -85,8 +87,12 @@ function AppLoaded() {
   };
 
   const counts = useMemo(() => {
-    const c: Record<string, number> = {};
-    kinds.forEach((k) => { c[k.key] = k.list().length; });
+    const c: Record<string, { active: number; archived: number }> = {};
+    kinds.forEach((k) => {
+      const list = k.list() as any[];
+      const archived = list.filter((e) => e.archived).length;
+      c[k.key] = { active: list.length - archived, archived };
+    });
     return c;
   }, [kinds]);
 
@@ -99,7 +105,7 @@ function AppLoaded() {
     <>
       <div className="app">
         <Topbar onShare={onShare} />
-        <Sidebar active={view} onSelect={setView} onOpenEntity={setOpenId} counts={counts} />
+        <Sidebar active={view} onSelect={setView} onOpenEntity={setOpenId} onOpenCleanup={() => setCleanupOpen(true)} counts={counts} />
         <main className="main">
           {view === "board" && <NoticeBoard onOpenEntity={setOpenId} />}
           {view !== "board" && <KindList kind={view} onOpenEntity={setOpenId} />}
@@ -119,6 +125,13 @@ function AppLoaded() {
         onClose={() => setPaletteOpen(false)}
         onOpenEntity={(id) => { setOpenId(id); setPaletteOpen(false); }}
       />
+
+      {cleanupOpen && (
+        <CleanupPanel
+          onClose={() => setCleanupOpen(false)}
+          onOpenEntity={(id) => { setOpenId(id); setCleanupOpen(false); }}
+        />
+      )}
 
       {shareToast && (
         <div style={{

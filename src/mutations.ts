@@ -6,6 +6,8 @@ import { CURRENT_CAMPAIGN_ID, type KindKey, type PartyNote, type BoardPosition }
 
 // UI field → DB column for each kind. Only renamed fields are listed;
 // others pass through unchanged (name, title, text, desc, hooks, status, kind, etc.).
+// updated_at is server-managed by the touch_updated_at trigger
+// (supabase/migrations/0005_archive_and_pin.sql) — never write it from the client.
 const fieldAlias: Record<KindKey, Record<string, string>> = {
   people: {
     location: "location_id",
@@ -148,6 +150,14 @@ async function deletePartyNotesFor(entityId: string) {
     .eq("campaign_id", CURRENT_CAMPAIGN_ID)
     .eq("entity_id", entityId);
   if (error) throw error;
+}
+
+export async function bulkArchive(entries: Array<{ kind: KindKey; id: string }>) {
+  // Fire in parallel; each goes through updateEntity so realtime reflects it
+  // the same way as any other edit.
+  await Promise.all(
+    entries.map(({ kind, id }) => updateEntity(kind, id, { archived: true })),
+  );
 }
 
 export async function deleteEntity(kind: KindKey, id: string) {
