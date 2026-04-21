@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CampaignProvider } from "./campaignContext";
 import { AuthProvider, DisplayNameGate } from "./auth";
 import { useCampaignStatus, useKinds } from "./hooks";
@@ -6,6 +6,7 @@ import { Icon } from "./icons";
 import { Sidebar, Topbar } from "./components";
 import { NoticeBoard, KindList } from "./board";
 import { DetailSheet } from "./detail";
+import { CommandPalette, useCommandPaletteHotkey } from "./commandPalette";
 
 function LoadingSheet() {
   return (
@@ -57,6 +58,10 @@ function AppLoaded() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [tweaksOpen, setTweaksOpen] = useState(false);
   const [shareToast, setShareToast] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
+  const togglePalette = useCallback(() => setPaletteOpen((o) => !o), []);
+  useCommandPaletteHotkey(togglePalette);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
@@ -108,6 +113,12 @@ function AppLoaded() {
           onOpen={(id) => setOpenId(id)}
         />
       )}
+
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        onOpenEntity={(id) => { setOpenId(id); setPaletteOpen(false); }}
+      />
 
       {shareToast && (
         <div style={{
