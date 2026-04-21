@@ -73,10 +73,13 @@ export function PinnedCard({
   const effective = drag || pos;
   const pinClass = pos.kind === "quests" ? "brass" : pos.kind === "lore" ? "iron" : "";
 
+  const archived = !!entity.archived;
+  const pinnedFlag = !!entity.pinned;
+
   return (
     <div
       ref={ref}
-      className={`pinned ${dragging ? "dragging" : ""}`}
+      className={`pinned ${dragging ? "dragging" : ""} ${archived ? "archived" : ""} ${pinnedFlag ? "is-pinned" : ""}`}
       data-kind={pos.kind}
       data-id={entity.id}
       style={{
@@ -88,7 +91,7 @@ export function PinnedCard({
       }}
       onMouseDown={onMouseDown}
     >
-      <span className={`pin-head ${pinClass}`} />
+      <span className={`pin-head ${pinnedFlag ? "brass" : pinClass}`} />
       <CardBody entity={entity} kind={pos.kind} />
     </div>
   );
@@ -245,12 +248,14 @@ interface SidebarProps {
   active: string;
   onSelect: (v: string) => void;
   onOpenEntity: (id: string) => void;
-  counts: Record<string, number>;
+  onOpenCleanup: () => void;
+  counts: Record<string, { active: number; archived: number }>;
 }
 
-export function Sidebar({ active, onSelect, onOpenEntity, counts }: SidebarProps) {
+export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, counts }: SidebarProps) {
   const campaign = useCampaign();
   const kinds = useKinds();
+  const totalArchived = kinds.reduce((sum, k) => sum + (counts[k.key]?.archived ?? 0), 0);
   return (
     <aside className="sidebar">
       <div className="sidebar-label"><span>The Board</span></div>
@@ -260,17 +265,33 @@ export function Sidebar({ active, onSelect, onOpenEntity, counts }: SidebarProps
       </div>
 
       <div className="sidebar-label"><span>Codex</span></div>
-      {kinds.map((k) => (
-        <div
-          key={k.key}
-          className={`nav-item ${active === k.key ? "active" : ""}`}
-          onClick={() => onSelect(k.key)}
-        >
-          <span className="icon"><Icon name={kindIcon[k.key]} /></span>
-          {k.label}
-          <span className="count">{counts[k.key]}</span>
-        </div>
-      ))}
+      {kinds.map((k) => {
+        const c = counts[k.key] ?? { active: 0, archived: 0 };
+        return (
+          <div
+            key={k.key}
+            className={`nav-item ${active === k.key ? "active" : ""}`}
+            onClick={() => onSelect(k.key)}
+          >
+            <span className="icon"><Icon name={kindIcon[k.key]} /></span>
+            {k.label}
+            <span className="count">{c.active}</span>
+            {c.archived > 0 && (
+              <span className="count-archived" title={`${c.archived} archived`}>+{c.archived}</span>
+            )}
+          </div>
+        );
+      })}
+      <div
+        className="nav-item"
+        onClick={onOpenCleanup}
+        style={{ marginTop: 4, fontStyle: "italic", color: "var(--ink-faded)" }}
+        title="Review stale entities and archive in bulk"
+      >
+        <span className="icon"><Icon name="scroll" /></span>
+        Tidy the Codex
+        {totalArchived > 0 && <span className="count-archived">{totalArchived} archived</span>}
+      </div>
 
       <div className="sidebar-label"><span>Sessions</span></div>
       {campaign.sessions.slice().reverse().map((s) => (

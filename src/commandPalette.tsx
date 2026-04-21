@@ -12,6 +12,7 @@ interface PaletteHit {
   snippet?: string;
   matchSource: MatchSource;
   rank: 0 | 1 | 2 | 3;
+  archived?: boolean;
 }
 
 const KIND_ICON: Record<KindKey, "people" | "location" | "quest" | "goal" | "faction" | "item" | "lore" | "session"> = {
@@ -42,6 +43,7 @@ interface Indexed {
   label: string;
   primary: string;
   secondary: string;
+  archived?: boolean;
 }
 
 function joinFields(...parts: Array<string | number | null | undefined>): string {
@@ -57,6 +59,7 @@ function buildIndex(campaign: Campaign): Indexed[] {
       label: entityLabel(p),
       primary: p.name ?? "",
       secondary: joinFields(p.epithet, p.race, p.role, p.disposition, p.alignment, p.notes),
+      archived: p.archived,
     });
   }
   for (const l of campaign.locations) {
@@ -66,6 +69,7 @@ function buildIndex(campaign: Campaign): Indexed[] {
       label: entityLabel(l),
       primary: l.name ?? "",
       secondary: joinFields(l.kind, l.region, l.ruler, l.desc, l.notes),
+      archived: l.archived,
     });
   }
   for (const q of campaign.quests) {
@@ -75,6 +79,7 @@ function buildIndex(campaign: Campaign): Indexed[] {
       label: entityLabel(q),
       primary: q.title ?? "",
       secondary: joinFields(q.status, q.reward, q.desc, q.hooks),
+      archived: q.archived,
     });
   }
   for (const g of campaign.goals) {
@@ -84,6 +89,7 @@ function buildIndex(campaign: Campaign): Indexed[] {
       label: entityLabel(g),
       primary: g.text ?? "",
       secondary: joinFields(g.owner, g.kind, g.status),
+      archived: g.archived,
     });
   }
   for (const f of campaign.factions) {
@@ -93,6 +99,7 @@ function buildIndex(campaign: Campaign): Indexed[] {
       label: entityLabel(f),
       primary: f.name ?? "",
       secondary: joinFields(f.sigil, f.desc, f.allegiance),
+      archived: f.archived,
     });
   }
   for (const i of campaign.items) {
@@ -102,6 +109,7 @@ function buildIndex(campaign: Campaign): Indexed[] {
       label: entityLabel(i),
       primary: i.name ?? "",
       secondary: joinFields(i.kind, i.desc),
+      archived: i.archived,
     });
   }
   for (const lo of campaign.lore) {
@@ -111,6 +119,7 @@ function buildIndex(campaign: Campaign): Indexed[] {
       label: entityLabel(lo),
       primary: lo.title ?? "",
       secondary: lo.text ?? "",
+      archived: lo.archived,
     });
   }
   for (const s of campaign.sessions) {
@@ -150,11 +159,11 @@ function searchHits(index: Indexed[], campaign: Campaign, query: string): Palett
   for (const e of index) {
     const primary = e.primary.toLowerCase();
     if (primary.startsWith(q)) {
-      keepBest({ id: e.id, kind: e.kind, label: e.label, matchSource: "primary", rank: 0 });
+      keepBest({ id: e.id, kind: e.kind, label: e.label, matchSource: "primary", rank: 0, archived: e.archived });
       continue;
     }
     if (primary.includes(q)) {
-      keepBest({ id: e.id, kind: e.kind, label: e.label, matchSource: "primary", rank: 1 });
+      keepBest({ id: e.id, kind: e.kind, label: e.label, matchSource: "primary", rank: 1, archived: e.archived });
       continue;
     }
     const secondary = e.secondary.toLowerCase();
@@ -166,6 +175,7 @@ function searchHits(index: Indexed[], campaign: Campaign, query: string): Palett
         snippet: makeSnippet(e.secondary, q),
         matchSource: "secondary",
         rank: 2,
+        archived: e.archived,
       });
     }
   }
@@ -183,6 +193,7 @@ function searchHits(index: Indexed[], campaign: Campaign, query: string): Palett
           snippet: `${note.author}: ${makeSnippet(note.text, q)}`,
           matchSource: "note",
           rank: 3,
+          archived: parent.archived,
         });
         break;
       }
@@ -313,7 +324,7 @@ export function CommandPalette({ open, onClose, onOpenEntity }: CommandPalettePr
             >
               <Icon name={KIND_ICON[hit.kind]} size={16} />
               <div className="cmdk-row-text">
-                <div className="cmdk-row-label">{hit.label}</div>
+                <div className={`cmdk-row-label ${hit.archived ? "archived" : ""}`}>{hit.label}</div>
                 {hit.snippet && (
                   <div className="cmdk-snippet">
                     {hit.matchSource === "note" ? <span className="cmdk-snippet-tag">note · </span> : null}
@@ -322,6 +333,7 @@ export function CommandPalette({ open, onClose, onOpenEntity }: CommandPalettePr
                 )}
               </div>
               <span className="cmdk-kind">{KIND_LABEL[hit.kind]}</span>
+              {hit.archived && <span className="cmdk-kind-archived">archived</span>}
             </button>
           ))}
         </div>

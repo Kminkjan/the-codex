@@ -1534,6 +1534,279 @@ body {
   font-size: 10px;
   color: var(--ink-faded);
 }
+/* ── Archive / Pin ──────────────────────── */
+.detail-action-btn {
+  background: transparent;
+  border: 1px solid var(--ink-faded);
+  color: var(--ink-faded);
+  padding: 4px 8px;
+  font-family: var(--font-fell-sc);
+  letter-spacing: .16em;
+  font-size: 11px;
+  cursor: pointer;
+  border-radius: 2px;
+}
+.detail-action-btn:hover {
+  background: var(--paper-cream);
+  color: var(--ink);
+}
+
+.detail-sheet.is-archived .statblock::after {
+  content: "ARCHIVED";
+  display: block;
+  position: absolute;
+  top: 14px; left: 50%;
+  bottom: auto;
+  transform: translate(-50%, 0);
+  background: var(--ink);
+  color: var(--vellum-light);
+  font-family: var(--font-fell-sc);
+  letter-spacing: .3em;
+  font-size: 10px;
+  padding: 2px 12px;
+  border-radius: 2px;
+  opacity: .7;
+  pointer-events: none;
+}
+
+/* Dim archived cards wherever they render on the Board/KindList */
+.pinned.archived,
+.kind-card.archived {
+  opacity: .55;
+  filter: saturate(.5);
+}
+.pinned.archived::before,
+.kind-card.archived::before {
+  content: "ARCHIVED";
+  position: absolute;
+  top: -10px; left: 8px;
+  background: var(--ink);
+  color: var(--vellum-light);
+  font-family: var(--font-fell-sc);
+  letter-spacing: .2em;
+  font-size: 9px;
+  padding: 2px 6px;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.pinned.is-pinned .pin-head {
+  background: radial-gradient(circle at 35% 30%, #f5d68a 0%, #b08228 55%, #6a4d14 100%);
+  box-shadow: 0 2px 3px rgba(0,0,0,.5), 0 4px 10px rgba(176,130,40,.6), 0 0 0 3px rgba(176,130,40,.25);
+}
+
+/* Wrapper hugs the card so the pinned badge docks at the real corner
+   instead of floating out in the grid gap. */
+.kind-card {
+  position: relative;
+  cursor: pointer;
+  width: fit-content;
+  max-width: 100%;
+}
+
+/* Pinned: a struck-brass rosette — a medal of particular favor, rim-beveled
+   like a hand-punched coin, with an embossed 5-pointed star pressed into the
+   face. Slight rotation so it reads as hand-placed. */
+.kind-card.is-pinned::before {
+  content: "";
+  position: absolute;
+  top: -14px; right: -14px;
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  z-index: 5;
+  background:
+    radial-gradient(circle at 34% 28%, rgba(255, 245, 205, .92) 0%, rgba(255, 245, 205, 0) 40%),
+    radial-gradient(circle at 68% 78%, rgba(80, 52, 10, .55) 0%, rgba(80, 52, 10, 0) 50%),
+    radial-gradient(circle at 50% 50%, #f3d27a 0%, #d0a138 36%, #8c6413 72%, #4f360a 100%);
+  box-shadow:
+    /* rim bevel */
+    inset 0 1.5px 1px rgba(255, 240, 185, .78),
+    inset 0 -1.5px 2px rgba(40, 25, 5, .7),
+    inset 0 0 0 1px rgba(60, 40, 8, .55),
+    /* inner groove, slight recessed field around the star */
+    inset 0 0 0 5px rgba(255, 235, 170, .12),
+    inset 0 0 0 6px rgba(60, 40, 8, .28),
+    /* cast shadow onto the card */
+    0 3px 5px rgba(20, 12, 4, .55),
+    0 1px 1.5px rgba(0, 0, 0, .7),
+    /* warm ambient glow */
+    0 0 18px rgba(212, 167, 40, .28);
+  transform: rotate(-9deg);
+  pointer-events: none;
+}
+
+.kind-card.is-pinned::after {
+  content: "";
+  position: absolute;
+  top: -10px; right: -10px;
+  width: 34px; height: 34px;
+  z-index: 6;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'><path d='M12 2.6 L14.72 9.24 L21.84 9.84 L16.44 14.58 L18.12 21.36 L12 17.7 L5.88 21.36 L7.56 14.58 L2.16 9.84 L9.28 9.24 Z' fill='%234a2a06' stroke='%23271802' stroke-width='0.7' stroke-linejoin='round'/></svg>");
+  background-size: 60% 60%;
+  background-position: center;
+  background-repeat: no-repeat;
+  transform: rotate(-9deg);
+  filter: drop-shadow(0 0.8px 0 rgba(255, 238, 180, .55));
+  pointer-events: none;
+}
+
+/* Sidebar archived count */
+.nav-item .count-archived {
+  margin-left: 4px;
+  font-family: var(--font-ui);
+  font-size: 10px;
+  color: var(--ink-ghost);
+  font-style: italic;
+}
+
+/* Command palette archived tag */
+.cmdk-kind-archived {
+  margin-left: 6px;
+  font-family: var(--font-fell-sc);
+  letter-spacing: .2em;
+  font-size: 9px;
+  color: var(--ink);
+  background: var(--vellum-dark);
+  padding: 1px 5px;
+  border-radius: 2px;
+}
+.cmdk-row .cmdk-row-label.archived {
+  opacity: .6;
+}
+
+/* ── Cleanup panel (Tidy the Codex) ─────── */
+.cleanup-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20,12,5,.55);
+  backdrop-filter: blur(2px);
+  z-index: 65;
+  display: grid;
+  place-items: start center;
+  padding: 8vh 20px 40px;
+  overflow-y: auto;
+}
+.cleanup-panel {
+  width: min(720px, 96vw);
+  background: var(--vellum);
+  border: 2px solid var(--vellum-deep);
+  box-shadow: var(--shadow-deep);
+  color: var(--ink-body);
+  display: flex; flex-direction: column;
+  max-height: calc(100vh - 16vh);
+}
+.cleanup-header {
+  padding: 20px 24px 16px;
+  background: var(--vellum-light);
+  border-bottom: 2px double var(--ink-faded);
+  position: relative;
+}
+.cleanup-header h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 26px;
+  color: var(--ink);
+}
+.cleanup-header p {
+  margin: 4px 0 0;
+  font-family: var(--font-fell);
+  font-style: italic;
+  font-size: 14px;
+  color: var(--ink-faded);
+}
+.cleanup-close {
+  position: absolute;
+  top: 14px; right: 14px;
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: var(--paper-cream);
+  border: 1px solid var(--vellum-deep);
+  display: grid; place-items: center;
+  cursor: pointer;
+  color: var(--ink);
+}
+.cleanup-close:hover { background: var(--bloodred); color: var(--paper-cream); }
+.cleanup-controls {
+  display: flex; align-items: center; gap: 14px;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--vellum-deep);
+  background: var(--vellum-light);
+  font-family: var(--font-fell);
+  font-size: 13px;
+  color: var(--ink);
+}
+.cleanup-controls input[type="range"] { flex: 1; }
+.cleanup-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 24px;
+}
+.cleanup-empty {
+  padding: 40px 20px;
+  text-align: center;
+  font-family: var(--font-fell);
+  font-style: italic;
+  font-size: 15px;
+  color: var(--ink-faded);
+}
+.cleanup-group {
+  margin-bottom: 18px;
+}
+.cleanup-group-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--ink-ghost);
+  margin-bottom: 8px;
+}
+.cleanup-group-title {
+  font-family: var(--font-fell-sc);
+  font-size: 12px;
+  letter-spacing: .2em;
+  color: var(--ink-faded);
+}
+.cleanup-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 7px 6px;
+  border-bottom: 1px solid rgba(139,94,40,.15);
+  cursor: pointer;
+  font-family: var(--font-fell);
+  font-size: 14px;
+}
+.cleanup-row:hover { background: rgba(139,94,40,.06); }
+.cleanup-row input[type="checkbox"] { accent-color: var(--bloodred); }
+.cleanup-row .cleanup-reason {
+  margin-left: auto;
+  font-style: italic;
+  font-size: 12px;
+  color: var(--ink-faded);
+}
+.cleanup-footer {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 12px;
+  padding: 12px 24px;
+  border-top: 1px solid var(--vellum-deep);
+  background: var(--vellum-light);
+}
+.cleanup-footer .cleanup-selected {
+  font-family: var(--font-fell-sc);
+  font-size: 11px;
+  letter-spacing: .16em;
+  color: var(--ink-faded);
+}
+.cleanup-link-btn {
+  background: transparent;
+  border: none;
+  color: var(--ink);
+  font-family: var(--font-fell);
+  font-style: italic;
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+}
+
 .cmdk-hint {
   display: flex; gap: 16px; justify-content: flex-end;
   padding: 8px 16px;

@@ -12,22 +12,31 @@ const fieldAlias: Record<KindKey, Record<string, string>> = {
     faction: "faction_id",
     lastSeen: "last_seen_session_id",
     imageUrl: "image_url",
+    updatedAt: "updated_at",
   },
   quests: {
     giver: "giver_id",
     session: "session_id",
+    updatedAt: "updated_at",
   },
   locations: {
     imageUrl: "image_url",
+    updatedAt: "updated_at",
   },
-  goals: {},
+  goals: {
+    updatedAt: "updated_at",
+  },
   factions: {
     imageUrl: "image_url",
+    updatedAt: "updated_at",
   },
   items: {
     imageUrl: "image_url",
+    updatedAt: "updated_at",
   },
-  lore: {},
+  lore: {
+    updatedAt: "updated_at",
+  },
   sessions: {},
 };
 
@@ -148,6 +157,14 @@ async function deletePartyNotesFor(entityId: string) {
     .eq("campaign_id", CURRENT_CAMPAIGN_ID)
     .eq("entity_id", entityId);
   if (error) throw error;
+}
+
+export async function bulkArchive(entries: Array<{ kind: KindKey; id: string }>) {
+  // Fire in parallel; each goes through updateEntity so realtime reflects it
+  // the same way as any other edit.
+  await Promise.all(
+    entries.map(({ kind, id }) => updateEntity(kind, id, { archived: true })),
+  );
 }
 
 export async function deleteEntity(kind: KindKey, id: string) {

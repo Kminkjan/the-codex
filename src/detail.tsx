@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { type KindKey, entityLabel } from "./data";
+import { type KindKey, entityLabel, isArchivableKind, isArchived, isPinned } from "./data";
 import { Icon, kindIcon } from "./icons";
 import { StatusChip, EditableText, EnumSelect } from "./components";
 import { useCampaign, useFindEntity } from "./hooks";
@@ -331,21 +331,38 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
 
   return (
     <div className="detail-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="detail-sheet tex-vellum">
+      <div className={`detail-sheet tex-vellum ${isArchived(entity) ? "is-archived" : ""}`}>
         <button className="detail-close" onClick={onClose}><Icon name="close" size={16} /></button>
-        <button
-          onClick={onDelete}
-          title="Strike from the codex"
-          style={{
-            position: "absolute", top: 14, right: 54,
-            background: "transparent", border: "1px solid var(--ink-faded)",
-            color: "var(--bloodred)", padding: "4px 8px",
-            fontFamily: "var(--font-fell-sc)", letterSpacing: ".16em", fontSize: 11,
-            cursor: "pointer",
-          }}
-        >
-          ✕ STRIKE
-        </button>
+        <div style={{ position: "absolute", top: 14, right: 54, display: "flex", gap: 6, zIndex: 2 }}>
+          {isArchivableKind(kind) && (
+            <>
+              <button
+                onClick={() => patch({ pinned: !isPinned(entity) })}
+                title={isPinned(entity) ? "Unpin from top of lists" : "Pin to top of lists"}
+                className="detail-action-btn"
+                style={isPinned(entity) ? { borderColor: "var(--mustard)", color: "#6e5018" } : undefined}
+              >
+                {isPinned(entity) ? "★ PINNED" : "☆ PIN"}
+              </button>
+              <button
+                onClick={() => patch({ archived: !isArchived(entity) })}
+                title={isArchived(entity) ? "Restore to active codex" : "Hide from default view"}
+                className="detail-action-btn"
+                style={isArchived(entity) ? { borderColor: "var(--ink)", color: "var(--ink)" } : undefined}
+              >
+                {isArchived(entity) ? "⤴ UNARCHIVE" : "⤵ ARCHIVE"}
+              </button>
+            </>
+          )}
+          <button
+            onClick={onDelete}
+            title="Strike from the codex"
+            className="detail-action-btn"
+            style={{ color: "var(--bloodred)" }}
+          >
+            ✕ STRIKE
+          </button>
+        </div>
         <div className="detail-sheet-inner">
 
           <div className="statblock">
