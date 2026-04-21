@@ -6,37 +6,30 @@ import { CURRENT_CAMPAIGN_ID, type KindKey, type PartyNote, type BoardPosition }
 
 // UI field → DB column for each kind. Only renamed fields are listed;
 // others pass through unchanged (name, title, text, desc, hooks, status, kind, etc.).
+// updated_at is server-managed by the touch_updated_at trigger
+// (supabase/migrations/0005_archive_and_pin.sql) — never write it from the client.
 const fieldAlias: Record<KindKey, Record<string, string>> = {
   people: {
     location: "location_id",
     faction: "faction_id",
     lastSeen: "last_seen_session_id",
     imageUrl: "image_url",
-    updatedAt: "updated_at",
   },
   quests: {
     giver: "giver_id",
     session: "session_id",
-    updatedAt: "updated_at",
   },
   locations: {
     imageUrl: "image_url",
-    updatedAt: "updated_at",
   },
-  goals: {
-    updatedAt: "updated_at",
-  },
+  goals: {},
   factions: {
     imageUrl: "image_url",
-    updatedAt: "updated_at",
   },
   items: {
     imageUrl: "image_url",
-    updatedAt: "updated_at",
   },
-  lore: {
-    updatedAt: "updated_at",
-  },
+  lore: {},
   sessions: {},
 };
 

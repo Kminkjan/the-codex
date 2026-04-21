@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useCampaign, useKinds } from "./hooks";
 import {
   type Campaign,
@@ -50,6 +50,7 @@ function computeSuggestions(campaign: Campaign, n: number): Suggestion[] {
 
   for (const p of campaign.people) {
     if (skip(p)) continue;
+    if (activeByConnection.has(p.id)) continue;
     if (p.lastSeen && !recentSessionIds.has(p.lastSeen)) {
       const sess = sessionsByNum.find((s) => s.id === p.lastSeen);
       out.push({
@@ -58,7 +59,7 @@ function computeSuggestions(campaign: Campaign, n: number): Suggestion[] {
         label: entityLabel(p),
         reason: sess ? `last seen session ${sess.num}` : "not seen recently",
       });
-    } else if (!p.lastSeen && !activeByConnection.has(p.id)) {
+    } else if (!p.lastSeen) {
       out.push({ kind: "people", id: p.id, label: entityLabel(p), reason: "no session link" });
     }
   }
@@ -111,6 +112,16 @@ export function CleanupPanel({ onClose, onOpenEntity }: CleanupPanelProps) {
   );
 
   const suggestions = useMemo(() => computeSuggestions(campaign, n), [campaign, n]);
+
+  useEffect(() => {
+    setSelected((prev) => {
+      if (prev.size === 0) return prev;
+      const valid = new Set(suggestions.map((s) => `${s.kind}:${s.id}`));
+      const next = new Set<string>();
+      for (const k of prev) if (valid.has(k)) next.add(k);
+      return next.size === prev.size ? prev : next;
+    });
+  }, [suggestions]);
 
   const grouped = useMemo(() => {
     const g: Partial<Record<KindKey, Suggestion[]>> = {};
