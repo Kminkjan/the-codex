@@ -52,7 +52,7 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
     });
     return f;
   });
-  const [scale, setScale] = useState(0.7);
+  const [scale, setScale] = useState(0.9);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [panning, setPanning] = useState(false);
   const [connectMode, setConnectMode] = useState(false);
@@ -391,7 +391,7 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
           <button onClick={() => zoomBy(0.1)} title="Zoom in">+</button>
           <div className="zoom-val">{Math.round(scale * 100)}%</div>
           <button onClick={() => zoomBy(-0.1)} title="Zoom out">−</button>
-          <button onClick={() => { setScale(0.7); setPan({ x: 0, y: 0 }); }} title="Reset view" style={{ fontSize: 11, fontFamily: "var(--font-fell-sc)" }}>⟲</button>
+          <button onClick={() => { setScale(0.9); setPan({ x: 0, y: 0 }); }} title="Reset view" style={{ fontSize: 11, fontFamily: "var(--font-fell-sc)" }}>⟲</button>
         </div>
       </div>
     </>
