@@ -234,7 +234,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
             position: "absolute", top: 14, right: 54,
             background: "transparent", border: "1px solid var(--ink-faded)",
             color: "var(--bloodred)", padding: "4px 8px",
-            fontFamily: "var(--font-fell-sc)", letterSpacing: ".2em", fontSize: 10,
+            fontFamily: "var(--font-fell-sc)", letterSpacing: ".16em", fontSize: 11,
             cursor: "pointer",
           }}
         >
@@ -289,7 +289,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                     <div className="stat"><div className="stat-label">Race</div><div className="stat-value">{(entity as any).race}</div></div>
                     <div className="stat"><div className="stat-label">Role</div><div className="stat-value" style={{ fontSize: 14 }}>{(entity as any).role}</div></div>
                     <div className="stat"><div className="stat-label">Disposition</div><div className="stat-value" style={{ textTransform: "capitalize" }}>{(entity as any).disposition}</div></div>
-                    <div className="stat"><div className="stat-label">Alignment</div><div className="stat-value" style={{ fontSize: 12 }}>{(entity as any).alignment}</div></div>
+                    <div className="stat"><div className="stat-label">Alignment</div><div className="stat-value" style={{ fontSize: 13 }}>{(entity as any).alignment}</div></div>
                   </>
                 )}
                 {kind === "locations" && (
@@ -467,7 +467,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
             </div>
 
             <div className="detail-rail">
-              <div style={{ fontFamily: "var(--font-fell-sc)", fontSize: 10, letterSpacing: ".2em", color: "var(--ink-faded)", marginBottom: 14 }}>
+              <div style={{ fontFamily: "var(--font-fell-sc)", fontSize: 11, letterSpacing: ".16em", color: "var(--ink-faded)", marginBottom: 14 }}>
                 ✦ RELATIONS ✦
               </div>
 

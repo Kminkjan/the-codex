@@ -800,10 +800,10 @@ body {
 }
 .card-faction .f-name {
   font-family: var(--font-fell-sc);
-  font-size: 12px;
-  letter-spacing: .12em;
+  font-size: 14px;
+  letter-spacing: .1em;
   color: var(--ink);
-  line-height: 1.1;
+  line-height: 1.15;
 }
 .card-faction .f-sub {
   font-family: var(--font-fell);
