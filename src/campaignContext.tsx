@@ -45,6 +45,7 @@ const mapLocation = (r: any) => ({
   desc: r.desc ?? undefined,
   region: r.region ?? undefined,
   ruler: r.ruler ?? undefined,
+  imageUrl: r.image_url ?? undefined,
   notes: r.notes ?? undefined,
 });
 
@@ -73,6 +74,7 @@ const mapFaction = (r: any) => ({
   sigil: r.sigil,
   desc: r.desc ?? undefined,
   allegiance: r.allegiance ?? undefined,
+  imageUrl: r.image_url ?? undefined,
 });
 
 const mapItem = (r: any) => ({
@@ -80,6 +82,7 @@ const mapItem = (r: any) => ({
   name: r.name,
   kind: r.kind,
   desc: r.desc ?? undefined,
+  imageUrl: r.image_url ?? undefined,
 });
 
 const mapLore = (r: any) => ({

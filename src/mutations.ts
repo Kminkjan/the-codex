@@ -17,10 +17,16 @@ const fieldAlias: Record<KindKey, Record<string, string>> = {
     giver: "giver_id",
     session: "session_id",
   },
-  locations: {},
+  locations: {
+    imageUrl: "image_url",
+  },
   goals: {},
-  factions: {},
-  items: {},
+  factions: {
+    imageUrl: "image_url",
+  },
+  items: {
+    imageUrl: "image_url",
+  },
   lore: {},
   sessions: {},
 };

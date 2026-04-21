@@ -10,6 +10,112 @@ import {
   deleteEntity,
   insertConnection,
 } from "./mutations";
+import { uploadEntityImage, type UploadableKind } from "./upload";
+
+const UPLOADABLE_KINDS = ["people", "locations", "factions", "items"] as const;
+const isUploadable = (k: KindKey): k is UploadableKind =>
+  (UPLOADABLE_KINDS as readonly string[]).includes(k);
+
+const chipStyle: React.CSSProperties = {
+  background: "var(--vellum-light)",
+  color: "var(--ink)",
+  border: "1px solid var(--ink)",
+  fontFamily: "var(--font-fell-sc)",
+  letterSpacing: ".1em",
+  fontSize: 11,
+  lineHeight: 1.2,
+  padding: "4px 9px",
+  boxShadow: "0 1px 2px rgba(0,0,0,.35)",
+  cursor: "pointer",
+};
+
+function PortraitFallback({ kind }: { kind: KindKey }) {
+  if (kind === "people") return <span className="silhouette" />;
+  return (
+    <div style={{ position: "absolute", inset: 6, border: "1px solid var(--ink-faded)", display: "grid", placeItems: "center", color: "var(--ink)" }}>
+      <Icon name={kindIcon[kind]} size={48} strokeWidth={1.2} />
+    </div>
+  );
+}
+
+function EntityPortrait({
+  kind,
+  entityId,
+  imageUrl,
+  label,
+  onSave,
+}: {
+  kind: UploadableKind;
+  entityId: string;
+  imageUrl: string | undefined;
+  label: string;
+  onSave: (url: string | null) => void;
+}) {
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const pick = () => fileRef.current?.click();
+
+  const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setUploading(true);
+    try {
+      const url = await uploadEntityImage(file, kind, entityId);
+      onSave(url);
+    } catch (err: any) {
+      console.error("uploadEntityImage failed", err);
+      window.alert(err?.message || "Upload failed.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const clear = () => {
+    if (!window.confirm("Remove this image?")) return;
+    onSave(null);
+  };
+
+  const hiddenInput = (
+    <input ref={fileRef} type="file" accept="image/*" onChange={onFile} style={{ display: "none" }} />
+  );
+
+  if (!imageUrl) {
+    return (
+      <button
+        type="button"
+        onClick={pick}
+        disabled={uploading}
+        className="sb-portrait portrait-empty"
+        style={{ background: "var(--paper-tan)", padding: 0, cursor: uploading ? "wait" : "pointer" }}
+      >
+        <PortraitFallback kind={kind} />
+        <div className="portrait-caption">
+          {uploading ? "Uploading…" : "Click to add portrait"}
+        </div>
+        {hiddenInput}
+      </button>
+    );
+  }
+
+  return (
+    <div className="sb-portrait">
+      <img src={imageUrl} alt={label} className="sb-portrait-img" />
+      {hiddenInput}
+      <div className={uploading ? "portrait-chips is-uploading" : "portrait-chips"}>
+        <button onClick={pick} disabled={uploading} style={chipStyle}>
+          {uploading ? "Uploading…" : "Replace"}
+        </button>
+        {!uploading && (
+          <button onClick={clear} title="Remove image" style={{ ...chipStyle, padding: "4px 8px", fontSize: 12 }}>
+            ✕
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 const STATUS_OPTIONS = ["whispered", "pursuing", "resolved", "lost"] as const;
 const DISPOSITION_OPTIONS = ["ally", "neutral", "wary", "hostile"] as const;
@@ -243,19 +349,17 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
         <div className="detail-sheet-inner">
 
           <div className="statblock">
-            {kind === "people" ? (
-              <div className="sb-portrait">
-                {(entity as any).imageUrl
-                  ? <img src={(entity as any).imageUrl} alt={entityLabel(entity)} className="sb-portrait-img" />
-                  : <span className="silhouette" />}
-              </div>
+            {isUploadable(kind) ? (
+              <EntityPortrait
+                kind={kind}
+                entityId={entityId}
+                imageUrl={(entity as any).imageUrl}
+                label={entityLabel(entity)}
+                onSave={(url) => patch({ imageUrl: url })}
+              />
             ) : (
               <div className="sb-portrait" style={{ background: "var(--paper-tan)" }}>
-                <div style={{ position: "absolute", inset: 6, border: "1px solid var(--ink-faded)", display: "grid", placeItems: "center" }}>
-                  <div style={{ color: "var(--ink)", textAlign: "center" }}>
-                    <Icon name={kindIcon[kind]} size={48} strokeWidth={1.2} />
-                  </div>
-                </div>
+                <PortraitFallback kind={kind} />
               </div>
             )}
             <div className="sb-meta">
