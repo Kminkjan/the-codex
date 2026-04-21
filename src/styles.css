@@ -999,6 +999,42 @@ body {
                 radial-gradient(ellipse 60% 80% at 50% 90%, #000 55%, transparent 56%) no-repeat;
 }
 
+.portrait-caption {
+  position: absolute;
+  left: 6px; right: 6px; bottom: 6px;
+  background: var(--vellum-light);
+  border-top: 1px solid var(--ink-faded);
+  color: var(--ink);
+  font-family: var(--font-fell-sc);
+  letter-spacing: .12em;
+  font-size: 11px;
+  padding: 4px 0;
+  text-align: center;
+  opacity: .82;
+  transition: opacity .15s;
+}
+.sb-portrait.portrait-empty:hover .portrait-caption,
+.sb-portrait.portrait-empty:focus-visible .portrait-caption {
+  opacity: 1;
+}
+
+.portrait-chips {
+  position: absolute;
+  left: 6px; right: 6px; bottom: 6px;
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .15s;
+}
+.sb-portrait:hover .portrait-chips,
+.sb-portrait:focus-within .portrait-chips,
+.portrait-chips.is-uploading {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .sb-meta .sb-kind {
   font-family: var(--font-fell-sc);
   font-size: 11px;

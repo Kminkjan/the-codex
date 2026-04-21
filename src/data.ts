@@ -38,6 +38,7 @@ export interface Location {
   desc?: string;
   region?: string;
   ruler?: string;
+  imageUrl?: string;
   notes?: string;
 }
 
@@ -66,6 +67,7 @@ export interface Faction {
   sigil: string;
   desc?: string;
   allegiance?: string;
+  imageUrl?: string;
 }
 
 export interface Item {
@@ -73,6 +75,7 @@ export interface Item {
   name: string;
   kind: string;
   desc?: string;
+  imageUrl?: string;
 }
 
 export interface Lore {
