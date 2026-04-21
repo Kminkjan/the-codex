@@ -319,3 +319,117 @@ export function Topbar({ onShare }: { onShare: () => void }) {
     </header>
   );
 }
+
+// ============================================================================
+// Editable primitives — used across the detail sheet to turn read-only fields
+// into click-to-edit contentEditable or <select>. Blur-to-save, Esc cancels.
+// ============================================================================
+
+interface EditableTextProps {
+  value: string;
+  onSave: (next: string) => void | Promise<void>;
+  placeholder?: string;
+  multiline?: boolean;
+  className?: string;
+  style?: React.CSSProperties;
+}
+
+export function EditableText({
+  value,
+  onSave,
+  placeholder,
+  multiline = false,
+  className,
+  style,
+}: EditableTextProps) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [editing, setEditing] = useState(false);
+
+  const commit = () => {
+    const next = (ref.current?.innerText ?? "").trim();
+    setEditing(false);
+    if (next !== (value ?? "").trim()) void onSave(next);
+  };
+
+  const cancel = () => {
+    if (ref.current) ref.current.innerText = value ?? "";
+    setEditing(false);
+    ref.current?.blur();
+  };
+
+  const showPlaceholder = !editing && !(value ?? "").trim();
+
+  return (
+    <div
+      ref={ref}
+      className={`editable ${editing ? "editing" : ""} ${className ?? ""}`}
+      style={{
+        outline: "none",
+        cursor: editing ? "text" : "pointer",
+        minHeight: "1em",
+        whiteSpace: multiline ? "pre-wrap" : "normal",
+        opacity: showPlaceholder ? 0.55 : 1,
+        fontStyle: showPlaceholder ? "italic" : undefined,
+        ...style,
+      }}
+      contentEditable={editing}
+      suppressContentEditableWarning
+      onClick={() => { if (!editing) setEditing(true); }}
+      onFocus={() => setEditing(true)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") { e.preventDefault(); cancel(); return; }
+        if (!multiline && e.key === "Enter") { e.preventDefault(); ref.current?.blur(); return; }
+        if (multiline && e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+          e.preventDefault(); ref.current?.blur();
+        }
+      }}
+    >
+      {showPlaceholder ? (placeholder || "Click to edit…") : value}
+    </div>
+  );
+}
+
+interface EnumSelectProps<T extends string> {
+  value: T | undefined;
+  options: readonly T[];
+  onSave: (next: T | null) => void | Promise<void>;
+  allowClear?: boolean;
+  className?: string;
+  style?: React.CSSProperties;
+}
+
+export function EnumSelect<T extends string>({
+  value,
+  options,
+  onSave,
+  allowClear = false,
+  className,
+  style,
+}: EnumSelectProps<T>) {
+  return (
+    <select
+      className={className}
+      value={value ?? ""}
+      onChange={(e) => {
+        const v = e.target.value;
+        void onSave((v === "" ? null : v) as T | null);
+      }}
+      style={{
+        background: "transparent",
+        border: "1px dashed var(--ink-faded)",
+        fontFamily: "var(--font-fell)",
+        fontSize: "inherit",
+        color: "var(--ink)",
+        padding: "2px 6px",
+        cursor: "pointer",
+        ...style,
+      }}
+    >
+      {allowClear && <option value="">—</option>}
+      {options.map((o) => (
+        <option key={o} value={o}>{o}</option>
+      ))}
+    </select>
+  );
+}

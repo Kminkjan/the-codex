@@ -1,13 +1,29 @@
 import { useRef, useState } from "react";
 import {
   type KindKey,
-  type BoardPosition,
-  type Connection,
 } from "./data";
 import { CompassRose, Icon, kindIcon } from "./icons";
 import { useCampaign, useFindEntity, useKinds } from "./hooks";
 import { CardBody, PinnedCard } from "./components";
 import { entityLabel } from "./data";
+import {
+  upsertBoardPosition,
+  insertConnection,
+  deleteConnection,
+  createEntity,
+} from "./mutations";
+
+// Minimum required columns by kind (NOT NULL constraints in 0001_init.sql).
+// createEntity injects id + campaign_id, so only the per-kind required fields go here.
+const NEW_ENTITY_DEFAULTS: Record<Exclude<KindKey, "sessions">, Record<string, unknown>> = {
+  people:    { name: "Unnamed wayfarer" },
+  locations: { name: "Unnamed place", kind: "other" },
+  quests:    { title: "Untitled quest" },
+  goals:     { text: "A new aim", owner: "The Party", kind: "party" },
+  factions:  { name: "Unnamed faction", sigil: "✦" },
+  items:     { name: "Unnamed item", kind: "relic" },
+  lore:      { title: "Untitled lore", text: "" },
+};
 
 interface Filters {
   sessions: string;
@@ -26,14 +42,8 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
   const findEntity = useFindEntity();
   const kinds = useKinds();
 
-  // Client-local overrides layered on top of the DB-seeded board.
-  // When realtime updates arrive for board_positions, the campaign.board
-  // changes; user drags stick because localPositions takes precedence.
-  const [localPositions, setLocalPositions] = useState<Record<string, BoardPosition>>({});
-  const [localConnections, setLocalConnections] = useState<Connection[]>([]);
-
-  const positions: Record<string, BoardPosition> = { ...campaign.board, ...localPositions };
-  const connections: Connection[] = [...campaign.connections, ...localConnections];
+  const positions = campaign.board;
+  const connections = campaign.connections;
 
   const [filters, setFilters] = useState<Filters>(() => {
     const f: Filters = { sessions: "all" };
@@ -64,15 +74,45 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
   const onDragEnd = (id: string, newPos: { x: number; y: number }) => {
     const base = positions[id];
     if (!base) return;
-    setLocalPositions((p) => ({ ...p, [id]: { ...base, ...newPos } }));
+    upsertBoardPosition(id, { ...base, ...newPos }).catch((e) =>
+      console.error("upsertBoardPosition failed", e),
+    );
   };
 
   const handleConnectClick = (id: string) => {
     if (!connectSource) { setConnectSource(id); return; }
     if (connectSource === id) { setConnectSource(null); return; }
-    setLocalConnections((c) => [...c, [connectSource, id, "linked"] as Connection]);
+    insertConnection(connectSource, id, "linked").catch((e) =>
+      console.error("insertConnection failed", e),
+    );
     setConnectSource(null);
     setConnectMode(false);
+  };
+
+  const removeConnection = (fromId: string, toId: string, label: string) => {
+    deleteConnection(fromId, toId, label).catch((e) =>
+      console.error("deleteConnection failed", e),
+    );
+  };
+
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
+
+  const onCreate = async (k: Exclude<KindKey, "sessions">) => {
+    setAddMenuOpen(false);
+    const id = crypto.randomUUID();
+    try {
+      await createEntity(k, id, NEW_ENTITY_DEFAULTS[k]);
+      // Drop the new card onto a slightly randomized spot so they don't stack.
+      await upsertBoardPosition(id, {
+        x: 400 + Math.floor(Math.random() * 600),
+        y: 300 + Math.floor(Math.random() * 400),
+        rot: Math.floor(Math.random() * 7) - 3,
+        kind: k,
+      });
+      onOpenEntity(id);
+    } catch (e) {
+      console.error("createEntity failed", e);
+    }
   };
 
   const onCanvasMouseDown = (e: React.MouseEvent) => {
@@ -176,6 +216,52 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
         >
           <Icon name="link" size={14} /> {connectMode ? "Cancel string" : "Draw string"}
         </button>
+
+        <div style={{ position: "relative" }}>
+          <button
+            className="btn btn-primary"
+            onClick={() => setAddMenuOpen((o) => !o)}
+            title="Pin a new card to the board"
+          >
+            <Icon name="plus" size={14} /> Pin new
+          </button>
+          {addMenuOpen && (
+            <>
+              <div
+                onClick={() => setAddMenuOpen(false)}
+                style={{ position: "fixed", inset: 0, zIndex: 40 }}
+              />
+              <div
+                style={{
+                  position: "absolute", top: "100%", right: 0, marginTop: 6,
+                  background: "var(--vellum-light)", minWidth: 180,
+                  boxShadow: "0 8px 24px rgba(40,20,5,.25)",
+                  border: "1px solid var(--ink-faded)",
+                  fontFamily: "var(--font-fell)", fontSize: 13,
+                  zIndex: 50,
+                }}
+              >
+                {kinds.map((k) => (
+                  <div
+                    key={k.key}
+                    onClick={() => onCreate(k.key as Exclude<KindKey, "sessions">)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 10,
+                      padding: "8px 12px", cursor: "pointer",
+                      borderBottom: "1px solid rgba(40,20,5,.08)",
+                    }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = "rgba(40,20,5,.04)"; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = "transparent"; }}
+                  >
+                    <span className="swatch" style={{ background: k.color, width: 10, height: 10, display: "inline-block", borderRadius: 2 }} />
+                    <Icon name={kindIcon[k.key]} size={14} />
+                    New {k.label.toLowerCase()}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       <div
@@ -221,6 +307,8 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
               const faded = filteredSessionQuests && !(filteredSessionQuests.has(a) || filteredSessionQuests.has(b));
               const isHover = hoverConn === i;
               const pathD = yarnPath(A, B);
+              const midX = (A.x + B.x) / 2;
+              const midY = (A.y + B.y) / 2 + Math.max(20, Math.hypot(B.x - A.x, B.y - A.y) * 0.08) * 0.5;
               return (
                 <g key={i}
                    onMouseEnter={() => setHoverConn(i)}
@@ -237,6 +325,16 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
                     </text>
                   )}
                   <path id={`yp${i}`} d={pathD} fill="none" stroke="none" />
+                  {isHover && (
+                    <g
+                      transform={`translate(${midX} ${midY})`}
+                      style={{ cursor: "pointer", pointerEvents: "all" }}
+                      onClick={(e) => { e.stopPropagation(); removeConnection(a, b, label); }}
+                    >
+                      <circle r="11" fill="var(--bloodred)" stroke="var(--vellum-light)" strokeWidth="1.5" />
+                      <path d="M -4 -4 L 4 4 M -4 4 L 4 -4" stroke="var(--vellum-light)" strokeWidth="2" strokeLinecap="round" />
+                    </g>
+                  )}
                 </g>
               );
             })}

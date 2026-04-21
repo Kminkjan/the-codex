@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { CampaignProvider } from "./campaignContext";
+import { AuthProvider, DisplayNameGate } from "./auth";
 import { useCampaignStatus, useKinds } from "./hooks";
 import { Icon } from "./icons";
 import { Sidebar, Topbar } from "./components";
@@ -173,8 +174,12 @@ function AppGate() {
 
 export default function App() {
   return (
-    <CampaignProvider>
-      <AppGate />
-    </CampaignProvider>
+    <AuthProvider>
+      <DisplayNameGate>
+        <CampaignProvider>
+          <AppGate />
+        </CampaignProvider>
+      </DisplayNameGate>
+    </AuthProvider>
   );
 }
