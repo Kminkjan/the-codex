@@ -14,6 +14,7 @@ import {
   insertConnection,
   deleteConnection,
   createEntity,
+  markSeen,
 } from "./mutations";
 
 // Minimum required columns by kind (NOT NULL constraints in 0001_init.sql).
@@ -65,7 +66,8 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
   }, [positions]);
 
   const [filters, setFilters] = useState<Filters>(() => {
-    const f: Filters = { sessions: "all" };
+    // Open focused on the live session's cast when a session is pinned.
+    const f: Filters = { sessions: campaign.activeSessionId ?? "all" };
     (["people", "locations", "quests", "goals", "factions", "items", "lore"] as const).forEach((k) => {
       (f as any)[k] = true;
     });
@@ -134,6 +136,12 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
     const id = crypto.randomUUID();
     try {
       await createEntity(k, id, NEW_ENTITY_DEFAULTS[k]);
+      // Creating a person while live implies they showed up this session —
+      // auto-mark them seen (people have no session_id, so this is their
+      // creation-only link, mirroring the events/quests default in createEntity).
+      if (k === "people" && campaign.activeSessionId) {
+        markSeen(id).catch(console.error);
+      }
       // Drop the new card into the first open spot so cards don't pile up.
       const spot = findFreeSpot(k);
       await upsertBoardPosition(id, {
