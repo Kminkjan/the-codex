@@ -1,6 +1,6 @@
 # Fist of Ilmater — Play Notes
 
-Sessions 31–178, cleaned from the original Google-Docs export by scripts/generate-foi-seed.ts.
+Sessions 31–191, cleaned from the original Google-Docs export by scripts/generate-foi-seed.ts.
 Images live in [images/](images/) and in the app's entity-images storage bucket.
 
 ## Session 31 — Awakening at the Guild
@@ -3395,3 +3395,482 @@ What Calumnus told us was true: we went up the stairs and found the Shadowfell. 
 
 In session 169 we were told by the Firbolg: *“There is an old forge on Mount Hotenow in the Shadowfell → Starforge. Crater near the top of MH: a lake filled with acid. In the middle of the lake = Starforge.”*  
 So we set out to the top of the mountain.
+
+## Session 179 — The Crater of the Starforge
+
+*Marpenoth 5*
+
+| **Attendees** | Mort, Fynn, Berendd |
+
+We have to actually climb the mountain, as there are no paths, because they keep getting destroyed by the volcano.
+
+Fynn created a raven called Vex to scout up the mountain. Mostly rivers of lava. No creatures to be seen. Impact crater with ruins at the edges → Lake greenish water with a small island with a large creature with flaming hair. Huge red dragon is guarding the crater, blowing fire at the buildings on the rim. Crater is a couple hundred feet wide.
+
+“Darn dragon, that was my axe!” Fire Giant thrown  
+Lake 150 down from the edge.  
+Dimension door-ed into the building on the island, minus Theothor. Partially constructed warmachine in the corner. Human man on top of a giant anvil.
+
+We tried to convince the fire giants of being sent by Mephistopheles. Didn’t really work. Zolheml and Brismkarka are sisters. Fynn is very drunk because of a giant mug of ale.  
+As we ended the session we were still (badly) trying to convince the Fire Giants that we are on their side.
+
+## Session 180 — Brimskarda's Confession
+
+*Marpenoth 5*
+
+| **Attendees** | Everyone! |
+
+Brimskarda told us their story:  
+Positioning in the ordning is everything → Social rank within giants. Hierarchical extended beyond tribes. Fought up ranks of FG’s. Married Duke Zalto: Ruler of FG’s. Gomoth left the tribe and took slaves. Tried to revive Megeira. Caused MH to erupt, killing thousands. Ironslack where they lived, traveled to MH to stop Gomoth. Heard strange voices.  
+Alliance with drow → betrayal  
+Dwarfs took out the drow lead by Breunor Battlehammer  
+Fled to Shadowfell to recuperate.  
+Met Akaanvaerd here, kind dragon.  
+Breunor Battlehammer was killed by a pit fiend. Ten years after eruption. Gomoth was nowhere to be found.  
+15 years ago Gomoth attacked Gantlgrym, but Gauntlfgrym won.  
+Felt useless arriving too late.  
+Found out Gomoth and his cult was hiding in the Temple of the Primordial. Made bunch of copies of himself. Fought him in the cave and won.  
+Voices then latched onto them. Prepare for war. Titan of Death (Vonindod) = Ancient machine needed to be revived. Voice was Meph.  
+All giants listen to the same voice. Started working together with Frost Giants. Took over land from the dwarfs.  
+An explosion took assistants and the voice of Mephistopheles. So did the FG’;s near the explosions. Mostly safe here. Voice returned faintly to some. Planned to get into his good graces, but need to build a machine to rival the Vonindod.  
+The Runic Colossis. Need help → Theldin, Forge of Spells. Contacted the Hill Giants of Grudd Haug.
+
+Detect Magic on Brimskarda revealed: Abjuration, Divination and Enchantment.  
+Oliver and Fynn BOTH tried Dispel Magic on Brimskarda.  
+Dispelled all of them, but one of them was a spell of a level that we will never be able to cast. Brimskarka knew where she was, but not how she got there. The last thing she remembers is that she was in Ironslag working on the Vonindod for her master: ???  
+Apparently Brimskarda knows Barendd → “How did you escape the city”.  
+Brimskarda is set on returning to Ironslag to finish the Vonindod, which is also a problem in and of itself.
+
+We tried to dispel the magic on Zohelm, but failed. This caused them to attack us.
+
+→ Fire imm, acid res
+
+We killed Zohelm.  
+Killed a salamander (\< 87 HP)  
+Fynn tried to free Theldin
+
+Fynn message to Barendd: “If you don’t hear from me in 12 seconds, Dimension Door to where we came from and make sure everyone else does too.”  
+→ Plan is for Fynn to try and Dimension Door with Theldin to safety and have the rest follow. *Now that I think about it, it might not be such a good idea.*
+
+Meanwhile, we killed Brimskarda too. Left combat at the end of the session.
+
+## Session 181 — Speak with the Dead
+
+*Marpenoth 5*
+
+| **Attendees** | Almost everyone, if it wasn’t for Bas being sick af |
+
+Unshackled Theldin and gave him some healing.  
+Faded the brand on Theothor.  
+Speak with Dead on Brimskarda:
+
+* **What happened at the Conclave of Silverymoon?**  
+  * Gomoth  
+* **What happened at the SCHOOL the Conclave of Silverymoon a year and a half ago?**  
+  * Doesn’t know  
+* **What is Mephistopheles’ end goal?**  
+  * A fair and beautiful world for everyone. \<3  
+* **What are contender right hand of Mephistopheles**  
+  * Doesn’t know what that means. Currently it is Hutijin ([link](https://docs.google.com/document/d/1uJLDvkO8FdxidRvzMJYBj1Ijl_XijIoCVzaZ3qVodkk/edit?tab=t.0#heading=h.iw5qiuplwlae))  
+* **Akaanvard’s intentions?**  
+  * Kind man, lost his way.
+
+Got caught up in the fight between the other Fire Giants and Akaanvaerd. Struck a deal with the FG’s: let them survive and we can have Theldin. And so we started to fight Akaanvaerd.
+
+Fire giants after being pulled into the burning lake of acid: Glowing red eyes, shadowy stuff pouring from their orifices
+
+Theothor was forced to flee by way of the “Command” spell and he choice to banish himself to his home plane. Arrived in a cavern deep below the siren sea. Cavern of steel, a kraken chained to the wall, seats mounted on top of it. Dark, half-Leonin, half-machines are there. They walk towards the kraken to pilot it.
+
+## Session 182 — Into the Lake of Acid
+
+*Marpenoth 5*
+
+| **Attendees** | Fynn, Mort, Oliver |
+
+FG’s lazely threw rocks, but at immense force.  
+Mort killed the dragon and crashed its corpse into a fire giant. However, that caused Mort to slam into a wall and fall into the acid lake, leaving his rapier on the top of the building. Stuck on a pillar.
+
+Fynn grabbed Theldin and Dimension Door-ed
+
+Another shriek and the temperature drops. A skeletal version of Akaanvaerd appeared. Mort managed to climb up the rim.
+
+## Session 183 — The Fall of Akaanvaerd
+
+*Marpenoth 5*
+
+| **Attendees** | Fynn, Mort, Oliver |
+
+Slain Akaanvaerd, sought shelter in one of the ruins; took a long rest. Mort’s sword is still on top of the roof, which he took back with some help from Fynn’s “Fly” spell.
+
+We had a Teleportation Circle opened, leaving Theothor (who banished himself) behind. Arrived safely back at the guild in Triboar. From there we teleported to the Forge of Spells.
+
+Decided to accompany Theldin to the Forge of Spells as he works on upgrading our Dragon-Touched weapons and amulets.
+
+During this time we plan on discussing:
+
+* Celebrate Theothor who is definitely still very much alive and not dead.yes.  
+* when to fulfil out debt to Neverwinter  
+* our headquarter’s location  
+* Barendd’s party position  
+* Go over our side quests  
+* Go over what to do next
+
+## Session 184 — Evernight and the Bow of Nylea
+
+*Marpenoth 5*
+
+| **Attendees** | Everyone! Yay! |
+
+Theothor’s adventures:  
+Cold lamps, iron walls, dark cavern. Reflection in water below. Multiple layers between Theothor and the water.  
+Strange type of magic that is being used.  
+About 15 Leonin in this cavern, one on Theothor’s level.  
+Got caught by one of the Leonin after opening a creaking door.  
+Found a bow he recognized. When shot seasons changed. Bow of Nylea.  
+Theothor shot an arrow at the Leonin, after which the arrow turned into a Lynx.  
+Killed all the Leonin there.  
+Canceled the banishment and returned to the Starforge.  
+The teleportation circle the rest of the group used doesn’t look fresh anymore, which is weird because Theothor was only gone for about 45 seconds and the teleportation circle takes a minute to cast.
+
+Flew to Evernight, lively city of undead, including a corpse market, where the bodies of the dead are bought and sold.  
+Dolindar tomb in the north graveyard in which Theothor will find someone delving for treasure. Someone not from the city with means to get to Neverwinter.
+
+—----------
+
+Strange caller to Barendd: you want to see Mumpena again.  
+“In the Wave Echo Cavo you will find the Forge of Spells. What you might not expect to find there are goblins. Mind goblins. Seek them out and retake the Forge of Spells from these *supposed heroes*. Kill Fynn and the others.”  
+Barendd said: “I’ll think on it”.  
+Tried to NOT get teleported to the Wave Echo Cave.  
+White Void, tiny black dot. Gets closer, some sort of scenery, forest. Like a cracked, framed painting of a forest. Smell of rotten glass. Painting passes us by.  
+Many more scenes appeared, some distorted, some shattering, some pristine. None reach us. Tried to catch one, but they were too far away. Saw the world Theothor was in.
+
+Suddenly, arrived at the Forge of Spells.  
+Floop (through Kelle Japtein): Some guys from Neverwinter are in Evernight right now.  
+Gave our Dragon Touched magic items to Theldin.
+
+**About our plans:**
+
+* Celebrate Theothor who is definitely still very much alive and not dead.yes.  
+* when to fulfil out debt to Neverwinter  
+  * Plan to return to Neverwinter tomorrow  
+* Our headquarter’s location  
+* Barendd’s party position  
+* Go over our side quests  
+* Go over what to do next
+
+## Session 185 — The Dolindar Tomb
+
+*Marpenoth 5*
+
+| **Attendees** | Rip Babsie, hij is uit de band gestapt. ‘*F*’ - de groep |
+
+“*There’s no point in having money if the world has ended, Fynn.*”
+
+- Mort
+
+**Options for headquarters**
+
+* A city, so we can help more people  
+* Preferably with lots of travelers, so that we might spread the word of the guild, such as a port city.  
+* Possible destinations:  
+  * Helm’s Hold  
+  * Baldur’s Gate  
+  * Moonshae Isles  
+  * Waterdeep  
+  * Neverwinter  
+  * Sembia = upcoming economic merchant power + possible beaches  
+  * Silverymoon?  
+  * Sexbierum = up and cumming
+
+Theothor arrived at Dolindar Tomb, where he fought a spider-like monster *[image not included due to arachnophobia sufferers]*. He also became friends with **Newmy** and fought with some horrific entity. Helped someone to solve a puzzle.
+
+Crevice of Dusk = Portal between Shadowrealm and PMP.  
+Sons: Nolan, Evisha.  
+![](images/image58.png)![](images/image59.png)
+
+Boat with big-headed goblins on it? Disappeared? Wtf?
+
+![](images/image60.png)\< Eldon Keyward
+
+## Session 186 — A Base in Waterdeep
+
+*Marpenoth 6*
+
+| **Attendees** | Mort, Oliver, Fynn  |
+
+* We have decided that we will start our base in **Waterdeep**.  
+* Wishlist that we gave to the Harpers:  
+  * A weapon (like a sword) that might help us stop Mephistopheles  
+  * A multi-people transporter/teleporter, because teleportation magic is draining.  
+  * Something that grants invisibility, preferably a ring or earring  
+  * Something that allows us to cast more spells (because spellcasters get drained easily)  
+  * Party-wide telepathy (a way to easily communicate with each other, ideally over longs distances and/or without other people hearing it.)  
+* Were met in the WEC by Rudolph van Richten, who came to summon us. Has been struggling with adjusting to the hero's life. Too many people, too many groups. He’s more of a lone wolf.  
+* Received our items back from Theldin, asked us to find Elder Dragon scales.  
+* Theldin → Niece Dana + worthless husband lived in Port Llast, we will ask around in Neverwinter, maybe they’re among refugees.  
+* Were teleported back to Triboar by an extension of St. Ebenezer.  
+* St. Ebenezer didn’t know about the white void, didn’t ring a bell. Stuck between space and time. Only someone with powers as strong as gods may do something like that. Someone contacted Barendd through the antimagic field.  
+  * Fynn mused: did Mephistopheles gain godlike powers?  
+  * St. Ebenezer mused:  
+    * First time white void: Killed Strahd → got into white void → killed Strahd again → got out of white void.  
+    * Second time white void: Did nothing → got into white void → did nothing → got out of white void.  
+* St. Ebenezer has a tracker with which he can see the location of all heroes while they are on the PMP.  
+* Bunk beds in a large hall in the guild. Shared room, but everyone has their own bed and chest. Also large showering room enchanted to have a permanent light drizzle and a hot tub, coals underneath. We chose the hot tub.  
+* Mats Boevelot ofzo is a hero in the guild. Gave us the items we asked from the Harpers:  
+  * 2 Rings of Spell Refueling: While wearing this ring, you can recover one expended spell slot as a Bonus Action. The recovered slot can be of level 3 or lower. Once used, the ring can’t be used again until the next dawn.  
+  * 5 Earrings of Message: The blue crystal of this earring is wrapped with delicate copper wire. The earring has 5 charges. While wearing it, you can use an action to expend 1 charge and cast the message spell. The earring regains 1d4+1 expended charges daily at dawn.  
+  * A Weapon of Certain Death (changes shape to fit the holder): When you damage a creature with an attack using this magic weapon, the target can’t regain hit points until the start of your next turn. + Mastery: Vex.  
+* Talked to Floop, who is overseeing things in Weaver’s absence.  
+* Teleported to Neverwinter, where we will start next session.
+
+## Session 187 — Hail the Undying
+
+*Marpenoth 6 (about noon)*
+
+| **Attendees** | Mort, Oliver, Fynn  |
+
+Were met in the teleportation room by a large human man, blue cape and armor; almost regal: **Lord Protector Dagult Neverember.**
+
+Assignment:
+
+* In tavern find human woman in leather armor called **Kevori Fearnehart**: investigator employed by LP  
+* Kevori investigates suspicious cult activity with brother **Delvin,** who is now dead  
+* Desiccated eyeball (op-/uitgedroogd) is the only lead  
+* Talk to Kevori for instructions
+
+Kevori:
+
+* Delvin went undercover with cultists (his face morphed?)  
+* He didn’t know the location of their hideout; was magically veiled  
+* Week ago found Delvin dead, had the eyeball with him  
+* Meeting place where she found Delvin’s body: last place they were to reconvene  
+* What she can tell us about the cultists:  
+  * Serve a lich (don’t know the name of the lich) [haven’t we met a lich be4?]  
+    * Lichdom = form of undead that wizards & other mages could become to “live” forever. Unknown to us how one become’s a lich. An item holds the soul, as long as that item is safe, the lich is alive. Liches must consume souls to prevent themselves from decaying. Generally seen as something evil, but it doesn’t *have* to be evil. All liches have great power.  
+  * Experimenting with runic circles, doing stuff to their shadows: “They would be tied down in the middle of a runic circle and then using the surrounding light, cast a shadow, do things to the shadow”.  
+  * Kidnappings that led back to the cultists  
+  * Some of them were found dead, cultists used them in early experiments  
+    * Scarred, almost beyond recognition: face seemed mutated (brother also had seemed some)  
+  * 6 more people MIA:  
+    * Umberto Noblin  
+    * Darryne Hempgloom  
+    * Jerot Galgin  
+    * Sarcelle Malinosh  
+    * Indrina Lamsensettle  
+    * Eldon Keyward  
+  * Were presumably testing things on innocent people and then on themselves.  
+* Asked her if we could dig up her brother’s body (buried in the **Neverdeath Graveyard**), if all other trails turn cold.  
+* If we manage to find their hideout: Killing the cultist is allowed, but LP Neverember prefers captives for information.
+
+We were stopped by some guard guy:
+
+* **Jimmy**  
+* Asked for our papers, was visibly shaken when we told him we were working for LP Neverember.  
+* First day on the job  
+* Told us no refugees from Port Llast entered Neverwinter  
+* Big explosion above Port Llast after some of our guild went there
+
+Found a secluded alleyway to investigate the eyeball:
+
+* Detect Magic: Aura of Divination Magic  
+* Identify: Key phrase to this eyeball. When said, it will point to the direction of the hideout. The key phrase = “Hail the undying”.  
+* Said the phrase: eyeball started glowing with green light and spins to the North East.
+
+Arrived at the location:
+
+* Alley with a blocked dark tunnel  
+* Informed Kevori that we found the location  
+* Went inside stealthily  
+  * 10ft high ceiling  
+  * Tunnel down, 20 ft below street level, ending in a wide chamber, sound of lapping water.  
+* Waded through a water-filled tunnel, where we encountered a creature lurking in the water.  
+* A room later, we found a ghost wearing armor:  
+  * Has an orb for a head.  
+  * Doesn’t remember who he was before he died. Is very forgetful in general.  
+  * Has a crest/coat of arms on the back of the armor: Blunted Six-point Crown = crest of the Hallwinter Family → Produced knights in cities like Neverwinter and Waterdeep. We know Sildar Hallwinter, whom we rescued from the Gragmaws, was travelling with Gundren Rockseeker and an escort. Took him to Phandelin afterwards, where we went into the Redbrand Hideout where we captured Iarno, whom Sildar volunteered to escort to Neverwinter. Found out he died.  
+  * Cannot leave the room, gets joinked back.  
+  * Dispel Magic and Remove Curse didn’t do anything.  
+  * Little did we know there was a sarcophagus in the room beyond, literally about 40 feet away. Name on the inscription said: **Makalia Siannodel.**  
+    * Heart shaped golden locket on a bookshelf. Inside it says “My dearest Chanelle” and contains a picture of a woman.  
+    * Incense sticks and a component pouch  
+    * A fake book containing a Spell Scroll of Protection from Evil and Good.  
+  * We said the name **Chanelle Hallwinter**, her face returned along with her memories. Chanelle Hallwinter = her.  
+  * She walked up another staircase, into a room with another sarcophagus with her name on it:  
+    * She disappeared.  
+    * A hidden passageway appeared in the room of her sacrophagus.  
+    * Contained a Shield of Missile Attraction, which we took with us:  
+      * It is cursed, but in a good way.
+
+## Session 188 — The Cult of Vecna
+
+*Marpenoth 6*
+
+| **Attendees** | “The core group” |
+
+* Room with shrine:  
+  * Eight zombies (which we killed)  
+  * Eye on the floor and on the shrine  
+  * Shrine dedicated to **Oghma**, deity of Creation & Invention.  
+  * Text on the shrine says:  
+    * An idea has no heft but it can move mountains.  
+      An idea has no authority but it can dominate people.  
+      An idea has no strength but it can push aside empires.  
+      Knowledge is the greatest tool of the mortal mind, outweighing anything made by mortal hands.  
+      Before anything can exist, the idea must exist.  
+  * Images of Oghma normally joyful, but this one shriveled. Energy seems sucked out of this shrine and used for something else. Misused. Oghma didn’t like that, according to Oliver.  
+* Hallways beyond:  
+  * Double door, locked, one eye, empty socket next to it. Oliver put the eyeball we found in the empty socket, which opened the door.  
+* Hall down the stairs:  
+  * Stone pews, relatively clean. Probably recently used and/or cleaned.  
+  * Black candles  
+  * Stone sculpture of an emaciated hand with one eyeball in its palm. Symbol of **Vecna** (lich and God of Secrets Known and feared on many worlds):  
+    * Vecna once human, “ascended” to lichhood, then to godhood.  
+* Next room:  
+  * Table with parchment:  
+    * Cult Experiments  
+      * The cult's leader, **Zalryr**, is experimenting with ways to magically siphon secrets from an individual's soul. Early experiments reduced volunteers to piles of necrotic sludge, which were disposed of in the sewerage.  
+    * Others?  
+      * The cultists here are but one sect of many that have infiltrated Neverwinter. The other sects have chosen different areas of the city's catacombs as their respective hideouts.  
+  * Books line the walls:  
+    * Books about dark magic  
+    * School books  
+  * Ebony lockbox:  
+    * Trapped → Necrotic explosion  
+    * Contains two Potions of Greater Healing  
+  * Spell scrolls:  
+    * Blindness/Deafness  
+    * Death Armor  
+    * Negative Energy Flood  
+    * Wither and Bloom  
+* Whisper room:  
+  * Cacophanous whispers fill this room  
+  * Robed figure with slick back oily hair is chanting; skin gaunt and gray  
+  * Craved into the floor before him a runic circle pulsing with sickly green light. Two people in the circle, turning into shadowy lanky entities.  
+  * After defeating/capturing most people,. the runic circle started pulsing, glowing. A skull appeared with one glowing eye.  
+  * Apparition turned Zalryr and the captured fanatic into sludge. It also passed through us, dealing massive amounts of typeless damage.  
+* Evidence collected:  
+  * Vial of person sludge  
+  * Notes of the ritual circle: Y'ai 'ng'ngah, Vecna h'ee - l'geb f'ai throdog uaaah. → I call death, Vecna answers - here they call trembling.  
+    * Same thing that it said on the obelisks in Barovia that Meph was taking  
+  * Aforementioned papers  
+* Plan:  
+  * Turn evidence in to Kevori:  
+    * Cultleader called **Zalryr** was trying to magically siphon secrets from souls. They might have been successful (do we know?). Would explain her brother’s death.  
+    * People on whom the early experiments failed were dumped in the sewerage.  
+    * Cult worships Vecna.  
+    * Cult is much more widespread. There are multiple sects spread throughout Neverwinter’s catacombs.  
+  * Share what we found with the guild  
+    * Is Meph trying to become a god?  
+    * Did the cult (try to) release Vecna? If so, why?  
+    * What is the connection between Meph and Vecna?
+
+## Session 189 — The Hallix Mausoleum
+
+*Marpenoth 6 (early afternoon)*
+
+| **Attendees** | Oliver, Fynn, Mort, Theothor |
+
+| To do |
+| :---- |
+| **Main quest:**  Spend a day in Neverwinter to help the Lord Protector as payment for the teleportation.	 Regrow that one man’s penis Ask around about Theldin’s niece Dana and her worthless husband. **Side quests:** Go to Mithral Hall to ask around about Gargosh Blusterhelm and Drannin Splithelm Find out from the Fire Giants what happened in Silvery Moon (Fynn) Gomoth Find out if he is truly dead Maybe go to Silverymoon? Give Barendd a party position (Barendd) Have Oliver cast Regenerate on Mort for his eye. Find scales of an Elder Dragon for Theldin Check if everyone has a Strike of the Giants feature. |
+
+**Correction to previous notes:**
+
+* The ritual was for turning two cultists into something else (stealing their secrets). The ritual circle then started glowing and pulsing and disappeared.  
+* The skull appeared afterward, said: The smoke *[that appeared from Zalryr as he died]* gathers in the center of the chamber, where it coalesces into an apparition of an emaciated skull with one glowing green eye. The apparition speaks in a hissing baritone. "Good news, Zalryr. Though your efforts have been disappointing, you have brought me new... points of interest." The apparition swivels to look at each of you in turn. "Yes, there is great potential here. May we meet again—but until then, I have my eye on you." The apparition then explodes into streaks of shadow, passing through each of you with a whispered scream before vanishing., passed through us, did damage, gave us Charms and disappeared again.
+
+**Main group:**
+
+* Tried to find their way back to the Moonstone Mask, were eventually escorted by a friendly guard.  
+* Started out in the River District / northeast. Passed the Shard of the Moon and the Hallowed Temple of Selune and walked past the Blacklake District to the northwest. Passed Castle Never and took the Sleeping Dragon Bridge, passing the Dolphin Bridge and the Winged Wyvern Bridge. In the Protector’s Enclave, to the southeast, we passed the Hall of Justice and went to the docks. There we walked past the Tarmalune Trade House before finally arriving at the Moonstone Mask.  
+* Spoke to Kevori. A Second location was found: Neverdeath Graveyard → Hallix Mausoleum. Sus people going in and out.  
+* Went to Neverdeath by backtracking to the Hall of Justice, then heading east past the Trade of Blades and Allis Lhyssich’s Hand Crafted Weapons and Magical Weapons for Noble Causes. We walked through Pauper's Field to finally get into the main graveyard, where we found the Hallix Mausoleum, which we entered.
+
+**Theothor:**
+
+* Theothor had a rest and activated the Crevice of Dusk with Eldon.  
+* Whisked away by tendrils as they tried to use the crevice to return to Neverwinter.  
+* Arrived in a kitchen underneath Neverdeath, in a crypt connected to the Hallix Mausoleum.  
+* “Teeth of Vecna”. Real name is Oxtu. Got into a fight with them.
+
+—-------------------------------------------------------
+
+## Long Rest
+
+Approx time of day: evening.
+
+* Entered the second location, got into a fight with wights.  
+* ALMOST Reunited with Theothor.
+
+## Session 190 — The Missing of Neverdeath
+
+*Marpenoth 6 (afternoon)*
+
+| **Attendees** | Barendd, Fynn, Mort |
+
+Cleared the dungeon. Theothor fell asleep, as well as Oliver.
+
+**Eldon Keyward**
+
+* **Goal:** Loves learning about teleportation and helping  
+* In the employ of Neverwinter  
+* Scholar on teleportation devices between Evernight and Neverwinter  
+* He’s not sure why Neverwinter would want that  
+* Crevices of Dusk should bring you to the dread domain that Evernight is located in  
+* Found out these cultists have a crevice, they kidnapped him, but he escaped.  
+* Speaks of Psionic magic as the fourth type of magic.  
+  * Duergar more prone to developing “mindfire” than other species.  
+  * Psionic magic comes from inside, from the brain → brain = source.  
+* Speaks of Psychoportation rather than Teleportation.  
+  * Psychoportation: Teleportation through Psionic Magic.  
+* New Neverwinter was built on top of old Neverwinter  
+* Eldon teleported to Evernight through the crevice and ended up in a tomb there.  
+* Has found schematics of the Crevices in the libraries of Candlekeep  
+* St. Ebeneezer is also involved in all this. Eldon is obliged to sharing any and all information he learns with St. Ebeneezer.  
+* Went on his way, might see him later back in Triboar.
+
+**Further investigation of the dungeon:**
+
+* Found a woman gagged and tied in a side room:  
+  * **Sarcelle Malinosh** (on of 6 people mentioned as missing by Kevori)  
+  * Kidnapped by members of the cult. Sitting at home when robed, masked figures busted down her door. Was four weeks ago.  
+  * Wild magic sorcerer, but stripped of power during travel to distant plane.  
+  * Theory: seems to have been targeted specifically  
+  * **Jerot Galgin** (another missing person) rings a bell, might be a wizard  
+  * Knows **Indrina Lamsensettle** (another missing person) = actress  
+  * Also knows Eldon  
+  * The sarcophagus room she was held in was completely scrubbed and stripped from any name plates or other markings.  
+* One room has a grate covering a 3ft deep pit containing:  
+  * Small gold harp  
+  * Handful loose papers  
+    * Plans to kidnap a Neverwinter aristocrat Indrina Lamsensettle, knows an important secret of the Lord Protector.  
+    * “Her secrets will prove a worthy sacrifice”  
+  * Piece of bloody cloth  
+* Water room  
+  * Contains water elemental and two water weirds.  
+  * Spoke to them:  
+    * Bullied by cultists  
+    * If no harm is done, they will do no harm  
+    * Once bound to serve the Waterclock Guild, but now free.  
+    * Enjoy the perpetual rain in the room  
+    * Lockey a creature in that padlocked room  
+    * Fish creature in the next room. Shanzezim; was also bound. Still bound to the crypts tinkering with clocks. Neutral as well.  
+  * The water creature opened the door with person behind it for us: Umberto Noblin
+
+**Umberto Noblin:**
+
+* Historian of Vecna, lover of the culinary arts.  
+* Knows a lot about the relationship between Cas the Vampire and Vecna:  
+  * Owns a painting of a young Cas and a young Vecna.  
+* Captured by cultists 34 days ago while writing at home
+
+Had both Umberto and Sarcelle wait outside the dungeon.
+
+## Session 191 — Loose Ends in Neverwinter
+
+*Marpenoth 6 (early afternoon)*
+
+| **Attendees** | Theothor, Mort, Fynn, Barendd??? |
+
+| To do |
+| :---- |
+| **Main quest:**  Spend a day in Neverwinter to help the Lord Protector as payment for the teleportation.	 Regrow that one man’s penis Ask around about Theldin’s niece Dana and her worthless husband. **Side quests:** Go to Mithral Hall to ask around about Gargosh Blusterhelm and Drannin Splithelm Find out from the Fire Giants what happened in Silvery Moon (Fynn) Gomoth Find out if he is truly dead Maybe go to Silverymoon? Give Barendd a party position (Barendd) Have Oliver cast Regenerate on Mort for his eye. Find scales of an Elder Dragon for Theldin Check if everyone has a Strike of the Giants feature. |
