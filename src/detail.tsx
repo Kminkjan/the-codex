@@ -51,6 +51,7 @@ function EntityPortrait({
   label: string;
   onSave: (url: string | null) => void;
 }) {
+  const { canEdit } = useAuth();
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [uploading, setUploading] = useState(false);
 
@@ -82,6 +83,13 @@ function EntityPortrait({
   );
 
   if (!imageUrl) {
+    if (!canEdit) {
+      return (
+        <div className="sb-portrait" style={{ background: "var(--paper-tan)" }}>
+          <PortraitFallback kind={kind} />
+        </div>
+      );
+    }
     return (
       <button
         type="button"
@@ -102,17 +110,21 @@ function EntityPortrait({
   return (
     <div className="sb-portrait">
       <img src={imageUrl} alt={label} className="sb-portrait-img" />
-      {hiddenInput}
-      <div className={uploading ? "portrait-chips is-uploading" : "portrait-chips"}>
-        <button onClick={pick} disabled={uploading} style={chipStyle}>
-          {uploading ? "Uploading…" : "Replace"}
-        </button>
-        {!uploading && (
-          <button onClick={clear} title="Remove image" style={{ ...chipStyle, padding: "4px 8px", fontSize: 12 }}>
-            ✕
-          </button>
-        )}
-      </div>
+      {canEdit && (
+        <>
+          {hiddenInput}
+          <div className={uploading ? "portrait-chips is-uploading" : "portrait-chips"}>
+            <button onClick={pick} disabled={uploading} style={chipStyle}>
+              {uploading ? "Uploading…" : "Replace"}
+            </button>
+            {!uploading && (
+              <button onClick={clear} title="Remove image" style={{ ...chipStyle, padding: "4px 8px", fontSize: 12 }}>
+                ✕
+              </button>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -244,7 +256,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
   const campaign = useCampaign();
   const findEntity = useFindEntity();
   const entity = findEntity(entityId);
-  const { displayName } = useAuth();
+  const { displayName, canEdit } = useAuth();
 
   const notes = campaign.notes[entityId] || [];
 
@@ -350,7 +362,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
     <div className="detail-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className={`detail-sheet tex-vellum ${isArchived(entity) ? "is-archived" : ""}`}>
         <button className="detail-close" onClick={onClose}><Icon name="close" size={16} /></button>
-        <div style={{ position: "absolute", top: 14, right: 54, display: "flex", gap: 6, zIndex: 2 }}>
+        {canEdit && <div style={{ position: "absolute", top: 14, right: 54, display: "flex", gap: 6, zIndex: 2 }}>
           {isArchivableKind(kind) && (
             <>
               <button
@@ -379,7 +391,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
           >
             ✕ STRIKE
           </button>
-        </div>
+        </div>}
         <div className="detail-sheet-inner">
 
           <div className="statblock">
@@ -585,7 +597,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                 ))}
               </div>
 
-              <div
+              {canEdit && <div
                 className="add-note"
                 contentEditable
                 suppressContentEditableWarning
@@ -601,7 +613,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                 }}
               >
                 {draft ? null : "Leave a note in the margin… (⌘↵ to pin)"}
-              </div>
+              </div>}
             </div>
 
             <div className="detail-rail">
@@ -634,10 +646,10 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                 );
               })}
 
-              <div className="rail-section">
+              {canEdit && <div className="rail-section">
                 <h4>Add Relation</h4>
                 <AddRelationForm fromId={entityId} />
-              </div>
+              </div>}
             </div>
           </div>
 

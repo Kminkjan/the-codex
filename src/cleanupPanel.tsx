@@ -10,6 +10,7 @@ import {
 } from "./data";
 import { Icon } from "./icons";
 import { bulkArchive } from "./mutations";
+import { useAuth } from "./auth";
 
 interface Suggestion {
   kind: KindKey;
@@ -102,6 +103,7 @@ interface CleanupPanelProps {
 export function CleanupPanel({ onClose, onOpenEntity }: CleanupPanelProps) {
   const campaign = useCampaign();
   const kinds = useKinds();
+  const { canEdit } = useAuth();
   const [n, setN] = useState(5);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [working, setWorking] = useState(false);
@@ -242,14 +244,14 @@ export function CleanupPanel({ onClose, onOpenEntity }: CleanupPanelProps) {
           </span>
           <div style={{ display: "flex", gap: 8 }}>
             <button className="btn" onClick={onClose}>Close</button>
-            <button
+            {canEdit && <button
               className="btn btn-primary"
               onClick={archiveSelected}
               disabled={selected.size === 0 || working}
               style={{ opacity: selected.size === 0 || working ? 0.5 : 1 }}
             >
               {working ? "Archiving…" : `Archive ${selected.size}`}
-            </button>
+            </button>}
           </div>
         </div>
       </div>

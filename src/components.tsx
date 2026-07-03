@@ -3,6 +3,7 @@ import { type KindKey, type PresenceUser } from "./data";
 import { Icon, MapScribble, kindIcon } from "./icons";
 import { useCampaign, useKinds } from "./hooks";
 import { createEntity } from "./mutations";
+import { SignInDialog, useAuth } from "./auth";
 
 interface Position {
   x: number;
@@ -256,6 +257,7 @@ interface SidebarProps {
 export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, counts }: SidebarProps) {
   const campaign = useCampaign();
   const kinds = useKinds();
+  const { canEdit } = useAuth();
   const totalArchived = kinds.reduce((sum, k) => sum + (counts[k.key]?.archived ?? 0), 0);
   return (
     <aside className="sidebar">
@@ -296,7 +298,7 @@ export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, counts 
 
       <div className="sidebar-label">
         <span>Sessions</span>
-        <button
+        {canEdit && <button
           title="New session"
           onClick={() => {
             const id = crypto.randomUUID();
@@ -316,7 +318,7 @@ export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, counts 
             fontSize: 13, padding: 0, cursor: "pointer",
             flex: "0 0 auto",
           }}
-        >+</button>
+        >+</button>}
       </div>
       {campaign.sessions.slice().reverse().map((s) => (
         <div key={s.id} className="session-chip" onClick={() => onOpenEntity(s.id)}>
@@ -338,6 +340,8 @@ export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, counts 
 
 export function Topbar({ onShare }: { onShare: () => void }) {
   const campaign = useCampaign();
+  const { canEdit, displayName, signOut } = useAuth();
+  const [signingIn, setSigningIn] = useState(false);
   return (
     <header className="topbar">
       <div className="logo">
@@ -359,8 +363,38 @@ export function Topbar({ onShare }: { onShare: () => void }) {
       <div className="topbar-right">
         <Presence users={campaign.presence} />
         <button className="btn" onClick={onShare}><Icon name="share" size={14} /> Share link</button>
-        <button className="btn btn-primary"><Icon name="plus" size={14} /> New entry</button>
+        {canEdit ? (
+          <>
+            <span style={{
+              fontFamily: "var(--font-fell)", fontStyle: "italic",
+              fontSize: 12, color: "var(--ink-faded)",
+            }}>
+              {displayName}
+            </span>
+            <button
+              className="btn"
+              onClick={() => { signOut().catch(console.error); }}
+              title="Sign out and return to read-only viewing"
+            >
+              Sign out
+            </button>
+          </>
+        ) : (
+          <>
+            <span style={{
+              fontFamily: "var(--font-fell-sc)", letterSpacing: ".14em",
+              fontSize: 10, color: "var(--ink-faded)",
+              border: "1px dashed var(--ink-faded)", padding: "3px 8px",
+            }}>
+              READ-ONLY
+            </span>
+            <button className="btn btn-primary" onClick={() => setSigningIn(true)}>
+              Sign in to edit
+            </button>
+          </>
+        )}
       </div>
+      {signingIn && <SignInDialog onClose={() => setSigningIn(false)} />}
     </header>
   );
 }
@@ -388,6 +422,7 @@ export function EditableText({
   className,
   style,
 }: EditableTextProps) {
+  const { canEdit } = useAuth();
   const ref = useRef<HTMLDivElement>(null);
   const cancelledRef = useRef(false);
   const [editing, setEditing] = useState(false);
@@ -437,6 +472,27 @@ export function EditableText({
   };
 
   const showPlaceholder = !editing && !(display ?? "").trim();
+
+  // Read-only viewers get plain text: no affordance, no handlers. The
+  // default "Click to edit…" placeholder is edit language, so only an
+  // explicit placeholder (e.g. "Unclaimed") is shown for empty values.
+  if (!canEdit) {
+    const empty = !(value ?? "").trim();
+    return (
+      <div
+        className={className}
+        style={{
+          minHeight: "1em",
+          whiteSpace: multiline ? "pre-wrap" : "normal",
+          opacity: empty ? 0.55 : 1,
+          fontStyle: empty ? "italic" : undefined,
+          ...style,
+        }}
+      >
+        {empty ? placeholder ?? "" : value}
+      </div>
+    );
+  }
 
   return (
     <div
@@ -495,6 +551,14 @@ export function EnumSelect<T extends string>({
   className,
   style,
 }: EnumSelectProps<T>) {
+  const { canEdit } = useAuth();
+  if (!canEdit) {
+    return (
+      <span className={className} style={{ fontFamily: "var(--font-fell)", ...style }}>
+        {value ?? "—"}
+      </span>
+    );
+  }
   return (
     <select
       className={className}
