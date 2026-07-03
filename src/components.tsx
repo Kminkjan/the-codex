@@ -61,6 +61,7 @@ interface PinnedCardProps {
   pos: Position;
   onOpen: (id: string) => void;
   onDragEnd: (id: string, p: { x: number; y: number }) => void;
+  canEdit: boolean;
   scale: number;
   connectMode: boolean;
   onConnectClick: (id: string) => void;
@@ -74,6 +75,7 @@ export function PinnedCard({
   pos,
   onOpen,
   onDragEnd,
+  canEdit,
   scale,
   connectMode,
   onConnectClick,
@@ -95,20 +97,23 @@ export function PinnedCard({
     e.stopPropagation();
     const startX = e.clientX, startY = e.clientY;
     const origX = pos.x, origY = pos.y;
-    setDragging(true);
+    if (canEdit) setDragging(true);
     let moved = false;
     const onMove = (ev: MouseEvent) => {
       const dx = (ev.clientX - startX) / scale;
       const dy = (ev.clientY - startY) / scale;
       if (Math.abs(dx) > 3 || Math.abs(dy) > 3) moved = true;
-      setDrag({ x: origX + dx, y: origY + dy });
+      // Viewers can't move cards — don't visually drag them only to snap back.
+      if (canEdit) setDrag({ x: origX + dx, y: origY + dy });
     };
     const onUp = (ev: MouseEvent) => {
       setDragging(false);
       const dx = (ev.clientX - startX) / scale;
       const dy = (ev.clientY - startY) / scale;
       if (moved) {
-        onDragEnd(entity.id, { x: origX + dx, y: origY + dy });
+        // A drag persists only for editors; for viewers it's a no-op (not a
+        // mis-click open), matching the read-only affordance.
+        if (canEdit) onDragEnd(entity.id, { x: origX + dx, y: origY + dy });
       } else {
         onOpen(entity.id);
       }
@@ -138,6 +143,9 @@ export function PinnedCard({
         transform: `rotate(${pos.rot || 0}deg)`,
         outline: isConnectSource ? "2px dashed var(--bloodred)" : "none",
         outlineOffset: 6,
+        // Read-only viewers get a plain pointer (click opens the detail sheet);
+        // only editors see the grab/grabbing move affordance.
+        cursor: dragging ? "grabbing" : connectMode ? "crosshair" : canEdit ? "grab" : "pointer",
       }}
       onMouseDown={onMouseDown}
       onMouseEnter={() => onHover?.(entity.id)}
