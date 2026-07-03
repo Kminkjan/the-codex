@@ -260,6 +260,15 @@ export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, counts 
   const kinds = useKinds();
   const { canEdit } = useAuth();
   const totalArchived = kinds.reduce((sum, k) => sum + (counts[k.key]?.archived ?? 0), 0);
+  // View filter, not a write — available to read-only viewers too.
+  const [arcFilter, setArcFilter] = useState<string>("all");
+  const arcsById = new Map(campaign.arcs.map((a) => [a.id, a]));
+  // Fall back to "all" if the selected arc was deleted (possibly live, from
+  // another tab) so the list and the select never disagree.
+  const effectiveArcFilter = arcsById.has(arcFilter) ? arcFilter : "all";
+  const visibleSessions = effectiveArcFilter === "all"
+    ? campaign.sessions
+    : campaign.sessions.filter((s) => s.arc === effectiveArcFilter);
   return (
     <aside className="sidebar">
       <div className="sidebar-label"><span>The Board</span></div>
@@ -297,6 +306,13 @@ export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, counts 
         {totalArchived > 0 && <span className="count-archived">{totalArchived} archived</span>}
       </div>
 
+      <div className="sidebar-label"><span>The Chronicle</span></div>
+      <div className={`nav-item ${active === "arcs" ? "active" : ""}`} onClick={() => onSelect("arcs")}>
+        <span className="icon"><Icon name="layers" /></span>
+        Story Arcs
+        <span className="count">{campaign.arcs.length}</span>
+      </div>
+
       <div className="sidebar-label">
         <span>Sessions</span>
         {canEdit && <button
@@ -321,7 +337,30 @@ export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, counts 
           }}
         >+</button>}
       </div>
-      {campaign.sessions.slice().reverse().map((s) => (
+      {campaign.arcs.length > 0 && (
+        <select
+          value={effectiveArcFilter}
+          onChange={(e) => setArcFilter(e.target.value)}
+          title="Filter sessions by arc"
+          style={{
+            margin: "2px 16px 6px",
+            background: "transparent",
+            border: "1px dashed var(--ink-faded)",
+            fontFamily: "var(--font-fell)",
+            fontStyle: "italic",
+            fontSize: 12,
+            color: "var(--ink-faded)",
+            padding: "2px 6px",
+            cursor: "pointer",
+          }}
+        >
+          <option value="all">every arc</option>
+          {campaign.arcs.slice().sort((a, b) => a.orderNum - b.orderNum).map((a) => (
+            <option key={a.id} value={a.id}>{a.title}</option>
+          ))}
+        </select>
+      )}
+      {visibleSessions.slice().reverse().map((s) => (
         <div key={s.id} className="session-chip" onClick={() => onOpenEntity(s.id)}>
           <span className="num">SESS {String(s.num).padStart(2, "0")}</span>
           <span style={{ flex: 1 }}>{s.title}</span>
@@ -720,6 +759,64 @@ export function EnumSelect<T extends string>({
       {allowClear && <option value="">—</option>}
       {options.map((o) => (
         <option key={o} value={o}>{o}</option>
+      ))}
+    </select>
+  );
+}
+
+interface EntitySelectProps {
+  value: string | undefined;
+  options: Array<{ id: string; label: string }>;
+  onSave: (next: string | null) => void | Promise<void>;
+  allowClear?: boolean;
+  className?: string;
+  style?: React.CSSProperties;
+}
+
+// EnumSelect's sibling for FK fields: options carry an id + display label and
+// onSave receives the id (or null when cleared).
+export function EntitySelect({
+  value,
+  options,
+  onSave,
+  allowClear = false,
+  className,
+  style,
+}: EntitySelectProps) {
+  const { canEdit } = useAuth();
+  const current = options.find((o) => o.id === value);
+  if (!canEdit) {
+    return (
+      <span className={className} style={{ fontFamily: "var(--font-fell)", ...style }}>
+        {current?.label ?? "—"}
+      </span>
+    );
+  }
+  return (
+    <select
+      className={className}
+      // A dangling FK (option not in the list) renders as the empty choice
+      // rather than silently selecting the first option.
+      value={current ? value : ""}
+      onChange={(e) => {
+        const v = e.target.value;
+        void onSave(v === "" ? null : v);
+      }}
+      style={{
+        background: "transparent",
+        border: "1px dashed var(--ink-faded)",
+        fontFamily: "var(--font-fell)",
+        fontSize: "inherit",
+        color: "var(--ink)",
+        padding: "2px 6px",
+        cursor: "pointer",
+        maxWidth: "100%",
+        ...style,
+      }}
+    >
+      {(allowClear || !current) && <option value="">—</option>}
+      {options.map((o) => (
+        <option key={o.id} value={o.id}>{o.label}</option>
       ))}
     </select>
   );

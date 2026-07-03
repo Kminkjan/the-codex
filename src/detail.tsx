@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { type KindKey, entityLabel, isArchivableKind, isArchived, isPinned } from "./data";
 import { Icon, kindIcon } from "./icons";
-import { StatusChip, EditableText, EditableMarkdown, EnumSelect } from "./components";
+import { StatusChip, EditableText, EditableMarkdown, EnumSelect, EntitySelect } from "./components";
 import { useCampaign, useFindEntity } from "./hooks";
 import { useAuth } from "./auth";
 import {
@@ -165,6 +165,7 @@ function AddRelationForm({ fromId }: { fromId: string }) {
       ...campaign.items.map((i) => ({ id: i.id, label: i.name, kind: "items" })),
       ...campaign.lore.map((l) => ({ id: l.id, label: l.title, kind: "lore" })),
       ...campaign.sessions.map((s) => ({ id: s.id, label: s.title, kind: "sessions" })),
+      ...campaign.arcs.map((a) => ({ id: a.id, label: a.title, kind: "arcs" })),
     ].filter((o) => o.id !== fromId),
     [campaign, fromId],
   );
@@ -238,6 +239,7 @@ const primaryField: Record<KindKey, string> = {
   quests: "title",
   lore: "title",
   sessions: "title",
+  arcs: "title",
   goals: "text",
 };
 
@@ -318,11 +320,42 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
       }];
     }
   }
+  if ((kind === "sessions" || kind === "quests") && (entity as any).arc) {
+    const a = findEntity((entity as any).arc);
+    if (a) {
+      related.arcs = related.arcs || [];
+      if (!related.arcs.find((r) => r.entity.id === a.id)) {
+        related.arcs.push({ entity: a, rel: "part of arc" });
+      }
+    }
+  }
+  if (kind === "arcs") {
+    // An arc's chapters: the sessions and quests that claim it.
+    campaign.sessions.filter((s) => s.arc === entityId).forEach((s) => {
+      related.sessions = related.sessions || [];
+      if (!related.sessions.find((r) => r.entity.id === s.id)) {
+        related.sessions.push({ entity: findEntity(s.id), rel: "chapter of this arc" });
+      }
+    });
+    campaign.quests.filter((q) => q.arc === entityId).forEach((q) => {
+      related.quests = related.quests || [];
+      if (!related.quests.find((r) => r.entity.id === q.id)) {
+        related.quests.push({ entity: findEntity(q.id), rel: "woven into this arc" });
+      }
+    });
+  }
 
   const patch = (fields: Record<string, unknown>) =>
     updateEntity(kind, entityId, fields).catch((e) =>
       console.error(`updateEntity(${kind}) failed`, e),
     );
+
+  const arcOptions = campaign.arcs
+    .slice()
+    .sort((a, b) => a.orderNum - b.orderNum)
+    .map((a) => ({ id: a.id, label: a.title }));
+  const sessionOptions = campaign.sessions
+    .map((s) => ({ id: s.id, label: `S${String(s.num).padStart(2, "0")} — ${s.title}` }));
 
   const onDelete = () => {
     if (!entity) return;
@@ -356,6 +389,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
   const kindTitle: Record<string, string> = {
     people: "Person of Note", locations: "Location", quests: "Quest",
     goals: "Goal", factions: "Faction", items: "Item", lore: "Lore", sessions: "Session",
+    arcs: "Story Arc",
   };
 
   return (
@@ -454,6 +488,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                     <div className="stat"><div className="stat-label">Status</div><div className="stat-value"><StatusChip status={(entity as any).status} /></div></div>
                     <div className="stat" style={{ gridColumn: "span 2" }}><div className="stat-label">Reward</div><div className="stat-value" style={{ fontSize: 13 }}><EditableText value={(entity as any).reward ?? ""} onSave={(v) => patch({ reward: v })} placeholder="—" /></div></div>
                     <div className="stat"><div className="stat-label">Session</div><div className="stat-value">{(entity as any).session?.toUpperCase()}</div></div>
+                    <div className="stat" style={{ gridColumn: "span 2" }}><div className="stat-label">Arc</div><div className="stat-value" style={{ fontSize: 13 }}><EntitySelect value={(entity as any).arc} options={arcOptions} allowClear onSave={(id) => patch({ arc: id ?? "" })} /></div></div>
                   </>
                 )}
                 {kind === "goals" && (
@@ -479,6 +514,14 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                     <div className="stat"><div className="stat-label">No.</div><div className="stat-value"><EditableNumber value={(entity as any).num ?? 0} onSave={(n) => patch({ num: n })} /></div></div>
                     <div className="stat"><div className="stat-label">Date</div><div className="stat-value" style={{ fontSize: 14 }}><EditableText value={(entity as any).date ?? ""} onSave={(v) => patch({ date: v })} placeholder="—" /></div></div>
                     <div className="stat" style={{ gridColumn: "span 2" }}><div className="stat-label">Reckoning</div><div className="stat-value" style={{ fontSize: 14 }}><EditableText value={(entity as any).inGameDate ?? ""} onSave={(v) => patch({ inGameDate: v })} placeholder="— by Faerûn's reckoning —" /></div></div>
+                    <div className="stat" style={{ gridColumn: "span 2" }}><div className="stat-label">Arc</div><div className="stat-value" style={{ fontSize: 13 }}><EntitySelect value={(entity as any).arc} options={arcOptions} allowClear onSave={(id) => patch({ arc: id ?? "" })} /></div></div>
+                  </>
+                )}
+                {kind === "arcs" && (
+                  <>
+                    <div className="stat" style={{ gridColumn: "span 2" }}><div className="stat-label">First Session</div><div className="stat-value" style={{ fontSize: 13 }}><EntitySelect value={(entity as any).startSession} options={sessionOptions} allowClear onSave={(id) => patch({ startSession: id ?? "" })} /></div></div>
+                    <div className="stat" style={{ gridColumn: "span 2" }}><div className="stat-label">Last Session</div><div className="stat-value" style={{ fontSize: 13 }}><EntitySelect value={(entity as any).endSession} options={sessionOptions} allowClear onSave={(id) => patch({ endSession: id ?? "" })} /></div></div>
+                    <div className="stat"><div className="stat-label">Order</div><div className="stat-value"><EditableNumber value={(entity as any).orderNum ?? 0} onSave={(n) => patch({ orderNum: n })} /></div></div>
                   </>
                 )}
               </div>
@@ -508,6 +551,17 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                     value={(entity as any).summary ?? ""}
                     onSave={(v) => patch({ summary: v })}
                     placeholder="What happened this session…"
+                    style={{ fontFamily: "var(--font-fell)" }}
+                  />
+                </div>
+              )}
+
+              {kind === "arcs" && (
+                <div className="long-note">
+                  <EditableMarkdown
+                    value={(entity as any).summary ?? ""}
+                    onSave={(v) => patch({ summary: v })}
+                    placeholder="The shape of this arc…"
                     style={{ fontFamily: "var(--font-fell)" }}
                   />
                 </div>
@@ -633,13 +687,13 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                 ✦ RELATIONS ✦
               </div>
 
-              {(["people", "locations", "quests", "goals", "factions", "items", "lore", "sessions"] as const).map((k) => {
+              {(["people", "locations", "quests", "goals", "factions", "items", "lore", "sessions", "arcs"] as const).map((k) => {
                 const list = related[k];
                 if (!list || list.length === 0) return null;
                 const label: Record<string, string> = {
                   people: "Known Folk", locations: "Places", quests: "Quests",
                   goals: "Goals", factions: "Factions", items: "Items & Relics",
-                  lore: "Lore", sessions: "Sessions",
+                  lore: "Lore", sessions: "Sessions", arcs: "Story Arcs",
                 };
                 return (
                   <div className="rail-section" key={k}>
