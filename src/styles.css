@@ -1816,3 +1816,23 @@ body {
   color: var(--ink-ghost);
   letter-spacing: .05em;
 }
+
+/* Editable primitives (EditableText in components.tsx) */
+.editable {
+  border-bottom: 1px dotted var(--ink-ghost);
+  transition: background .12s;
+}
+.editable:hover {
+  background: color-mix(in srgb, var(--mustard) 8%, transparent);
+}
+.editable:not(.editable-multiline):hover::after {
+  content: "✎";
+  font-size: .7em;
+  font-style: normal;
+  color: var(--ink-faded);
+  margin-left: 5px;
+}
+.editable.editing {
+  background: color-mix(in srgb, var(--mustard) 12%, transparent);
+  border-bottom: 1px solid var(--mustard);
+}

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { type KindKey, type PresenceUser } from "./data";
 import { Icon, MapScribble, kindIcon } from "./icons";
 import { useCampaign, useKinds } from "./hooks";
@@ -364,26 +364,61 @@ export function EditableText({
   style,
 }: EditableTextProps) {
   const ref = useRef<HTMLDivElement>(null);
+  const cancelledRef = useRef(false);
   const [editing, setEditing] = useState(false);
+  // Committed-but-not-yet-echoed text: shown until realtime updates `value`,
+  // so the field doesn't flash back to the old value after blur.
+  const [pending, setPending] = useState<string | null>(null);
+  const display = pending ?? value;
+
+  useLayoutEffect(() => {
+    setPending(null);
+  }, [value]);
+
+  // While editing, the DOM is user-owned: React renders no children, the
+  // effect below seeds innerText once, and realtime updates to `value` are
+  // ignored until blur (last-write-wins on commit).
+  useLayoutEffect(() => {
+    if (!editing || !ref.current) return;
+    const el = ref.current;
+    cancelledRef.current = false;
+    el.innerText = display ?? "";
+    el.focus();
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    range.collapse(false);
+    const sel = window.getSelection();
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing]);
 
   const commit = () => {
+    if (cancelledRef.current) {
+      cancelledRef.current = false;
+      return;
+    }
     const next = (ref.current?.innerText ?? "").trim();
     setEditing(false);
-    if (next !== (value ?? "").trim()) void onSave(next);
+    if (next !== (display ?? "").trim()) {
+      setPending(next);
+      void onSave(next);
+    }
   };
 
   const cancel = () => {
-    if (ref.current) ref.current.innerText = value ?? "";
+    cancelledRef.current = true;
     setEditing(false);
     ref.current?.blur();
   };
 
-  const showPlaceholder = !editing && !(value ?? "").trim();
+  const showPlaceholder = !editing && !(display ?? "").trim();
 
   return (
     <div
       ref={ref}
-      className={`editable ${editing ? "editing" : ""} ${className ?? ""}`}
+      tabIndex={0}
+      className={`editable ${editing ? "editing" : ""} ${multiline ? "editable-multiline" : ""} ${className ?? ""}`}
       style={{
         outline: "none",
         cursor: editing ? "text" : "pointer",
@@ -396,8 +431,16 @@ export function EditableText({
       contentEditable={editing}
       suppressContentEditableWarning
       onClick={() => { if (!editing) setEditing(true); }}
-      onFocus={() => setEditing(true)}
+      onFocus={() => { if (!editing) setEditing(true); }}
       onBlur={commit}
+      onPaste={(e) => {
+        e.preventDefault();
+        let text = e.clipboardData.getData("text/plain");
+        if (!multiline) text = text.replace(/\s*\n+\s*/g, " ");
+        // execCommand is deprecated but still the only way to insert text
+        // into a contentEditable while preserving undo history.
+        document.execCommand("insertText", false, text);
+      }}
       onKeyDown={(e) => {
         if (e.key === "Escape") { e.preventDefault(); cancel(); return; }
         if (!multiline && e.key === "Enter") { e.preventDefault(); ref.current?.blur(); return; }
@@ -406,7 +449,7 @@ export function EditableText({
         }
       }}
     >
-      {showPlaceholder ? (placeholder || "Click to edit…") : value}
+      {editing ? null : showPlaceholder ? (placeholder || "Click to edit…") : display}
     </div>
   );
 }
