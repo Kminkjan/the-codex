@@ -378,6 +378,10 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
           "postgres_changes" as any,
           { event: "UPDATE", schema: "public", table: "campaigns", filter: `id=eq.${campaignId}` },
           (payload: any) => {
+            // Guard the module-store write like the async handlers do: a late
+            // event from the previous campaign's torn-down channel must not
+            // leak a stale active_session_id into the store mutations read.
+            if (cancelled) return;
             const next = payload.new?.active_session_id ?? undefined;
             setActiveSessionId(next ?? null);
             setCampaign((c) => c && c.id === campaignId ? { ...c, activeSessionId: next, title: payload.new?.title ?? c.title, subtitle: payload.new?.subtitle ?? c.subtitle } : c);

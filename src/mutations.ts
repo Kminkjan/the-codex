@@ -177,11 +177,17 @@ export async function markSeen(personId: string) {
     console.warn("markSeen: no active session — nothing to mark against");
     return;
   }
-  const { error } = await supabase.from("session_participants").insert({
-    campaign_id: getActiveCampaignId(),
-    session_id: sessionId,
-    person_id: personId,
-  });
+  // Idempotent: the composite PK is (session_id, person_id), and there's no
+  // optimistic UI, so a double-click or a second editor marking the same person
+  // would otherwise throw a unique violation. ignoreDuplicates makes it a no-op.
+  const { error } = await supabase.from("session_participants").upsert(
+    {
+      campaign_id: getActiveCampaignId(),
+      session_id: sessionId,
+      person_id: personId,
+    },
+    { onConflict: "session_id,person_id", ignoreDuplicates: true },
+  );
   if (error) throw error;
 }
 
