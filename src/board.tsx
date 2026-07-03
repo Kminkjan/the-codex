@@ -487,6 +487,7 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
 
 export function KindList({ kind, onOpenEntity }: { kind: string; onOpenEntity: (id: string) => void }) {
   const kinds = useKinds();
+  const campaign = useCampaign();
   const [showArchived, setShowArchived] = useState(false);
   const k = kinds.find((x) => x.key === kind);
   if (!k) return null;
@@ -495,10 +496,12 @@ export function KindList({ kind, onOpenEntity }: { kind: string; onOpenEntity: (
   const all = k.list() as any[];
   const { archivedCount, sorted } = useMemo(() => {
     if (!archivable) return { archivedCount: 0, sorted: all };
+    const numById = new Map(campaign.sessions.map((s) => [s.id, s.num]));
+    const sessionNum = (id: string) => numById.get(id) ?? 0;
     const archived = all.filter((e) => e.archived).length;
     const visible = showArchived ? all : all.filter((e) => !e.archived);
-    return { archivedCount: archived, sorted: sortForDisplay(visible) };
-  }, [all, archivable, showArchived]);
+    return { archivedCount: archived, sorted: sortForDisplay(visible, { kind: k.key as KindKey, sessionNum }) };
+  }, [all, archivable, showArchived, k.key, campaign.sessions]);
 
   return (
     <div style={{ flex: 1, overflow: "auto", padding: "28px 40px 60px", background: "var(--vellum)", position: "relative" }} className="tex-vellum">

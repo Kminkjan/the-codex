@@ -236,10 +236,30 @@ export function isPinned(e: any): boolean {
   return !!(e && e.pinned);
 }
 
-// Sort: pinned first, then active by most recently updated, then archived at the bottom.
+// Quest/goal status ordering: active work floats up, abandoned sinks. Unknown
+// status sits between the open states and the finished ones.
+const STATUS_RANK: Record<string, number> = { pursuing: 0, whispered: 1, resolved: 3, lost: 4 };
+const STATUS_RANK_UNKNOWN = 2;
+
+// Sort: pinned first, then active, then a kind-aware recency key, then archived at
+// the bottom. The recency key varies by kind (opts.kind):
+//   - people: most recently *seen* in a session first (lastSeen is a session id,
+//     so the caller passes sessionNum to resolve it to the sequential number).
+//   - quests/goals: by status (pursuing → whispered → resolved → lost).
+//   - everything else: falls straight through to updatedAt (most recently edited).
+// updatedAt is always the final tiebreaker.
 export function sortForDisplay<T extends { id: string; updatedAt?: string; archived?: boolean; pinned?: boolean }>(
   items: T[],
+  opts?: { kind?: KindKey; sessionNum?: (sessionId: string) => number },
 ): T[] {
+  const kind = opts?.kind;
+  const statusRank = (e: any): number => {
+    if (kind !== "quests" && kind !== "goals") return 0;
+    const s = e.status as string | undefined;
+    return s && s in STATUS_RANK ? STATUS_RANK[s] : STATUS_RANK_UNKNOWN;
+  };
+  const seenNum = (e: any): number =>
+    kind === "people" && e.lastSeen && opts?.sessionNum ? opts.sessionNum(e.lastSeen) : 0;
   return items.slice().sort((a, b) => {
     const pa = a.pinned ? 1 : 0;
     const pb = b.pinned ? 1 : 0;
@@ -247,6 +267,12 @@ export function sortForDisplay<T extends { id: string; updatedAt?: string; archi
     const aa = a.archived ? 1 : 0;
     const ab = b.archived ? 1 : 0;
     if (aa !== ab) return aa - ab;
+    const ra = statusRank(a);
+    const rb = statusRank(b);
+    if (ra !== rb) return ra - rb; // lower rank = more active = higher up
+    const sa = seenNum(a);
+    const sb = seenNum(b);
+    if (sa !== sb) return sb - sa; // higher session number = seen more recently
     const ta = a.updatedAt ? Date.parse(a.updatedAt) : 0;
     const tb = b.updatedAt ? Date.parse(b.updatedAt) : 0;
     return tb - ta;
