@@ -128,7 +128,7 @@ function buildIndex(campaign: Campaign): Indexed[] {
       kind: "sessions",
       label: entityLabel(s),
       primary: s.title ?? "",
-      secondary: joinFields(s.date, `Session ${s.num}`),
+      secondary: joinFields(s.date, s.inGameDate, `Session ${s.num}`, s.summary),
     });
   }
   return out;

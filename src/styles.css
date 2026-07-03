@@ -1125,6 +1125,35 @@ body {
 .long-note p { margin: 0 0 12px; }
 .long-note em { color: var(--bloodred-deep); font-style: italic; }
 
+/* Markdown bodies (EditableMarkdown in components.tsx) */
+.md-body ul, .md-body ol { margin: 0 0 12px; padding-left: 22px; }
+.md-body li { margin: 2px 0; }
+.md-body h1, .md-body h2, .md-body h3, .md-body h4 {
+  font-family: var(--font-fell-sc);
+  font-weight: 600;
+  letter-spacing: .06em;
+  line-height: 1.25;
+  margin: 14px 0 6px;
+}
+.md-body h1 { font-size: 19px; }
+.md-body h2 { font-size: 17px; }
+.md-body h3, .md-body h4 { font-size: 15px; }
+.md-body blockquote {
+  margin: 0 0 12px;
+  padding: 2px 14px;
+  border-left: 3px solid var(--ink-faded);
+  font-style: italic;
+}
+.md-body code {
+  font-size: .85em;
+  background: rgba(0,0,0,.06);
+  padding: 1px 4px;
+}
+.md-body hr { border: none; border-top: 1px solid var(--ink-faded); opacity: .4; margin: 14px 0; }
+.md-body a { color: var(--bloodred-deep); }
+.md-body > :first-child { margin-top: 0; }
+.md-body > :last-child { margin-bottom: 0; }
+
 .notes-stack {
   margin-top: 22px;
   display: flex; flex-direction: column; gap: 14px;

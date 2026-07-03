@@ -14,6 +14,9 @@ export interface Session {
   num: number;
   title: string;
   date: string;
+  summary?: string;
+  imageUrl?: string;
+  inGameDate?: string;
 }
 
 export interface ArchivableFields {

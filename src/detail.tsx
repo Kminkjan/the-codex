@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { type KindKey, entityLabel, isArchivableKind, isArchived, isPinned } from "./data";
 import { Icon, kindIcon } from "./icons";
-import { StatusChip, EditableText, EnumSelect } from "./components";
+import { StatusChip, EditableText, EditableMarkdown, EnumSelect } from "./components";
 import { useCampaign, useFindEntity } from "./hooks";
 import { useAuth } from "./auth";
 import {
@@ -12,7 +12,7 @@ import {
 } from "./mutations";
 import { uploadEntityImage, type UploadableKind } from "./upload";
 
-const UPLOADABLE_KINDS = ["people", "locations", "factions", "items"] as const;
+const UPLOADABLE_KINDS = ["people", "locations", "factions", "items", "sessions"] as const;
 const isUploadable = (k: KindKey): k is UploadableKind =>
   (UPLOADABLE_KINDS as readonly string[]).includes(k);
 
@@ -477,7 +477,8 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                 {kind === "sessions" && (
                   <>
                     <div className="stat"><div className="stat-label">No.</div><div className="stat-value"><EditableNumber value={(entity as any).num ?? 0} onSave={(n) => patch({ num: n })} /></div></div>
-                    <div className="stat" style={{ gridColumn: "span 3" }}><div className="stat-label">Date</div><div className="stat-value" style={{ fontSize: 14 }}><EditableText value={(entity as any).date ?? ""} onSave={(v) => patch({ date: v })} placeholder="—" /></div></div>
+                    <div className="stat"><div className="stat-label">Date</div><div className="stat-value" style={{ fontSize: 14 }}><EditableText value={(entity as any).date ?? ""} onSave={(v) => patch({ date: v })} placeholder="—" /></div></div>
+                    <div className="stat" style={{ gridColumn: "span 2" }}><div className="stat-label">Reckoning</div><div className="stat-value" style={{ fontSize: 14 }}><EditableText value={(entity as any).inGameDate ?? ""} onSave={(v) => patch({ inGameDate: v })} placeholder="— by Faerûn's reckoning —" /></div></div>
                   </>
                 )}
               </div>
@@ -500,6 +501,17 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
           <div className="detail-body">
             <div className="detail-notes">
               <h3>Chronicle</h3>
+
+              {kind === "sessions" && (
+                <div className="long-note">
+                  <EditableMarkdown
+                    value={(entity as any).summary ?? ""}
+                    onSave={(v) => patch({ summary: v })}
+                    placeholder="What happened this session…"
+                    style={{ fontFamily: "var(--font-fell)" }}
+                  />
+                </div>
+              )}
 
               {"notes" in (entity as any) && (
                 <div className="long-note">

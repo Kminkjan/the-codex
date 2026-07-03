@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
 import { type KindKey, type PresenceUser } from "./data";
 import { Icon, MapScribble, kindIcon } from "./icons";
 import { useCampaign, useKinds } from "./hooks";
@@ -530,6 +531,129 @@ export function EditableText({
       }}
     >
       {editing ? null : showPlaceholder ? (placeholder || "Click to edit…") : display}
+    </div>
+  );
+}
+
+interface EditableMarkdownProps {
+  value: string;
+  onSave: (next: string) => void | Promise<void>;
+  placeholder?: string;
+  className?: string;
+  style?: React.CSSProperties;
+}
+
+// Markdown sibling of EditableText: read mode renders the markdown, edit mode
+// is a raw <textarea> (contentEditable would mangle markdown whitespace via
+// innerText round-tripping). Blur saves, Esc cancels, ⌘/Ctrl+Enter commits.
+export function EditableMarkdown({
+  value,
+  onSave,
+  placeholder,
+  className,
+  style,
+}: EditableMarkdownProps) {
+  const { canEdit } = useAuth();
+  const cancelledRef = useRef(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  // Committed-but-not-yet-echoed text, same trick as EditableText: shown until
+  // realtime updates `value` so the field doesn't flash back after blur.
+  const [pending, setPending] = useState<string | null>(null);
+  const display = pending ?? value;
+
+  useLayoutEffect(() => {
+    setPending(null);
+  }, [value]);
+
+  const commit = () => {
+    setEditing(false);
+    if (cancelledRef.current) {
+      cancelledRef.current = false;
+      return;
+    }
+    const next = draft.trim();
+    if (next !== (display ?? "").trim()) {
+      void onSave(next);
+      setPending(next);
+    }
+  };
+
+  const empty = !(display ?? "").trim();
+
+  if (!canEdit) {
+    if (empty && !placeholder) return null;
+    return (
+      <div
+        className={`md-body ${className ?? ""}`}
+        style={{ opacity: empty ? 0.55 : 1, fontStyle: empty ? "italic" : undefined, ...style }}
+      >
+        {empty ? placeholder : <ReactMarkdown>{display}</ReactMarkdown>}
+      </div>
+    );
+  }
+
+  if (editing) {
+    return (
+      <textarea
+        autoFocus
+        className={className}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            e.preventDefault();
+            cancelledRef.current = true;
+            e.currentTarget.blur();
+            return;
+          }
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+            e.preventDefault();
+            e.currentTarget.blur();
+          }
+        }}
+        rows={Math.min(24, Math.max(8, draft.split("\n").length + 2))}
+        style={{
+          width: "100%",
+          boxSizing: "border-box",
+          background: "color-mix(in srgb, var(--mustard) 12%, transparent)",
+          border: "none",
+          borderBottom: "1px solid var(--mustard)",
+          outline: "none",
+          resize: "vertical",
+          font: "inherit",
+          color: "inherit",
+          lineHeight: "inherit",
+          padding: "4px 6px",
+          ...style,
+        }}
+      />
+    );
+  }
+
+  return (
+    <div
+      tabIndex={0}
+      className={`editable editable-multiline md-body ${className ?? ""}`}
+      style={{
+        outline: "none",
+        cursor: "pointer",
+        minHeight: "1em",
+        opacity: empty ? 0.55 : 1,
+        fontStyle: empty ? "italic" : undefined,
+        ...style,
+      }}
+      onClick={() => {
+        setDraft(display ?? "");
+        setEditing(true);
+      }}
+      onFocus={() => {
+        setDraft(display ?? "");
+        setEditing(true);
+      }}
+    >
+      {empty ? (placeholder || "Click to edit…") : <ReactMarkdown>{display}</ReactMarkdown>}
     </div>
   );
 }

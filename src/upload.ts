@@ -3,7 +3,7 @@ import { supabase } from "./utils/supabase";
 const BUCKET = "entity-images";
 const MAX_BYTES = 5 * 1024 * 1024;
 
-export type UploadableKind = "people" | "locations" | "factions" | "items";
+export type UploadableKind = "people" | "locations" | "factions" | "items" | "sessions";
 
 export async function uploadEntityImage(
   file: File,
