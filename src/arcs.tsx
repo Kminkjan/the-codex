@@ -53,7 +53,8 @@ export function ArcsPage({ onOpenEntity }: { onOpenEntity: (id: string) => void 
         <div className="scratch-divider"><em>✦ ✦ ✦</em></div>
 
         {arcs.map((arc) => {
-          const assigned = campaign.sessions.filter((s) => s.arc === arc.id);
+          // Array order isn't trustworthy after realtime splices — sort by num.
+          const assigned = campaign.sessions.filter((s) => s.arc === arc.id).sort((a, b) => a.num - b.num);
           const quests = campaign.quests.filter((q) => q.arc === arc.id);
           const range = arcRange(arc, assigned, sessionsById);
           const summary = excerpt(arc.summary);

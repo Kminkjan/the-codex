@@ -263,9 +263,12 @@ export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, counts 
   // View filter, not a write — available to read-only viewers too.
   const [arcFilter, setArcFilter] = useState<string>("all");
   const arcsById = new Map(campaign.arcs.map((a) => [a.id, a]));
-  const visibleSessions = arcFilter === "all"
+  // Fall back to "all" if the selected arc was deleted (possibly live, from
+  // another tab) so the list and the select never disagree.
+  const effectiveArcFilter = arcsById.has(arcFilter) ? arcFilter : "all";
+  const visibleSessions = effectiveArcFilter === "all"
     ? campaign.sessions
-    : campaign.sessions.filter((s) => s.arc === arcFilter);
+    : campaign.sessions.filter((s) => s.arc === effectiveArcFilter);
   return (
     <aside className="sidebar">
       <div className="sidebar-label"><span>The Board</span></div>
@@ -336,7 +339,7 @@ export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, counts 
       </div>
       {campaign.arcs.length > 0 && (
         <select
-          value={arcsById.has(arcFilter) ? arcFilter : "all"}
+          value={effectiveArcFilter}
           onChange={(e) => setArcFilter(e.target.value)}
           title="Filter sessions by arc"
           style={{
