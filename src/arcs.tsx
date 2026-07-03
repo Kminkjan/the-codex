@@ -16,8 +16,13 @@ function arcRange(arc: Arc, assigned: Session[], byId: Map<string, Session>): st
   const first = (arc.startSession && byId.get(arc.startSession)) || assigned[0];
   const last = (arc.endSession && byId.get(arc.endSession)) || assigned[assigned.length - 1];
   if (!first || !last) return "";
-  if (first.id === last.id) return first.date;
-  return `${first.date} — ${last.date}`;
+  // Guard the date fields, not just the session objects: an arc can span
+  // sessions whose `date` column is null, and an unguarded template would
+  // print the literal string "null".
+  const fd = first.date, ld = last.date;
+  if (first.id === last.id) return fd ?? "";
+  if (!fd || !ld) return fd || ld || "";
+  return `${fd} — ${ld}`;
 }
 
 export function ArcsPage({ onOpenEntity }: { onOpenEntity: (id: string) => void }) {

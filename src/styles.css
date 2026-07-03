@@ -541,7 +541,9 @@ body {
 .board-surface {
   position: absolute;
   top: 0; left: 0;
-  width: 2800px; height: 2000px;
+  /* Floor only — board.tsx sets explicit width/height from the furthest card
+     so the cork/frame/yarn grow to enclose all content. */
+  min-width: 2800px; min-height: 2000px;
   transform-origin: 0 0;
 }
 

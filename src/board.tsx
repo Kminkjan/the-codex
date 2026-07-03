@@ -49,6 +49,21 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
   const positions = campaign.board;
   const connections = campaign.connections;
 
+  // The board sizes itself to its content: the cork/frame and the yarn SVG
+  // grow to enclose the furthest-flung card so nothing lands off-canvas and
+  // no string is clipped. 2800×2000 is the floor (the original design size),
+  // and the padding clears the tallest card (~220×344) plus a margin.
+  const bounds = useMemo(() => {
+    let w = 2800, h = 2000;
+    for (const id in positions) {
+      const p = positions[id];
+      if (!p) continue;
+      if (p.x + 320 > w) w = p.x + 320;
+      if (p.y + 420 > h) h = p.y + 420;
+    }
+    return { w, h };
+  }, [positions]);
+
   const [filters, setFilters] = useState<Filters>(() => {
     const f: Filters = { sessions: "all" };
     (["people", "locations", "quests", "goals", "factions", "items", "lore"] as const).forEach((k) => {
@@ -330,7 +345,7 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
       >
         <div
           className={`board-surface ${scale < 0.7 ? "zoom-far" : ""}`}
-          style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})` }}
+          style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`, width: bounds.w, height: bounds.h }}
         >
           <div className="board-frame" />
           <CompassRose style={{ top: 60, right: 120, color: "var(--ink)" } as any} />
@@ -353,7 +368,7 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
             ✦ THE NOTICE BOARD OF THE CROOKED TANKARD ✦
           </div>
 
-          <svg className="yarn-layer" viewBox={`0 0 2800 2000`} preserveAspectRatio="none">
+          <svg className="yarn-layer" viewBox={`0 0 ${bounds.w} ${bounds.h}`} preserveAspectRatio="none">
             <defs>
               <filter id="yarn-glow">
                 <feGaussianBlur stdDeviation="0.6" />
