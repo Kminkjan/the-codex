@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CampaignProvider } from "./campaignContext";
 import { AuthProvider, DisplayNameGate } from "./auth";
-import { useCampaignStatus, useKinds } from "./hooks";
+import { useCampaign, useCampaignStatus, useFindEntity, useKinds } from "./hooks";
+import { campaignHash, parseHash, writeCampaignHash } from "./route";
 import { Icon } from "./icons";
 import { Sidebar, Topbar } from "./components";
 import { NoticeBoard, KindList } from "./board";
@@ -53,12 +54,19 @@ function ErrorSheet({ message }: { message: string }) {
 
 function AppLoaded() {
   const kinds = useKinds();
+  const campaign = useCampaign();
+  const findEntity = useFindEntity();
 
   const [theme, setTheme] = useState<string>(window.__TWEAKS__.theme || "cartographer");
   const [showPresence, setShowPresence] = useState<boolean>(window.__TWEAKS__.showPresence);
   const [density, setDensity] = useState<string>(window.__TWEAKS__.density || "cozy");
   const [view, setView] = useState("board");
-  const [openId, setOpenId] = useState<string | null>(null);
+  // Entity deep link: #/c/:campaignId/e/:entityId opens the detail sheet on
+  // load; an id that doesn't resolve in this campaign is silently dropped.
+  const [openId, setOpenId] = useState<string | null>(() => {
+    const id = parseHash().entityId;
+    return id && findEntity(id) ? id : null;
+  });
   const [tweaksOpen, setTweaksOpen] = useState(false);
   const [shareToast, setShareToast] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -73,6 +81,23 @@ function AppLoaded() {
   }, [theme]);
   useEffect(() => { window.__TWEAKS__.showPresence = showPresence; }, [showPresence]);
   useEffect(() => { window.__TWEAKS__.density = density; }, [density]);
+
+  // Mirror the open entity into the hash (replace, not push, so browsing
+  // entities doesn't spam history).
+  useEffect(() => {
+    writeCampaignHash(campaign.id, openId, { replace: true });
+  }, [campaign.id, openId]);
+
+  // Entity deep links pasted mid-session are fragment navigations (no page
+  // load), so the mount-time parse above never sees them.
+  useEffect(() => {
+    const onHashChange = () => {
+      const { campaignId: cid, entityId } = parseHash();
+      if (cid === campaign.id) setOpenId(entityId && findEntity(entityId) ? entityId : null);
+    };
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, [campaign.id, findEntity]);
 
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
@@ -99,6 +124,8 @@ function AppLoaded() {
   }, [kinds]);
 
   const onShare = () => {
+    const url = window.location.origin + window.location.pathname + campaignHash(campaign.id);
+    navigator.clipboard.writeText(url).catch(console.error);
     setShareToast(true);
     setTimeout(() => setShareToast(false), 2200);
   };
@@ -147,8 +174,7 @@ function AppLoaded() {
           display: "flex", alignItems: "center", gap: 10,
           zIndex: 70, borderRadius: 2,
         }}>
-          <Icon name="check" size={14} /> Share link copied — anyone with the link may read &amp; write.
-          <span style={{ opacity: .6, fontFamily: "var(--font-ui)", fontStyle: "normal", fontSize: 11, letterSpacing: ".1em" }}>codex.app/c/ember-accord</span>
+          <Icon name="check" size={14} /> Share link copied — anyone with the link may read.
         </div>
       )}
 

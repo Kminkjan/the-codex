@@ -14,7 +14,7 @@ Supabase migrations live in [supabase/migrations/](supabase/migrations/). Apply 
 
 ## Architecture
 
-This is a **collaborative read-write campaign journal** for a D&D group, hardcoded to one campaign at a time via `CURRENT_CAMPAIGN_ID` in [src/data.ts](src/data.ts) (currently `"fendwick"`).
+This is a **collaborative read-write campaign journal** for a D&D group. The active campaign is dynamic (issue #18): it lives in the URL hash — `#/c/:campaignId`, optionally `#/c/:campaignId/e/:entityId` for an entity deep link — parsed by [src/route.ts](src/route.ts). `CampaignProvider` resolves it as hash → `window.__TWEAKS__.campaignId` → first row of the `campaigns` table, and a picker in the Topbar switches it. Switching tears down the realtime channel, clears state, and reloads under the new id; every realtime handler is gated on the campaign id it was subscribed for, so late events from the old channel can't splice into the new campaign's arrays. Mutations read the active id from the module-level store in [src/activeCampaign.ts](src/activeCampaign.ts) (`getActiveCampaignId()`), which only `CampaignProvider` writes.
 
 ### Data flow: writes go out through mutations, state comes back through realtime
 
@@ -54,7 +54,7 @@ The app supports an "edit mode" handshake with a parent window via `window.__TWE
 
 ## Conventions
 
-- **Route everything campaign-scoped through `CURRENT_CAMPAIGN_ID`**; never query without the `campaign_id` filter. RLS doesn't enforce per-campaign access today ([issue #18](https://github.com/Kminkjan/the-codex/issues/18)).
+- **Route everything campaign-scoped through the active campaign id** — components read it via `useCampaign()`/`useCampaignSwitcher()`, mutations via `getActiveCampaignId()` from [src/activeCampaign.ts](src/activeCampaign.ts); never query without the `campaign_id` filter. RLS doesn't enforce per-campaign access today — any signed-in editor can write to any campaign (per-campaign membership is future work).
 - **New entity IDs are `crypto.randomUUID()` strings** generated client-side. All PKs are `text` except `connections.id` (bigserial) and `party_notes.id` (bigserial).
 - **Styling is inline style objects + a few CSS classes** in [src/styles.css](src/styles.css). CSS variables (`--ink`, `--vellum`, `--bloodred`, `--font-fell-sc`, etc.) carry the parchment aesthetic — reach for those before inventing colors.
 - **Committed `.js` / `.d.ts` siblings of the `.tsx` files are gitignored** (`src/**/*.js`, `src/**/*.d.ts` except `global.d.ts`). They're `tsc` outputs — ignore them.
