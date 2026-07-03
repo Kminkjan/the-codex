@@ -54,7 +54,7 @@ The app supports an "edit mode" handshake with a parent window via `window.__TWE
 
 ## Conventions
 
-- **Route everything campaign-scoped through `CURRENT_CAMPAIGN_ID`**; never query without the `campaign_id` filter. RLS doesn't enforce per-campaign access today ([issue #4](https://github.com/Kminkjan/the-codex/issues/4)).
+- **Route everything campaign-scoped through `CURRENT_CAMPAIGN_ID`**; never query without the `campaign_id` filter. RLS doesn't enforce per-campaign access today ([issue #18](https://github.com/Kminkjan/the-codex/issues/18)).
 - **New entity IDs are `crypto.randomUUID()` strings** generated client-side. All PKs are `text` except `connections.id` (bigserial) and `party_notes.id` (bigserial).
 - **Styling is inline style objects + a few CSS classes** in [src/styles.css](src/styles.css). CSS variables (`--ink`, `--vellum`, `--bloodred`, `--font-fell-sc`, etc.) carry the parchment aesthetic — reach for those before inventing colors.
 - **Committed `.js` / `.d.ts` siblings of the `.tsx` files are gitignored** (`src/**/*.js`, `src/**/*.d.ts` except `global.d.ts`). They're `tsc` outputs — ignore them.

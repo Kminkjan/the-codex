@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "./utils/supabase";
 
@@ -18,6 +18,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const signingOutRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -48,6 +49,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, s) => {
+      // During signOut the SIGNED_OUT event would blank the app (null user
+      // unmounts everything behind DisplayNameGate) before the replacement
+      // anonymous session lands — signOut() sets the session itself.
+      if (signingOutRef.current) return;
       setSession(s);
     });
 
@@ -81,11 +86,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
     // Drop back to read-only viewing instead of a blank screen: the app
     // always expects a session (anonymous = viewer).
-    const { data } = await supabase.auth.signInAnonymously();
-    setSession(data.session ?? null);
+    signingOutRef.current = true;
+    try {
+      await supabase.auth.signOut();
+      const { data, error: signInErr } = await supabase.auth.signInAnonymously();
+      if (signInErr) {
+        setError(signInErr.message);
+        setSession(null);
+        return;
+      }
+      setSession(data.session ?? null);
+    } finally {
+      signingOutRef.current = false;
+    }
   };
 
   if (!ready) return null;
@@ -129,15 +144,18 @@ function AuthError({ message }: { message: string }) {
 }
 
 export function DisplayNameGate({ children }: { children: ReactNode }) {
-  const { user, displayName, setDisplayName } = useAuth();
+  const { user, setDisplayName } = useAuth();
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   if (!user) return null;
   // Anonymous visitors are read-only viewers — the name only signs party
-  // notes, which they can't write, so skip the gate for them.
-  if (user.is_anonymous || displayName) return <>{children}</>;
+  // notes, which they can't write, so skip the gate for them. Editors are
+  // gated on the metadata name specifically (not the email-prefix fallback
+  // in displayName), so a first-time editor still gets to pick a name.
+  const metadataName = (user.user_metadata?.display_name as string | undefined)?.trim();
+  if (user.is_anonymous || metadataName) return <>{children}</>;
 
   const submit = async () => {
     if (!draft.trim() || saving) return;
