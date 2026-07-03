@@ -437,6 +437,7 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
                 scale={scale}
                 onOpen={onOpenEntity}
                 onDragEnd={onDragEnd}
+                canEdit={canEdit}
                 connectMode={connectMode}
                 onConnectClick={handleConnectClick}
                 isConnectSource={connectSource === id}

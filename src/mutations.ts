@@ -84,9 +84,13 @@ export async function upsertBoardPosition(entityId: string, pos: BoardPosition) 
       {
         campaign_id: getActiveCampaignId(),
         entity_id: entityId,
-        x: pos.x,
-        y: pos.y,
-        rot: pos.rot,
+        // x/y/rot are `int` columns (0001_init.sql). Dragging produces
+        // fractional pixels (dx / scale), and PostgREST rejects a non-integer
+        // into an int4 column (22P02), which would silently fail the write and
+        // snap the card back — so round before persisting.
+        x: Math.round(pos.x),
+        y: Math.round(pos.y),
+        rot: Math.round(pos.rot ?? 0),
         kind: pos.kind,
       },
       { onConflict: "campaign_id,entity_id" },
