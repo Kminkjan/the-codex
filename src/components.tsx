@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { type KindKey, type PresenceUser } from "./data";
 import { Icon, MapScribble, kindIcon } from "./icons";
 import { useCampaign, useKinds } from "./hooks";
+import { createEntity } from "./mutations";
 
 interface Position {
   x: number;
@@ -293,7 +294,30 @@ export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, counts 
         {totalArchived > 0 && <span className="count-archived">{totalArchived} archived</span>}
       </div>
 
-      <div className="sidebar-label"><span>Sessions</span></div>
+      <div className="sidebar-label">
+        <span>Sessions</span>
+        <button
+          title="New session"
+          onClick={() => {
+            const id = crypto.randomUUID();
+            const num = Math.max(0, ...campaign.sessions.map((s) => s.num)) + 1;
+            const date = new Date().toLocaleDateString("en-GB", {
+              day: "numeric", month: "long", year: "numeric",
+            });
+            createEntity("sessions", id, { num, title: "Untitled session", date })
+              .then(() => onOpenEntity(id))
+              .catch(console.error);
+          }}
+          style={{
+            background: "transparent",
+            border: "1px dashed var(--ink-faded)",
+            color: "var(--ink-faded)",
+            width: 18, height: 18, lineHeight: "14px",
+            fontSize: 13, padding: 0, cursor: "pointer",
+            flex: "0 0 auto",
+          }}
+        >+</button>
+      </div>
       {campaign.sessions.slice().reverse().map((s) => (
         <div key={s.id} className="session-chip" onClick={() => onOpenEntity(s.id)}>
           <span className="num">SESS {String(s.num).padStart(2, "0")}</span>
