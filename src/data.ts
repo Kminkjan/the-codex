@@ -7,7 +7,8 @@ export type KindKey =
   | "factions"
   | "items"
   | "lore"
-  | "sessions";
+  | "sessions"
+  | "arcs";
 
 export interface Session {
   id: string;
@@ -17,6 +18,18 @@ export interface Session {
   summary?: string;
   imageUrl?: string;
   inGameDate?: string;
+  arc?: string;
+}
+
+// Story arcs group sessions and quests ("Barovia Saga"). Like sessions they
+// live outside buildKinds: no board cards, no archiving, a bespoke page.
+export interface Arc {
+  id: string;
+  title: string;
+  summary?: string;
+  startSession?: string;
+  endSession?: string;
+  orderNum: number;
 }
 
 export interface ArchivableFields {
@@ -60,6 +73,7 @@ export interface Quest extends ArchivableFields {
   session?: string;
   desc?: string;
   hooks?: string;
+  arc?: string;
 }
 
 export interface Goal extends ArchivableFields {
@@ -121,7 +135,7 @@ export interface PartyNote {
 export type Connection = [string, string, string];
 
 export type Entity =
-  & (Person | Location | Quest | Goal | Faction | Item | Lore | Session)
+  & (Person | Location | Quest | Goal | Faction | Item | Lore | Session | Arc)
   & { _kind?: KindKey; _kindLabel?: string };
 
 export interface Campaign {
@@ -129,6 +143,7 @@ export interface Campaign {
   title: string;
   subtitle: string;
   sessions: Session[];
+  arcs: Arc[];
   people: Person[];
   locations: Location[];
   quests: Quest[];
@@ -176,6 +191,8 @@ export function findEntity(
   }
   const sess = campaign.sessions.find((s) => s.id === id);
   if (sess) return { ...sess, _kind: "sessions", _kindLabel: "Sessions", name: sess.title } as any;
+  const arc = campaign.arcs.find((a) => a.id === id);
+  if (arc) return { ...arc, _kind: "arcs", _kindLabel: "Arcs", name: arc.title } as any;
   return null;
 }
 

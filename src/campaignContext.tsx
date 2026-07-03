@@ -66,6 +66,7 @@ const mapQuest = (r: any) => ({
   session: r.session_id ?? undefined,
   desc: r.desc ?? undefined,
   hooks: r.hooks ?? undefined,
+  arc: r.arc_id ?? undefined,
   ...archiveFields(r),
 });
 
@@ -112,6 +113,16 @@ const mapSession = (r: any) => ({
   summary: r.summary ?? undefined,
   imageUrl: r.image_url ?? undefined,
   inGameDate: r.in_game_date ?? undefined,
+  arc: r.arc_id ?? undefined,
+});
+
+const mapArc = (r: any) => ({
+  id: r.id,
+  title: r.title,
+  summary: r.summary ?? undefined,
+  startSession: r.start_session_id ?? undefined,
+  endSession: r.end_session_id ?? undefined,
+  orderNum: r.order_num ?? 0,
 });
 
 const mapPresence = (r: any) => ({
@@ -143,6 +154,7 @@ async function fetchCampaign(id: string): Promise<Campaign> {
   const [
     campaignRes,
     sessionsRes,
+    arcsRes,
     peopleRes,
     locationsRes,
     questsRes,
@@ -157,6 +169,7 @@ async function fetchCampaign(id: string): Promise<Campaign> {
   ] = await Promise.all([
     supabase.from("campaigns").select("*").eq("id", id).single(),
     supabase.from("sessions").select("*").eq("campaign_id", id).order("num"),
+    supabase.from("arcs").select("*").eq("campaign_id", id).order("order_num"),
     supabase.from("people").select("*").eq("campaign_id", id),
     supabase.from("locations").select("*").eq("campaign_id", id),
     supabase.from("quests").select("*").eq("campaign_id", id),
@@ -171,7 +184,7 @@ async function fetchCampaign(id: string): Promise<Campaign> {
   ]);
 
   const first = [
-    campaignRes, sessionsRes, peopleRes, locationsRes, questsRes, goalsRes,
+    campaignRes, sessionsRes, arcsRes, peopleRes, locationsRes, questsRes, goalsRes,
     factionsRes, itemsRes, loreRes, connectionsRes, boardRes, presenceRes, notesRes,
   ].find((r) => r.error);
   if (first?.error) throw new Error(first.error.message);
@@ -187,6 +200,7 @@ async function fetchCampaign(id: string): Promise<Campaign> {
     title: campaignRes.data.title,
     subtitle: campaignRes.data.subtitle ?? "",
     sessions: (sessionsRes.data ?? []).map(mapSession),
+    arcs: (arcsRes.data ?? []).map(mapArc),
     people: (peopleRes.data ?? []).map(mapPerson),
     locations: (locationsRes.data ?? []).map(mapLocation),
     quests: (questsRes.data ?? []).map(mapQuest),
@@ -287,6 +301,13 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
           { event: "*", schema: "public", table: "sessions", filter },
           (payload: any) => {
             setCampaign((c) => c ? { ...c, sessions: applyArrayChange(c.sessions, payload.eventType, payload.new ? mapSession(payload.new) : null, payload.old ? mapSession(payload.old) : null) } : c);
+          },
+        );
+        channel.on(
+          "postgres_changes" as any,
+          { event: "*", schema: "public", table: "arcs", filter },
+          (payload: any) => {
+            setCampaign((c) => c ? { ...c, arcs: applyArrayChange(c.arcs, payload.eventType, payload.new ? mapArc(payload.new) : null, payload.old ? mapArc(payload.old) : null) } : c);
           },
         );
         channel.on(

@@ -18,6 +18,7 @@ const fieldAlias: Record<KindKey, Record<string, string>> = {
   quests: {
     giver: "giver_id",
     session: "session_id",
+    arc: "arc_id",
   },
   locations: {
     imageUrl: "image_url",
@@ -33,6 +34,12 @@ const fieldAlias: Record<KindKey, Record<string, string>> = {
   sessions: {
     imageUrl: "image_url",
     inGameDate: "in_game_date",
+    arc: "arc_id",
+  },
+  arcs: {
+    startSession: "start_session_id",
+    endSession: "end_session_id",
+    orderNum: "order_num",
   },
 };
 
