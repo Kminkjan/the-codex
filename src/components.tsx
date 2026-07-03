@@ -87,7 +87,7 @@ export function PinnedCard({
   return (
     <div
       ref={ref}
-      className={`pinned ${dragging ? "dragging" : ""} ${archived ? "archived" : ""} ${pinnedFlag ? "is-pinned" : ""}`}
+      className={`pinned ${dragging ? "dragging" : ""} ${archived ? "archived" : ""} ${pinnedFlag ? "is-pinned" : ""} ${dimmed ? "dimmed" : ""}`}
       data-kind={pos.kind}
       data-id={entity.id}
       style={{
@@ -98,6 +98,8 @@ export function PinnedCard({
         outlineOffset: 6,
       }}
       onMouseDown={onMouseDown}
+      onMouseEnter={() => onHover?.(entity.id)}
+      onMouseLeave={() => onHover?.(null)}
     >
       <span className={`pin-head ${pinnedFlag ? "brass" : pinClass}`} />
       <CardBody entity={entity} kind={pos.kind} />
