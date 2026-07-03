@@ -22,18 +22,34 @@ interface Position {
 // left untouched.
 const isDelimRow = (l: string) => /^\|?[\s:\-|]+\|?$/.test(l.trim()) && l.includes("-");
 const isPipeRow = (l: string) => /^\|.*\|$/.test(l.trim());
+// Split a pipe row into trimmed cells, respecting escaped pipes (`\|` is a
+// literal, not a cell boundary), then unescape them.
+const splitRow = (t: string) =>
+  t.replace(/^\|/, "").replace(/\|$/, "")
+    .split(/(?<!\\)\|/)
+    .map((c) => c.trim().replace(/\\\|/g, "|"))
+    .filter(Boolean);
 function normalizeLoosePipeRows(md: string): string {
   const lines = md.split("\n");
+  // First, mark every line that belongs to a *real* GFM table: a header row
+  // (its next line is the delimiter), the delimiter itself, and the body rows
+  // that follow. Anything else that looks like a pipe row is "loose".
+  const inTable = new Array(lines.length).fill(false);
+  for (let i = 0; i < lines.length; i++) {
+    const t = lines[i].trim();
+    if (!isPipeRow(t) || isDelimRow(t)) continue;
+    if (!isDelimRow(lines[i + 1]?.trim() ?? "")) continue;
+    inTable[i] = inTable[i + 1] = true;
+    let j = i + 2;
+    while (j < lines.length && isPipeRow(lines[j].trim())) inTable[j++] = true;
+    i = j - 1;
+  }
   return lines
     .map((line, i) => {
       const t = line.trim();
-      if (!isPipeRow(t) || isDelimRow(t)) return line;
-      const prev = lines[i - 1]?.trim() ?? "";
-      const next = lines[i + 1]?.trim() ?? "";
-      // Part of a real table: a body row (prev is a row) or a header (next is
-      // the delimiter). Everything else is a loose row to collapse.
-      if (isPipeRow(prev) || isDelimRow(next)) return line;
-      const cells = t.replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim()).filter(Boolean);
+      if (inTable[i] || !isPipeRow(t) || isDelimRow(t)) return line;
+      // Loose row (incl. several stacked back-to-back): collapse to text.
+      const cells = splitRow(t);
       if (cells.length < 2) return cells[0] ?? line;
       return `${cells[0]}: ${cells.slice(1).join(" — ")}`;
     })
