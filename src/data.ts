@@ -161,6 +161,10 @@ export interface Campaign {
   events: CampaignEvent[];
   // event id → participating person ids (event_participants junction).
   eventParticipants: Record<string, string[]>;
+  // session id → person ids seen in that session (session_participants junction).
+  sessionParticipants: Record<string, string[]>;
+  // The shared "we're live in session N" pin (campaigns.active_session_id).
+  activeSessionId?: string;
   people: Person[];
   locations: Location[];
   quests: Quest[];

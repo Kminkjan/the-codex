@@ -11,6 +11,8 @@ import {
   insertConnection,
   addEventParticipant,
   removeEventParticipant,
+  markSeen,
+  unmarkSeen,
 } from "./mutations";
 import { uploadEntityImage, type UploadableKind } from "./upload";
 
@@ -640,6 +642,19 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                     ✦ {kind === "events" ? "During" : "Introduced"} — Session {campaign.sessions.find((s) => s.id === (entity as any).session)?.num}
                   </span>
                 )}
+                {kind === "people" && canEdit && campaign.activeSessionId && (() => {
+                  const activeNum = campaign.sessions.find((s) => s.id === campaign.activeSessionId)?.num;
+                  const seen = (campaign.sessionParticipants[campaign.activeSessionId] ?? []).includes(entity.id);
+                  return (
+                    <button
+                      className={"seen-toggle" + (seen ? " seen" : "")}
+                      onClick={() => (seen ? unmarkSeen(entity.id) : markSeen(entity.id)).catch(console.error)}
+                      title={seen ? `Marked seen in session ${activeNum} — click to remove` : `Mark seen in session ${activeNum}`}
+                    >
+                      {seen ? "✓ Seen this session" : "+ Seen this session"}
+                    </button>
+                  );
+                })()}
               </div>
             </div>
           </div>

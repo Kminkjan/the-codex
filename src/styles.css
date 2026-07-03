@@ -246,7 +246,7 @@ body {
 }
 
 .topbar-center {
-  flex: 1; display: flex; justify-content: center; align-items: center;
+  flex: 1; display: flex; justify-content: center; align-items: center; gap: 10px;
 }
 .topbar-right {
   display: flex; align-items: center; gap: 14px;
@@ -312,6 +312,91 @@ body {
   background: var(--bloodred);
   box-shadow: 0 0 0 2px rgba(138,42,31,.25);
   flex-shrink: 0;
+}
+
+/* Active-session pin (Topbar) — same chip language as the campaign picker. */
+.session-pin-picker { position: relative; }
+.session-pin {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 12px 5px 10px;
+  background: var(--paper-cream);
+  border: 1px solid var(--vellum-deep);
+  border-radius: 20px;
+  font-family: var(--font-fell);
+  font-size: 13px;
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(40,20,5,.12);
+  white-space: nowrap;
+  cursor: pointer;
+}
+button.session-pin { line-height: 1; }
+.session-pin .pin-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--ink-ghost);
+  flex-shrink: 0;
+}
+.session-pin .pin-dot.live {
+  background: var(--bloodred);
+  box-shadow: 0 0 0 2px rgba(138,42,31,.25);
+  animation: pin-pulse 2s ease-in-out infinite;
+}
+@keyframes pin-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(138,42,31,.25); }
+  50%      { box-shadow: 0 0 0 4px rgba(138,42,31,.10); }
+}
+
+/* "Seen this session" toggle on the person detail sheet. */
+.seen-toggle {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 10px;
+  background: transparent;
+  border: 1px dashed var(--ink-faded);
+  color: var(--ink-faded);
+  font-family: var(--font-fell-sc);
+  font-size: 11px;
+  letter-spacing: .1em;
+  cursor: pointer;
+  clip-path: polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%);
+}
+.seen-toggle:hover { border-color: var(--bloodred); color: var(--bloodred); }
+.seen-toggle.seen {
+  background: var(--bloodred);
+  border-color: var(--bloodred);
+  color: var(--paper-cream);
+}
+
+/* "Seen this session" marker on a person's board card. */
+.seen-live-dot {
+  position: absolute; top: 8px; right: 8px;
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--bloodred);
+  box-shadow: 0 0 0 2px var(--paper-cream), 0 0 0 3px rgba(138,42,31,.4);
+  z-index: 2;
+}
+
+/* "This session" roster in the sidebar. */
+.session-roster {
+  display: flex; flex-wrap: wrap; gap: 5px;
+  padding: 2px 16px 8px;
+}
+.roster-chip {
+  padding: 3px 9px;
+  background: var(--paper-cream);
+  border: 1px solid var(--vellum-deep);
+  border-radius: 12px;
+  font-family: var(--font-fell);
+  font-size: 12px;
+  color: var(--ink);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.roster-chip:hover { border-color: var(--bloodred); color: var(--bloodred); }
+.session-roster-empty {
+  padding: 0 16px 4px;
+  font-family: var(--font-fell);
+  font-style: italic;
+  font-size: 12px;
+  color: var(--ink-faded);
 }
 
 /* Presence avatars */

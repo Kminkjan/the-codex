@@ -4,7 +4,7 @@ import remarkGfm from "remark-gfm";
 import { type KindKey, type PresenceUser } from "./data";
 import { Icon, MapScribble, kindIcon } from "./icons";
 import { useCampaign, useCampaignSwitcher, useKinds } from "./hooks";
-import { createEntity } from "./mutations";
+import { createEntity, setActiveSession } from "./mutations";
 import { SignInDialog, useAuth } from "./auth";
 
 interface Position {
@@ -165,8 +165,13 @@ export function CardBody({ entity, kind }: { entity: any; kind: KindKey }) {
 export function PosterCard({ person }: { person: any }) {
   const campaign = useCampaign();
   const sess = person.lastSeen ? campaign.sessions.find((s) => s.id === person.lastSeen) : null;
+  // Seen in the currently-live session? Subtle read-only marker; the toggle
+  // itself lives on the detail sheet.
+  const seenLive = !!campaign.activeSessionId
+    && (campaign.sessionParticipants[campaign.activeSessionId] ?? []).includes(person.id);
   return (
     <div className="card-poster">
+      {seenLive && <span className="seen-live-dot" title="Seen this session" />}
       <div className="wanted">
         {person.disposition === "hostile"
           ? "✦ Wanted ✦"
@@ -321,8 +326,32 @@ export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, counts 
   const visibleSessions = effectiveArcFilter === "all"
     ? campaign.sessions
     : campaign.sessions.filter((s) => s.arc === effectiveArcFilter);
+  // Roster of people marked seen in the currently-live session.
+  const liveSession = campaign.sessions.find((s) => s.id === campaign.activeSessionId);
+  const seenThisSession = liveSession
+    ? (campaign.sessionParticipants[liveSession.id] ?? [])
+        .map((pid) => campaign.people.find((p) => p.id === pid))
+        .filter((p): p is NonNullable<typeof p> => !!p)
+        .sort((a, b) => a.name.localeCompare(b.name))
+    : [];
   return (
     <aside className="sidebar">
+      {liveSession && (
+        <>
+          <div className="sidebar-label"><span>This Session · {liveSession.num}</span></div>
+          <div className="session-roster">
+            {seenThisSession.length === 0 ? (
+              <div className="session-roster-empty">No one marked seen yet.</div>
+            ) : (
+              seenThisSession.map((p) => (
+                <button key={p.id} className="roster-chip" onClick={() => onOpenEntity(p.id)} title={p.epithet ?? p.name}>
+                  {p.name}
+                </button>
+              ))
+            )}
+          </div>
+        </>
+      )}
       <div className="sidebar-label"><span>The Board</span></div>
       <div className={`nav-item ${active === "board" ? "active" : ""}`} onClick={() => onSelect("board")}>
         <span className="icon"><Icon name="board" /></span>
@@ -505,6 +534,98 @@ function CampaignPicker() {
   );
 }
 
+// The shared "we're live in session N" pin, beside the campaign picker.
+// Editors get a dropdown to go live / switch / stand down; viewers see a static
+// label so everyone at the table knows which session is current. The value is
+// campaign-wide and synced to every client via realtime.
+function SessionPin() {
+  const campaign = useCampaign();
+  const { canEdit } = useAuth();
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const live = campaign.sessions.find((s) => s.id === campaign.activeSessionId);
+  const label = live ? `SESSION ${live.num}` : "NOT LIVE";
+
+  // Viewers: static, non-interactive label (only shown when a session is live).
+  if (!canEdit) {
+    if (!live) return null;
+    return (
+      <div className="session-pin">
+        <span className={"pin-dot live"} />
+        <span style={{ fontFamily: "var(--font-fell-sc)", letterSpacing: ".1em", fontSize: 11 }}>LIVE</span>
+        <span>·</span>
+        <span style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 14 }}>Session {live.num}</span>
+      </div>
+    );
+  }
+
+  const pick = (id: string | null) => {
+    setActiveSession(id).catch(console.error);
+    setOpen(false);
+  };
+  // Newest sessions first — that's the one you're most likely going live on.
+  const ordered = [...campaign.sessions].sort((a, b) => b.num - a.num);
+
+  return (
+    <div className="session-pin-picker" ref={rootRef}>
+      <button
+        className="session-pin"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        title={live ? "Switch or stand down" : "Go live on a session"}
+      >
+        <span className={"pin-dot" + (live ? " live" : "")} />
+        <span style={{ fontFamily: "var(--font-fell-sc)", letterSpacing: ".1em", fontSize: 11 }}>{live ? "LIVE" : "GO LIVE"}</span>
+        {live && <><span>·</span><span style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 14 }}>{label}</span></>}
+        <Icon name="chevron" size={11} style={{ transform: open ? "rotate(-90deg)" : "rotate(90deg)", color: "var(--ink-faded)", flexShrink: 0 }} />
+      </button>
+      {open && (
+        <div className="campaign-picker-menu" role="listbox">
+          {live && (
+            <button role="option" aria-selected={false} className="campaign-picker-item" onClick={() => pick(null)}>
+              <span className="dot" style={{ visibility: "hidden" }} />
+              <span style={{ fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 13 }}>Stand down (not live)</span>
+            </button>
+          )}
+          {ordered.map((s) => (
+            <button
+              key={s.id}
+              role="option"
+              aria-selected={s.id === campaign.activeSessionId}
+              className={"campaign-picker-item" + (s.id === campaign.activeSessionId ? " active" : "")}
+              onClick={() => pick(s.id)}
+            >
+              <span className="dot" style={{ visibility: s.id === campaign.activeSessionId ? "visible" : "hidden" }} />
+              <span>
+                <span style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 14, display: "block" }}>Session {s.num}</span>
+                {s.title && <span style={{ color: "var(--ink-faded)", fontStyle: "italic", fontSize: 12 }}>{s.title}</span>}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Topbar({ onShare }: { onShare: () => void }) {
   const campaign = useCampaign();
   const { canEdit, displayName, signOut } = useAuth();
@@ -520,6 +641,7 @@ export function Topbar({ onShare }: { onShare: () => void }) {
       </div>
       <div className="topbar-center">
         <CampaignPicker />
+        <SessionPin />
       </div>
       <div className="topbar-right">
         <Presence users={campaign.presence} />

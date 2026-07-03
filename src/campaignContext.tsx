@@ -2,6 +2,7 @@ import { createContext, useCallback, useEffect, useState, type ReactNode } from 
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "./utils/supabase";
 import { setActiveCampaignId } from "./activeCampaign";
+import { setActiveSessionId } from "./activeSession";
 import { parseHash, writeCampaignHash } from "./route";
 import {
   type Campaign,
@@ -151,6 +152,15 @@ const buildParticipants = (rows: any[]): Record<string, string[]> => {
   return byEvent;
 };
 
+// session id → person ids seen in that session (session_participants junction).
+const buildSessionParticipants = (rows: any[]): Record<string, string[]> => {
+  const bySession: Record<string, string[]> = {};
+  rows.forEach((r: any) => {
+    (bySession[r.session_id] = bySession[r.session_id] || []).push(r.person_id);
+  });
+  return bySession;
+};
+
 const mapPresence = (r: any) => ({
   id: r.id,
   name: r.name,
@@ -183,6 +193,7 @@ async function fetchCampaign(id: string): Promise<Campaign> {
     arcsRes,
     eventsRes,
     participantsRes,
+    sessionParticipantsRes,
     peopleRes,
     locationsRes,
     questsRes,
@@ -200,6 +211,7 @@ async function fetchCampaign(id: string): Promise<Campaign> {
     supabase.from("arcs").select("*").eq("campaign_id", id).order("order_num"),
     supabase.from("events").select("*").eq("campaign_id", id).order("order_num"),
     supabase.from("event_participants").select("*").eq("campaign_id", id),
+    supabase.from("session_participants").select("*").eq("campaign_id", id),
     supabase.from("people").select("*").eq("campaign_id", id),
     supabase.from("locations").select("*").eq("campaign_id", id),
     supabase.from("quests").select("*").eq("campaign_id", id),
@@ -214,7 +226,8 @@ async function fetchCampaign(id: string): Promise<Campaign> {
   ]);
 
   const first = [
-    campaignRes, sessionsRes, arcsRes, eventsRes, participantsRes, peopleRes,
+    campaignRes, sessionsRes, arcsRes, eventsRes, participantsRes,
+    sessionParticipantsRes, peopleRes,
     locationsRes, questsRes, goalsRes, factionsRes, itemsRes, loreRes,
     connectionsRes, boardRes, presenceRes, notesRes,
   ].find((r) => r.error);
@@ -234,6 +247,8 @@ async function fetchCampaign(id: string): Promise<Campaign> {
     arcs: (arcsRes.data ?? []).map(mapArc),
     events: (eventsRes.data ?? []).map(mapEvent),
     eventParticipants: buildParticipants(participantsRes.data ?? []),
+    sessionParticipants: buildSessionParticipants(sessionParticipantsRes.data ?? []),
+    activeSessionId: campaignRes.data.active_session_id ?? undefined,
     people: (peopleRes.data ?? []).map(mapPerson),
     locations: (locationsRes.data ?? []).map(mapLocation),
     quests: (questsRes.data ?? []).map(mapQuest),
@@ -336,8 +351,11 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
     let channel: RealtimeChannel | null = null;
 
     // Synchronous, before any await: mutations read this store, and clearing
-    // the campaign unmounts AppLoaded so nothing can write mid-switch.
+    // the campaign unmounts AppLoaded so nothing can write mid-switch. Clear
+    // the active-session store too so a stale pin from the previous campaign
+    // can't leak into a mutation before the new campaign's value loads.
     setActiveCampaignId(campaignId);
+    setActiveSessionId(null);
     setCampaign(null);
     setLoading(true);
     setError(null);
@@ -347,11 +365,28 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
         const initial = await fetchCampaign(campaignId);
         if (cancelled) return;
         setCampaign(initial);
+        setActiveSessionId(initial.activeSessionId ?? null);
         setLoading(false);
 
         const filter = `campaign_id=eq.${campaignId}`;
         channel = supabase.channel(`campaign:${campaignId}`);
 
+        // The shared pin lives on the campaigns row itself, so it's filtered by
+        // `id`, not `campaign_id`. Keep both the React state and the module-level
+        // store (read by mutations) in sync when another client moves the pin.
+        channel.on(
+          "postgres_changes" as any,
+          { event: "UPDATE", schema: "public", table: "campaigns", filter: `id=eq.${campaignId}` },
+          (payload: any) => {
+            // Guard the module-store write like the async handlers do: a late
+            // event from the previous campaign's torn-down channel must not
+            // leak a stale active_session_id into the store mutations read.
+            if (cancelled) return;
+            const next = payload.new?.active_session_id ?? undefined;
+            setActiveSessionId(next ?? null);
+            setCampaign((c) => c && c.id === campaignId ? { ...c, activeSessionId: next, title: payload.new?.title ?? c.title, subtitle: payload.new?.subtitle ?? c.subtitle } : c);
+          },
+        );
         channel.on(
           "postgres_changes" as any,
           { event: "*", schema: "public", table: "people", filter },
@@ -430,6 +465,18 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
             supabase.from("event_participants").select("*").eq("campaign_id", campaignId).then(({ data }) => {
               if (cancelled) return;
               setCampaign((c) => c && c.id === campaignId ? { ...c, eventParticipants: buildParticipants(data ?? []) } : c);
+            });
+          },
+        );
+        channel.on(
+          "postgres_changes" as any,
+          { event: "*", schema: "public", table: "session_participants", filter },
+          () => {
+            // Composite PK, no client-side id — refetch, same as event_participants.
+            // (The trigger's downstream people UPDATE arrives via the people handler.)
+            supabase.from("session_participants").select("*").eq("campaign_id", campaignId).then(({ data }) => {
+              if (cancelled) return;
+              setCampaign((c) => c && c.id === campaignId ? { ...c, sessionParticipants: buildSessionParticipants(data ?? []) } : c);
             });
           },
         );
