@@ -97,13 +97,16 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
 
   // The entities tied to the focused session: quests logged in it and people
   // last seen there (sessions link to nothing else in the model). null means
-  // "All sessions" — no focus.
-  const sessionFocus: Set<string> | null = filters.sessions === "all"
-    ? null
-    : new Set([
-        ...campaign.quests.filter((q) => q.session === filters.sessions).map((q) => q.id),
-        ...campaign.people.filter((p) => p.lastSeen === filters.sessions).map((p) => p.id),
-      ]);
+  // "no focus" — either "All sessions", or a session with nothing linked to it
+  // (an empty set would otherwise dim the whole board, spotlighting nothing).
+  const sessionFocus: Set<string> | null = (() => {
+    if (filters.sessions === "all") return null;
+    const s = new Set([
+      ...campaign.quests.filter((q) => q.session === filters.sessions).map((q) => q.id),
+      ...campaign.people.filter((p) => p.lastSeen === filters.sessions).map((p) => p.id),
+    ]);
+    return s.size > 0 ? s : null;
+  })();
 
   // Spotlight: a hovered card and its neighbors stay lit while the rest recede.
   // With no hover, a focused session takes over the spotlight so its cards pop
