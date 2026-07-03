@@ -216,6 +216,7 @@ export function LoreCard({ l }: { l: any }) {
   return (
     <div className="card-lore">
       <div className="l-label">✦ Lore ✦</div>
+      {l.title && <div className="l-title">{l.title}</div>}
       <div className="l-text">{l.text}</div>
     </div>
   );

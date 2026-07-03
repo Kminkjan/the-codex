@@ -119,10 +119,11 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
     const id = crypto.randomUUID();
     try {
       await createEntity(k, id, NEW_ENTITY_DEFAULTS[k]);
-      // Drop the new card onto a slightly randomized spot so they don't stack.
+      // Drop the new card into the first open spot so cards don't pile up.
+      const spot = findFreeSpot(k);
       await upsertBoardPosition(id, {
-        x: 400 + Math.floor(Math.random() * 600),
-        y: 300 + Math.floor(Math.random() * 400),
+        x: spot.x,
+        y: spot.y,
         rot: Math.floor(Math.random() * 7) - 3,
         kind: k,
       });
@@ -162,6 +163,36 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
     if (!p) return null;
     const s = cardSize[p.kind] || { w: 200, h: 140 };
     return { x: p.x + s.w / 2, y: p.y + s.h / 2 };
+  };
+
+  // Probe outward for an open spot so a new card doesn't stack on others (or
+  // land under the title banner). Sweeps a grid below the banner strip and
+  // returns the first slot whose rect clears every existing card; falls back to
+  // a randomized drop if the board is packed.
+  const findFreeSpot = (kind: string) => {
+    const s = cardSize[kind] || { w: 200, h: 140 };
+    const pad = 24;
+    const occupied = Object.values(positions).map((p) => {
+      const os = cardSize[p.kind] || { w: 200, h: 140 };
+      return { x: p.x, y: p.y, w: os.w, h: os.h };
+    });
+    const overlaps = (x: number, y: number) =>
+      occupied.some(
+        (o) =>
+          x < o.x + o.w + pad &&
+          x + s.w + pad > o.x &&
+          y < o.y + o.h + pad &&
+          y + s.h + pad > o.y,
+      );
+    const startX = 220, startY = 260, stepX = 120, stepY = 90, cols = 12, rows = 14;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const x = startX + c * stepX;
+        const y = startY + r * stepY;
+        if (!overlaps(x, y)) return { x, y };
+      }
+    }
+    return { x: 400 + Math.floor(Math.random() * 600), y: 300 + Math.floor(Math.random() * 400) };
   };
 
   const yarnPath = (a: { x: number; y: number }, b: { x: number; y: number }) => {
@@ -298,7 +329,7 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
         onWheel={onWheel}
       >
         <div
-          className="board-surface"
+          className={`board-surface ${scale < 0.7 ? "zoom-far" : ""}`}
           style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})` }}
         >
           <div className="board-frame" />
@@ -314,7 +345,8 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
             transform: "rotate(-1deg)",
             boxShadow: "var(--shadow-pin)",
             border: "1px solid rgba(139,94,40,.4)",
-            zIndex: 2,
+            zIndex: 5,
+            pointerEvents: "none",
           }}>
             <span className="pin-head" style={{ left: "10%" }} />
             <span className="pin-head" style={{ left: "90%" }} />

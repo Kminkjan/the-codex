@@ -600,6 +600,43 @@ body {
 .pinned:hover { z-index: 4; filter: brightness(1.03); }
 /* Spotlight: while a card is hovered, cards not connected to it recede */
 .pinned.dimmed { opacity: .45; }
+
+/* Hierarchy: featured (pinned) cards anchor the board — they sit above the
+   rest, carry a warm glow, and never fade during another card's spotlight.
+   Regular cards gently recede at rest so the featured ones read loudest. */
+.pinned.is-pinned {
+  z-index: 6;
+  filter: drop-shadow(0 6px 14px rgba(20,12,4,.4)) drop-shadow(0 0 16px rgba(212,167,40,.28));
+}
+.pinned.is-pinned:hover {
+  z-index: 6;
+  filter: brightness(1.03) drop-shadow(0 6px 14px rgba(20,12,4,.4)) drop-shadow(0 0 16px rgba(212,167,40,.28));
+}
+.pinned.is-pinned.dimmed { opacity: 1; }
+/* Recede regular cards at rest — but not archived ones, which keep their own
+   fainter .55 treatment (excluded here so this rule can't out-specify it). */
+.pinned:not(.is-pinned):not(.dimmed):not(.archived) { opacity: .9; }
+
+/* Semantic zoom: below ~0.7 scale, regular cards drop to headline + kind-tag so
+   the board reads at a glance; featured cards keep their body as anchors. */
+.board-surface.zoom-far .pinned:not(.is-pinned) .desc,
+.board-surface.zoom-far .pinned:not(.is-pinned) .reward,
+.board-surface.zoom-far .pinned:not(.is-pinned) .quest-desc,
+.board-surface.zoom-far .pinned:not(.is-pinned) .quest-meta,
+.board-surface.zoom-far .pinned:not(.is-pinned) .loc-desc,
+.board-surface.zoom-far .pinned:not(.is-pinned) .goal-owner,
+.board-surface.zoom-far .pinned:not(.is-pinned) .f-sub,
+.board-surface.zoom-far .pinned:not(.is-pinned) .i-desc,
+.board-surface.zoom-far .pinned:not(.is-pinned) .l-text {
+  display: none;
+}
+/* Goals have no separate title — the body IS the headline, so clamp it to one
+   line rather than hiding it. (Lore now has its own .l-title, so its body is
+   hidden above like every other description.) */
+.board-surface.zoom-far .pinned:not(.is-pinned) .goal-text {
+  -webkit-line-clamp: 1;
+}
+
 .pinned.dragging { cursor: grabbing; z-index: 10; transition: none; }
 .pinned.dragging .pin-head { filter: brightness(1.1); }
 
@@ -931,6 +968,18 @@ body {
   font-size: 11px;
   letter-spacing: .16em;
   color: var(--forest);
+}
+.card-lore .l-title {
+  font-family: var(--font-fell-sc);
+  font-size: 14px;
+  letter-spacing: .04em;
+  color: var(--ink);
+  margin-top: 3px;
+  line-height: 1.2;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 }
 .card-lore .l-text {
   font-family: var(--font-fell);
