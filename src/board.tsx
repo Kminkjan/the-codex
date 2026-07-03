@@ -95,12 +95,23 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
 
   const visibleConnections = connections.filter(([a, b]) => visible(a) && visible(b));
 
-  // Spotlight: while a card is hovered, it and its neighbors stay lit and
-  // everything else recedes (see .pinned.dimmed / .yarn.lit in styles.css).
+  // The entities tied to the focused session: quests logged in it and people
+  // last seen there (sessions link to nothing else in the model). null means
+  // "All sessions" — no focus.
+  const sessionFocus: Set<string> | null = filters.sessions === "all"
+    ? null
+    : new Set([
+        ...campaign.quests.filter((q) => q.session === filters.sessions).map((q) => q.id),
+        ...campaign.people.filter((p) => p.lastSeen === filters.sessions).map((p) => p.id),
+      ]);
+
+  // Spotlight: a hovered card and its neighbors stay lit while the rest recede.
+  // With no hover, a focused session takes over the spotlight so its cards pop
+  // and the rest of the board dims (see .pinned.dimmed / .yarn.lit in styles.css).
   const spotlight = hoverCard
     ? new Set([hoverCard, ...visibleConnections.flatMap(([a, b]) =>
         a === hoverCard ? [b] : b === hoverCard ? [a] : [])])
-    : null;
+    : sessionFocus;
 
   const toggleKind = (k: KindKey) => setFilters((f) => ({ ...f, [k]: !(f as any)[k] }));
 
@@ -235,13 +246,6 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
     }
   };
 
-  const filteredSessionQuests: Set<string> | null = filters.sessions === "all"
-    ? null
-    : new Set([
-        ...campaign.quests.filter((q) => q.session === filters.sessions).map((q) => q.id),
-        ...campaign.people.filter((p) => p.lastSeen === filters.sessions).map((p) => p.id),
-      ]);
-
   return (
     <>
       <div className="board-toolbar">
@@ -271,23 +275,23 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
           </span>
         </div>
 
-        <div className="filter-group">
-          <span
-            className={`filter-pill ${filters.sessions === "all" ? "active" : ""}`}
-            onClick={() => setFilters((f) => ({ ...f, sessions: "all" }))}
+        <div className={`filter-group ${filters.sessions !== "all" ? "active" : ""}`}>
+          <select
+            className="session-focus"
+            value={filters.sessions}
+            onChange={(e) => setFilters((f) => ({ ...f, sessions: e.target.value }))}
+            title="Spotlight the cards from one session; the rest of the board dims"
           >
-            All sessions
-          </span>
-          {campaign.sessions.map((s) => (
-            <span
-              key={s.id}
-              className={`filter-pill ${filters.sessions === s.id ? "active" : ""}`}
-              onClick={() => setFilters((f) => ({ ...f, sessions: s.id }))}
-              title={s.title}
-            >
-              S{String(s.num).padStart(2, "0")}
-            </span>
-          ))}
+            <option value="all">All sessions</option>
+            {campaign.sessions
+              .slice()
+              .sort((a, b) => b.num - a.num)
+              .map((s) => (
+                <option key={s.id} value={s.id}>
+                  S{String(s.num).padStart(2, "0")} — {s.title}
+                </option>
+              ))}
+          </select>
         </div>
 
         {canEdit && <button
@@ -386,7 +390,7 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
               const [a, b, label] = conn;
               const A = centerOf(a), B = centerOf(b);
               if (!A || !B) return null;
-              const faded = filteredSessionQuests && !(filteredSessionQuests.has(a) || filteredSessionQuests.has(b));
+              const faded = sessionFocus && !(sessionFocus.has(a) || sessionFocus.has(b));
               const isHover = hoverConn === i;
               const lit = isHover || (hoverCard !== null && (a === hoverCard || b === hoverCard));
               const pathD = yarnPath(A, B);
