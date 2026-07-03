@@ -6,6 +6,7 @@ import { Icon } from "./icons";
 import { Sidebar, Topbar } from "./components";
 import { NoticeBoard, KindList } from "./board";
 import { ArcsPage } from "./arcs";
+import { EventsPage } from "./events";
 import { DetailSheet } from "./detail";
 import { CommandPalette, useCommandPaletteHotkey } from "./commandPalette";
 import { CleanupPanel } from "./cleanupPanel";
@@ -110,7 +111,8 @@ function AppLoaded() {
         <main className="main">
           {view === "board" && <NoticeBoard onOpenEntity={setOpenId} />}
           {view === "arcs" && <ArcsPage onOpenEntity={setOpenId} />}
-          {view !== "board" && view !== "arcs" && <KindList kind={view} onOpenEntity={setOpenId} />}
+          {view === "events" && <EventsPage onOpenEntity={setOpenId} />}
+          {!["board", "arcs", "events"].includes(view) && <KindList kind={view} onOpenEntity={setOpenId} />}
         </main>
       </div>
 

@@ -62,6 +62,7 @@ export const kindIcon: Record<KindKey, IconName> = {
   lore: "lore",
   sessions: "session",
   arcs: "layers",
+  events: "sparkle",
 };
 
 export const CompassRose = ({ style }: { style?: CSSProperties }) => (

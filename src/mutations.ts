@@ -41,6 +41,12 @@ const fieldAlias: Record<KindKey, Record<string, string>> = {
     endSession: "end_session_id",
     orderNum: "order_num",
   },
+  events: {
+    inGameDate: "in_game_date",
+    session: "session_id",
+    location: "location_id",
+    orderNum: "order_num",
+  },
 };
 
 function toRow(kind: KindKey, patch: Record<string, unknown>): Record<string, unknown> {
@@ -125,6 +131,28 @@ async function deleteConnectionsFor(entityId: string) {
     .delete()
     .eq("campaign_id", CURRENT_CAMPAIGN_ID)
     .or(`from_id.eq.${entityId},to_id.eq.${entityId}`);
+  if (error) throw error;
+}
+
+// ===== Event participants ===================================================
+// FK junction writes (event_participants), not free-form connections.
+
+export async function addEventParticipant(eventId: string, personId: string) {
+  const { error } = await supabase.from("event_participants").insert({
+    campaign_id: CURRENT_CAMPAIGN_ID,
+    event_id: eventId,
+    person_id: personId,
+  });
+  if (error) throw error;
+}
+
+export async function removeEventParticipant(eventId: string, personId: string) {
+  const { error } = await supabase
+    .from("event_participants")
+    .delete()
+    .eq("campaign_id", CURRENT_CAMPAIGN_ID)
+    .eq("event_id", eventId)
+    .eq("person_id", personId);
   if (error) throw error;
 }
 
