@@ -537,7 +537,8 @@ export function EditableText({
 
 interface EditableMarkdownProps {
   value: string;
-  onSave: (next: string) => void | Promise<void>;
+  // Return false to reject the edit: no pending display, the field reverts.
+  onSave: (next: string) => void | boolean | Promise<void>;
   placeholder?: string;
   className?: string;
   style?: React.CSSProperties;
@@ -555,6 +556,7 @@ export function EditableMarkdown({
 }: EditableMarkdownProps) {
   const { canEdit } = useAuth();
   const cancelledRef = useRef(false);
+  const taRef = useRef<HTMLTextAreaElement>(null);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   // Committed-but-not-yet-echoed text, same trick as EditableText: shown until
@@ -566,6 +568,16 @@ export function EditableMarkdown({
     setPending(null);
   }, [value]);
 
+  // Focus alone leaves the caret at position 0 on prefilled content (the
+  // quirk issue #5 fixed for EditableText) — put it at the end explicitly.
+  useLayoutEffect(() => {
+    if (!editing || !taRef.current) return;
+    const el = taRef.current;
+    el.focus();
+    el.setSelectionRange(el.value.length, el.value.length);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing]);
+
   const commit = () => {
     setEditing(false);
     if (cancelledRef.current) {
@@ -574,8 +586,7 @@ export function EditableMarkdown({
     }
     const next = draft.trim();
     if (next !== (display ?? "").trim()) {
-      void onSave(next);
-      setPending(next);
+      if (onSave(next) !== false) setPending(next);
     }
   };
 
@@ -596,7 +607,7 @@ export function EditableMarkdown({
   if (editing) {
     return (
       <textarea
-        autoFocus
+        ref={taRef}
         className={className}
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
@@ -644,11 +655,15 @@ export function EditableMarkdown({
         fontStyle: empty ? "italic" : undefined,
         ...style,
       }}
-      onClick={() => {
+      onClick={(e) => {
+        // Rendered markdown can contain real links — let those behave as
+        // links instead of hijacking the click into edit mode.
+        if ((e.target as HTMLElement).closest("a")) return;
         setDraft(display ?? "");
         setEditing(true);
       }}
-      onFocus={() => {
+      onFocus={(e) => {
+        if (e.target !== e.currentTarget) return; // tabbing onto a nested link
         setDraft(display ?? "");
         setEditing(true);
       }}
