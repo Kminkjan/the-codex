@@ -8,7 +8,8 @@ export type KindKey =
   | "items"
   | "lore"
   | "sessions"
-  | "arcs";
+  | "arcs"
+  | "events";
 
 export interface Session {
   id: string;
@@ -29,6 +30,19 @@ export interface Arc {
   summary?: string;
   startSession?: string;
   endSession?: string;
+  orderNum: number;
+}
+
+// Key moments of the chronicle ("Karn's death"). Named CampaignEvent to dodge
+// the DOM Event type. Like sessions/arcs: outside buildKinds, bespoke page.
+// inGameDate is free-form text, so orderNum carries the chronology.
+export interface CampaignEvent {
+  id: string;
+  title: string;
+  summary?: string;
+  inGameDate?: string;
+  session?: string;
+  location?: string;
   orderNum: number;
 }
 
@@ -135,7 +149,7 @@ export interface PartyNote {
 export type Connection = [string, string, string];
 
 export type Entity =
-  & (Person | Location | Quest | Goal | Faction | Item | Lore | Session | Arc)
+  & (Person | Location | Quest | Goal | Faction | Item | Lore | Session | Arc | CampaignEvent)
   & { _kind?: KindKey; _kindLabel?: string };
 
 export interface Campaign {
@@ -144,6 +158,9 @@ export interface Campaign {
   subtitle: string;
   sessions: Session[];
   arcs: Arc[];
+  events: CampaignEvent[];
+  // event id → participating person ids (event_participants junction).
+  eventParticipants: Record<string, string[]>;
   people: Person[];
   locations: Location[];
   quests: Quest[];
@@ -193,6 +210,8 @@ export function findEntity(
   if (sess) return { ...sess, _kind: "sessions", _kindLabel: "Sessions", name: sess.title } as any;
   const arc = campaign.arcs.find((a) => a.id === id);
   if (arc) return { ...arc, _kind: "arcs", _kindLabel: "Arcs", name: arc.title } as any;
+  const ev = campaign.events.find((e) => e.id === id);
+  if (ev) return { ...ev, _kind: "events", _kindLabel: "Events", name: ev.title } as any;
   return null;
 }
 

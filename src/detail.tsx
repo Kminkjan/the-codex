@@ -9,6 +9,8 @@ import {
   updateEntity,
   deleteEntity,
   insertConnection,
+  addEventParticipant,
+  removeEventParticipant,
 } from "./mutations";
 import { uploadEntityImage, type UploadableKind } from "./upload";
 
@@ -166,6 +168,7 @@ function AddRelationForm({ fromId }: { fromId: string }) {
       ...campaign.lore.map((l) => ({ id: l.id, label: l.title, kind: "lore" })),
       ...campaign.sessions.map((s) => ({ id: s.id, label: s.title, kind: "sessions" })),
       ...campaign.arcs.map((a) => ({ id: a.id, label: a.title, kind: "arcs" })),
+      ...campaign.events.map((e) => ({ id: e.id, label: e.title, kind: "events" })),
     ].filter((o) => o.id !== fromId),
     [campaign, fromId],
   );
@@ -240,8 +243,77 @@ const primaryField: Record<KindKey, string> = {
   lore: "title",
   sessions: "title",
   arcs: "title",
+  events: "title",
   goals: "text",
 };
+
+// "Those Present" — the event_participants junction, editable in the rail.
+// Owns participant display for events, so the related-rail never also
+// synthesizes these people (that would duplicate the chips).
+function EventParticipantsEditor({ eventId, onOpen }: { eventId: string; onOpen: (id: string) => void }) {
+  const campaign = useCampaign();
+  const { canEdit } = useAuth();
+  const ids = campaign.eventParticipants[eventId] ?? [];
+  const participants = ids
+    .map((pid) => campaign.people.find((p) => p.id === pid))
+    .filter((p): p is NonNullable<typeof p> => !!p);
+  const available = campaign.people.filter((p) => !ids.includes(p.id));
+
+  return (
+    <div className="rail-section">
+      <h4>Those Present</h4>
+      {participants.map((p) => (
+        <div key={p.id} className="rail-chip people" onClick={() => onOpen(p.id)}>
+          <div className="rc-icon"><Icon name="people" size={14} /></div>
+          <div style={{ flex: 1 }}>
+            <div className="rc-name">{p.name}</div>
+            <div className="rc-rel">was present</div>
+          </div>
+          {canEdit ? (
+            <button
+              title="No longer counted among those present"
+              onClick={(e) => {
+                e.stopPropagation();
+                removeEventParticipant(eventId, p.id).catch(console.error);
+              }}
+              style={{
+                background: "transparent", border: "none", cursor: "pointer",
+                color: "var(--ink-faded)", fontSize: 12, padding: "0 2px",
+              }}
+            >✕</button>
+          ) : (
+            <Icon name="chevron" size={12} />
+          )}
+        </div>
+      ))}
+      {participants.length === 0 && (
+        <div style={{ fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 12, color: "var(--ink-ghost)" }}>
+          No one is recorded at this event.
+        </div>
+      )}
+      {canEdit && available.length > 0 && (
+        <select
+          value=""
+          onChange={(e) => {
+            if (e.target.value) addEventParticipant(eventId, e.target.value).catch(console.error);
+          }}
+          style={{
+            marginTop: 6, width: "100%",
+            background: "transparent",
+            border: "1px dashed var(--ink-ghost)",
+            fontFamily: "var(--font-fell)", fontSize: 12, color: "var(--ink)",
+            padding: "6px 8px", cursor: "pointer",
+          }}
+        >
+          <option value="">— record someone present —</option>
+          {available.map((p) => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </select>
+      )}
+    </div>
+  );
+}
 
 interface DetailSheetProps {
   entityId: string;
@@ -288,7 +360,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
     if (loc) {
       related.locations = related.locations || [];
       if (!related.locations.find((r) => r.entity.id === loc.id)) {
-        related.locations.push({ entity: loc, rel: "resides at" });
+        related.locations.push({ entity: loc, rel: kind === "events" ? "happened at" : "resides at" });
       }
     }
   }
@@ -316,7 +388,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
     if (s) {
       related.sessions = related.sessions || [{
         entity: s,
-        rel: (entity as any).session ? "introduced in" : "last seen in",
+        rel: kind === "events" ? "during" : (entity as any).session ? "introduced in" : "last seen in",
       }];
     }
   }
@@ -344,6 +416,27 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
       }
     });
   }
+  // Event chips on the sheets an event touches.
+  {
+    const eventRel =
+      kind === "people"
+        ? (ev: any) => (campaign.eventParticipants[ev.id] ?? []).includes(entityId) && "took part in"
+        : kind === "locations"
+          ? (ev: any) => ev.location === entityId && "happened here"
+          : kind === "sessions"
+            ? (ev: any) => ev.session === entityId && "during this session"
+            : null;
+    if (eventRel) {
+      campaign.events.forEach((ev) => {
+        const rel = eventRel(ev);
+        if (!rel) return;
+        related.events = related.events || [];
+        if (!related.events.find((r) => r.entity.id === ev.id)) {
+          related.events.push({ entity: findEntity(ev.id), rel });
+        }
+      });
+    }
+  }
 
   const patch = (fields: Record<string, unknown>) =>
     updateEntity(kind, entityId, fields).catch((e) =>
@@ -356,6 +449,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
     .map((a) => ({ id: a.id, label: a.title }));
   const sessionOptions = campaign.sessions
     .map((s) => ({ id: s.id, label: `S${String(s.num).padStart(2, "0")} — ${s.title}` }));
+  const locationOptions = campaign.locations.map((l) => ({ id: l.id, label: l.name }));
 
   const onDelete = () => {
     if (!entity) return;
@@ -389,7 +483,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
   const kindTitle: Record<string, string> = {
     people: "Person of Note", locations: "Location", quests: "Quest",
     goals: "Goal", factions: "Faction", items: "Item", lore: "Lore", sessions: "Session",
-    arcs: "Story Arc",
+    arcs: "Story Arc", events: "Event",
   };
 
   return (
@@ -524,6 +618,14 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                     <div className="stat"><div className="stat-label">Order</div><div className="stat-value"><EditableNumber value={(entity as any).orderNum ?? 0} onSave={(n) => patch({ orderNum: n })} /></div></div>
                   </>
                 )}
+                {kind === "events" && (
+                  <>
+                    <div className="stat" style={{ gridColumn: "span 3" }}><div className="stat-label">Reckoning</div><div className="stat-value" style={{ fontSize: 14 }}><EditableText value={(entity as any).inGameDate ?? ""} onSave={(v) => patch({ inGameDate: v })} placeholder="— by Faerûn's reckoning —" /></div></div>
+                    <div className="stat"><div className="stat-label">Order</div><div className="stat-value"><EditableNumber value={(entity as any).orderNum ?? 0} onSave={(n) => patch({ orderNum: n })} /></div></div>
+                    <div className="stat" style={{ gridColumn: "span 2" }}><div className="stat-label">Session</div><div className="stat-value" style={{ fontSize: 13 }}><EntitySelect value={(entity as any).session} options={sessionOptions} allowClear onSave={(id) => patch({ session: id ?? "" })} /></div></div>
+                    <div className="stat" style={{ gridColumn: "span 2" }}><div className="stat-label">Location</div><div className="stat-value" style={{ fontSize: 13 }}><EntitySelect value={(entity as any).location} options={locationOptions} allowClear onSave={(id) => patch({ location: id ?? "" })} /></div></div>
+                  </>
+                )}
               </div>
 
               <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
@@ -534,7 +636,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                 )}
                 {(entity as any).session && (
                   <span className="session-ribbon">
-                    ✦ Introduced — Session {campaign.sessions.find((s) => s.id === (entity as any).session)?.num}
+                    ✦ {kind === "events" ? "During" : "Introduced"} — Session {campaign.sessions.find((s) => s.id === (entity as any).session)?.num}
                   </span>
                 )}
               </div>
@@ -562,6 +664,17 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                     value={(entity as any).summary ?? ""}
                     onSave={(v) => patch({ summary: v })}
                     placeholder="The shape of this arc…"
+                    style={{ fontFamily: "var(--font-fell)" }}
+                  />
+                </div>
+              )}
+
+              {kind === "events" && (
+                <div className="long-note">
+                  <EditableMarkdown
+                    value={(entity as any).summary ?? ""}
+                    onSave={(v) => patch({ summary: v })}
+                    placeholder="What came to pass…"
                     style={{ fontFamily: "var(--font-fell)" }}
                   />
                 </div>
@@ -687,13 +800,15 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                 ✦ RELATIONS ✦
               </div>
 
-              {(["people", "locations", "quests", "goals", "factions", "items", "lore", "sessions", "arcs"] as const).map((k) => {
+              {kind === "events" && <EventParticipantsEditor eventId={entityId} onOpen={onOpen} />}
+
+              {(["people", "locations", "quests", "goals", "factions", "items", "lore", "sessions", "arcs", "events"] as const).map((k) => {
                 const list = related[k];
                 if (!list || list.length === 0) return null;
                 const label: Record<string, string> = {
                   people: "Known Folk", locations: "Places", quests: "Quests",
                   goals: "Goals", factions: "Factions", items: "Items & Relics",
-                  lore: "Lore", sessions: "Sessions", arcs: "Story Arcs",
+                  lore: "Lore", sessions: "Sessions", arcs: "Story Arcs", events: "Events",
                 };
                 return (
                   <div className="rail-section" key={k}>

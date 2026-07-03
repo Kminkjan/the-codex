@@ -15,7 +15,7 @@ interface PaletteHit {
   archived?: boolean;
 }
 
-const KIND_ICON: Record<KindKey, "people" | "location" | "quest" | "goal" | "faction" | "item" | "lore" | "session" | "layers"> = {
+const KIND_ICON: Record<KindKey, "people" | "location" | "quest" | "goal" | "faction" | "item" | "lore" | "session" | "layers" | "sparkle"> = {
   people: "people",
   locations: "location",
   quests: "quest",
@@ -25,6 +25,7 @@ const KIND_ICON: Record<KindKey, "people" | "location" | "quest" | "goal" | "fac
   lore: "lore",
   sessions: "session",
   arcs: "layers",
+  events: "sparkle",
 };
 
 const KIND_LABEL: Record<KindKey, string> = {
@@ -37,6 +38,7 @@ const KIND_LABEL: Record<KindKey, string> = {
   lore: "Lore",
   sessions: "Session",
   arcs: "Arc",
+  events: "Event",
 };
 
 interface Indexed {
@@ -140,6 +142,15 @@ function buildIndex(campaign: Campaign): Indexed[] {
       label: entityLabel(a),
       primary: a.title ?? "",
       secondary: a.summary ?? "",
+    });
+  }
+  for (const ev of campaign.events) {
+    out.push({
+      id: ev.id,
+      kind: "events",
+      label: entityLabel(ev),
+      primary: ev.title ?? "",
+      secondary: joinFields(ev.inGameDate, ev.summary),
     });
   }
   return out;

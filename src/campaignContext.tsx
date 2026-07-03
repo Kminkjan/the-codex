@@ -125,6 +125,24 @@ const mapArc = (r: any) => ({
   orderNum: r.order_num ?? 0,
 });
 
+const mapEvent = (r: any) => ({
+  id: r.id,
+  title: r.title,
+  summary: r.summary ?? undefined,
+  inGameDate: r.in_game_date ?? undefined,
+  session: r.session_id ?? undefined,
+  location: r.location_id ?? undefined,
+  orderNum: r.order_num ?? 0,
+});
+
+const buildParticipants = (rows: any[]): Record<string, string[]> => {
+  const byEvent: Record<string, string[]> = {};
+  rows.forEach((r: any) => {
+    (byEvent[r.event_id] = byEvent[r.event_id] || []).push(r.person_id);
+  });
+  return byEvent;
+};
+
 const mapPresence = (r: any) => ({
   id: r.id,
   name: r.name,
@@ -155,6 +173,8 @@ async function fetchCampaign(id: string): Promise<Campaign> {
     campaignRes,
     sessionsRes,
     arcsRes,
+    eventsRes,
+    participantsRes,
     peopleRes,
     locationsRes,
     questsRes,
@@ -170,6 +190,8 @@ async function fetchCampaign(id: string): Promise<Campaign> {
     supabase.from("campaigns").select("*").eq("id", id).single(),
     supabase.from("sessions").select("*").eq("campaign_id", id).order("num"),
     supabase.from("arcs").select("*").eq("campaign_id", id).order("order_num"),
+    supabase.from("events").select("*").eq("campaign_id", id).order("order_num"),
+    supabase.from("event_participants").select("*").eq("campaign_id", id),
     supabase.from("people").select("*").eq("campaign_id", id),
     supabase.from("locations").select("*").eq("campaign_id", id),
     supabase.from("quests").select("*").eq("campaign_id", id),
@@ -184,8 +206,9 @@ async function fetchCampaign(id: string): Promise<Campaign> {
   ]);
 
   const first = [
-    campaignRes, sessionsRes, arcsRes, peopleRes, locationsRes, questsRes, goalsRes,
-    factionsRes, itemsRes, loreRes, connectionsRes, boardRes, presenceRes, notesRes,
+    campaignRes, sessionsRes, arcsRes, eventsRes, participantsRes, peopleRes,
+    locationsRes, questsRes, goalsRes, factionsRes, itemsRes, loreRes,
+    connectionsRes, boardRes, presenceRes, notesRes,
   ].find((r) => r.error);
   if (first?.error) throw new Error(first.error.message);
 
@@ -201,6 +224,8 @@ async function fetchCampaign(id: string): Promise<Campaign> {
     subtitle: campaignRes.data.subtitle ?? "",
     sessions: (sessionsRes.data ?? []).map(mapSession),
     arcs: (arcsRes.data ?? []).map(mapArc),
+    events: (eventsRes.data ?? []).map(mapEvent),
+    eventParticipants: buildParticipants(participantsRes.data ?? []),
     people: (peopleRes.data ?? []).map(mapPerson),
     locations: (locationsRes.data ?? []).map(mapLocation),
     quests: (questsRes.data ?? []).map(mapQuest),
@@ -308,6 +333,23 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
           { event: "*", schema: "public", table: "arcs", filter },
           (payload: any) => {
             setCampaign((c) => c ? { ...c, arcs: applyArrayChange(c.arcs, payload.eventType, payload.new ? mapArc(payload.new) : null, payload.old ? mapArc(payload.old) : null) } : c);
+          },
+        );
+        channel.on(
+          "postgres_changes" as any,
+          { event: "*", schema: "public", table: "events", filter },
+          (payload: any) => {
+            setCampaign((c) => c ? { ...c, events: applyArrayChange(c.events, payload.eventType, payload.new ? mapEvent(payload.new) : null, payload.old ? mapEvent(payload.old) : null) } : c);
+          },
+        );
+        channel.on(
+          "postgres_changes" as any,
+          { event: "*", schema: "public", table: "event_participants", filter },
+          () => {
+            // Composite PK, no client-side id — refetch, same as connections.
+            supabase.from("event_participants").select("*").eq("campaign_id", CURRENT_CAMPAIGN_ID).then(({ data }) => {
+              setCampaign((c) => c ? { ...c, eventParticipants: buildParticipants(data ?? []) } : c);
+            });
           },
         );
         channel.on(

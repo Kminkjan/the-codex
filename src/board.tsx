@@ -18,7 +18,7 @@ import {
 
 // Minimum required columns by kind (NOT NULL constraints in 0001_init.sql).
 // createEntity injects id + campaign_id, so only the per-kind required fields go here.
-const NEW_ENTITY_DEFAULTS: Record<Exclude<KindKey, "sessions" | "arcs">, Record<string, unknown>> = {
+const NEW_ENTITY_DEFAULTS: Record<Exclude<KindKey, "sessions" | "arcs" | "events">, Record<string, unknown>> = {
   people:    { name: "Unnamed wayfarer" },
   locations: { name: "Unnamed place", kind: "other" },
   quests:    { title: "Untitled quest" },
@@ -106,7 +106,7 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
 
   const [addMenuOpen, setAddMenuOpen] = useState(false);
 
-  const onCreate = async (k: Exclude<KindKey, "sessions" | "arcs">) => {
+  const onCreate = async (k: Exclude<KindKey, "sessions" | "arcs" | "events">) => {
     setAddMenuOpen(false);
     const id = crypto.randomUUID();
     try {
@@ -263,7 +263,7 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
                 {kinds.map((k) => (
                   <div
                     key={k.key}
-                    onClick={() => onCreate(k.key as Exclude<KindKey, "sessions" | "arcs">)}
+                    onClick={() => onCreate(k.key as Exclude<KindKey, "sessions" | "arcs" | "events">)}
                     style={{
                       display: "flex", alignItems: "center", gap: 10,
                       padding: "8px 12px", cursor: "pointer",

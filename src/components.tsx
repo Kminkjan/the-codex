@@ -312,6 +312,11 @@ export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, counts 
         Story Arcs
         <span className="count">{campaign.arcs.length}</span>
       </div>
+      <div className={`nav-item ${active === "events" ? "active" : ""}`} onClick={() => onSelect("events")}>
+        <span className="icon"><Icon name="sparkle" /></span>
+        Events
+        <span className="count">{campaign.events.length}</span>
+      </div>
 
       <div className="sidebar-label">
         <span>Sessions</span>
