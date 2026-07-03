@@ -67,8 +67,13 @@ on conflict (event_id, person_id) do nothing;
 
 -- Connections --------------------------------------------------------------
 -- 0011 clears campaign connections then re-inserts; 0012 is additive, so it
--- only inserts the new edges (no delete — that would wipe 0011's set).
-insert into public.connections (campaign_id, from_id, to_id, label) values
+-- must NOT delete (that would wipe 0011's set). connections has only a
+-- bigserial PK, so there's no key for `on conflict`; instead each edge is
+-- inserted only when an identical (campaign_id, from_id, to_id, label) row
+-- doesn't already exist, which keeps this block idempotent on re-apply.
+insert into public.connections (campaign_id, from_id, to_id, label)
+select v.campaign_id, v.from_id, v.to_id, v.label
+from (values
   ('fist-of-ilmater', 'foi-q6',  'foi-p28', 'rescued'),
   ('fist-of-ilmater', 'foi-p28', 'foi-l4',  'smiths at'),
   ('fist-of-ilmater', 'foi-p28', 'foi-f7',  'sold to'),
@@ -102,7 +107,15 @@ insert into public.connections (campaign_id, from_id, to_id, label) values
   ('fist-of-ilmater', 'foi-i7',  'foi-p3',  'found by'),
   ('fist-of-ilmater', 'foi-i9',  'foi-f6',  'gift of'),
   ('fist-of-ilmater', 'foi-p41', 'foi-f1',  'saint of'),
-  ('fist-of-ilmater', 'foi-p37', 'foi-p41', 'reports to');
+  ('fist-of-ilmater', 'foi-p37', 'foi-p41', 'reports to')
+) as v(campaign_id, from_id, to_id, label)
+where not exists (
+  select 1 from public.connections c
+  where c.campaign_id = v.campaign_id
+    and c.from_id = v.from_id
+    and c.to_id = v.to_id
+    and c.label = v.label
+);
 
 -- Board positions ----------------------------------------------------------
 -- New clusters below the existing board: the Starforge/Shadowfell on the
