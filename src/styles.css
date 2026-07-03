@@ -560,16 +560,26 @@ body {
   pointer-events: none;
   z-index: 2;
 }
+/* Strings rest dim and thin; a string lights up when it or either of its
+   endpoint cards is hovered, so the eye can follow one thread at a time. */
+.yarn-layer .yarn {
+  opacity: .3;
+  transition: opacity .18s ease;
+}
+.yarn-layer .yarn.lit { opacity: 1; }
+.yarn-layer .yarn.faded { opacity: .12; }
 .yarn-path {
   fill: none;
   stroke: var(--bloodred);
-  stroke-width: 2.2;
+  stroke-width: 2;
   stroke-linecap: round;
-  filter: drop-shadow(0 1px 1px rgba(0,0,0,.35));
-  opacity: .9;
 }
-.yarn-path.faded { opacity: .25; }
-.yarn-path.hover { stroke-width: 3; opacity: 1; }
+.yarn.lit .yarn-path {
+  stroke-width: 2.8;
+  filter: drop-shadow(0 1px 1px rgba(0,0,0,.35));
+}
+.yarn .yarn-shadow { display: none; }
+.yarn.lit .yarn-shadow { display: block; }
 .yarn-label {
   font-family: var(--font-hand);
   font-size: 14px;
@@ -584,10 +594,12 @@ body {
   position: absolute;
   z-index: 3;
   cursor: grab;
-  transition: filter .15s, z-index 0s;
+  transition: filter .15s, opacity .18s ease, z-index 0s;
   transform-origin: 50% 10%;
 }
 .pinned:hover { z-index: 4; filter: brightness(1.03); }
+/* Spotlight: while a card is hovered, cards not connected to it recede */
+.pinned.dimmed { opacity: .45; }
 .pinned.dragging { cursor: grabbing; z-index: 10; transition: none; }
 .pinned.dragging .pin-head { filter: brightness(1.1); }
 
@@ -680,6 +692,10 @@ body {
   text-align: center;
   color: var(--ink-faded);
   margin-top: 2px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 }
 .card-poster .reward {
   margin-top: 8px;
@@ -731,6 +747,10 @@ body {
   font-style: italic;
   color: var(--ink-faded);
   line-height: 1.35;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
 }
 .card-quest .quest-meta {
   display: flex; gap: 8px; align-items: center; margin-top: 10px;
@@ -783,6 +803,10 @@ body {
   font-style: italic;
   font-size: 13px;
   color: var(--ink-faded);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 }
 
 /* Goal scroll-fragment */
@@ -807,6 +831,10 @@ body {
   line-height: 1.15;
   color: var(--ink);
   margin-top: 4px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
 }
 .card-goal .goal-owner {
   font-family: var(--font-fell);
@@ -850,6 +878,10 @@ body {
   font-size: 12px;
   color: var(--ink-faded);
   margin-top: 3px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 }
 
 .card-item {
@@ -879,6 +911,10 @@ body {
   font-size: 12px;
   color: var(--ink-faded);
   margin-top: 3px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 }
 
 .card-lore {
@@ -903,6 +939,10 @@ body {
   line-height: 1.3;
   color: var(--ink);
   margin-top: 4px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
 }
 
 /* Handwritten sticky note */
@@ -1190,6 +1230,10 @@ body {
 }
 .md-body hr { border: none; border-top: 1px solid var(--ink-faded); opacity: .4; margin: 14px 0; }
 .md-body a { color: var(--bloodred-deep); }
+.md-body img { max-width: 100%; height: auto; display: block; margin: 10px 0; border: 1px solid var(--ink-faded); }
+.md-body table { border-collapse: collapse; margin: 0 0 12px; max-width: 100%; }
+.md-body th, .md-body td { border: 1px solid var(--ink-faded); padding: 4px 10px; text-align: left; vertical-align: top; }
+.md-body th { font-family: var(--font-fell-sc); letter-spacing: .04em; }
 .md-body > :first-child { margin-top: 0; }
 .md-body > :last-child { margin-bottom: 0; }
 

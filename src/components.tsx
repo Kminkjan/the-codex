@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { type KindKey, type PresenceUser } from "./data";
 import { Icon, MapScribble, kindIcon } from "./icons";
 import { useCampaign, useCampaignSwitcher, useKinds } from "./hooks";
@@ -22,6 +23,8 @@ interface PinnedCardProps {
   connectMode: boolean;
   onConnectClick: (id: string) => void;
   isConnectSource: boolean;
+  dimmed?: boolean;
+  onHover?: (id: string | null) => void;
 }
 
 export function PinnedCard({
@@ -33,6 +36,8 @@ export function PinnedCard({
   connectMode,
   onConnectClick,
   isConnectSource,
+  dimmed,
+  onHover,
 }: PinnedCardProps) {
   const [dragging, setDragging] = useState(false);
   const [drag, setDrag] = useState<{ x: number; y: number } | null>(null);
@@ -707,7 +712,7 @@ export function EditableMarkdown({
         className={`md-body ${className ?? ""}`}
         style={{ opacity: empty ? 0.55 : 1, fontStyle: empty ? "italic" : undefined, ...style }}
       >
-        {empty ? placeholder : <ReactMarkdown>{display}</ReactMarkdown>}
+        {empty ? placeholder : <ReactMarkdown remarkPlugins={[remarkGfm]}>{display}</ReactMarkdown>}
       </div>
     );
   }
@@ -776,7 +781,7 @@ export function EditableMarkdown({
         setEditing(true);
       }}
     >
-      {empty ? (placeholder || "Click to edit…") : <ReactMarkdown>{display}</ReactMarkdown>}
+      {empty ? (placeholder || "Click to edit…") : <ReactMarkdown remarkPlugins={[remarkGfm]}>{display}</ReactMarkdown>}
     </div>
   );
 }

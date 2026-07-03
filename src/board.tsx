@@ -63,6 +63,7 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
   const [connectMode, setConnectMode] = useState(false);
   const [connectSource, setConnectSource] = useState<string | null>(null);
   const [hoverConn, setHoverConn] = useState<number | null>(null);
+  const [hoverCard, setHoverCard] = useState<string | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
 
   const visible = (id: string) => {
@@ -76,6 +77,13 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
   };
 
   const visibleConnections = connections.filter(([a, b]) => visible(a) && visible(b));
+
+  // Spotlight: while a card is hovered, it and its neighbors stay lit and
+  // everything else recedes (see .pinned.dimmed / .yarn.lit in styles.css).
+  const spotlight = hoverCard
+    ? new Set([hoverCard, ...visibleConnections.flatMap(([a, b]) =>
+        a === hoverCard ? [b] : b === hoverCard ? [a] : [])])
+    : null;
 
   const toggleKind = (k: KindKey) => setFilters((f) => ({ ...f, [k]: !(f as any)[k] }));
 
@@ -325,17 +333,19 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
               if (!A || !B) return null;
               const faded = filteredSessionQuests && !(filteredSessionQuests.has(a) || filteredSessionQuests.has(b));
               const isHover = hoverConn === i;
+              const lit = isHover || (hoverCard !== null && (a === hoverCard || b === hoverCard));
               const pathD = yarnPath(A, B);
               const midX = (A.x + B.x) / 2;
               const midY = (A.y + B.y) / 2 + Math.max(20, Math.hypot(B.x - A.x, B.y - A.y) * 0.08) * 0.5;
               return (
                 <g key={i}
+                   className={`yarn ${lit ? "lit" : faded ? "faded" : ""}`}
                    onMouseEnter={() => setHoverConn(i)}
                    onMouseLeave={() => setHoverConn(null)}
                    style={{ pointerEvents: "stroke" }}
                 >
-                  <path d={pathD} stroke="rgba(0,0,0,.35)" strokeWidth="2.5" fill="none" transform="translate(1,2)" filter="url(#yarn-glow)" />
-                  <path d={pathD} className={`yarn-path ${faded ? "faded" : ""} ${isHover ? "hover" : ""}`} />
+                  <path d={pathD} className="yarn-shadow" stroke="rgba(0,0,0,.35)" strokeWidth="2.5" fill="none" transform="translate(1,2)" filter="url(#yarn-glow)" />
+                  <path d={pathD} className="yarn-path" />
                   {isHover && (
                     <text>
                       <textPath href={`#yp${i}`} startOffset="50%" textAnchor="middle" className="yarn-label">
@@ -375,6 +385,8 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
                 connectMode={connectMode}
                 onConnectClick={handleConnectClick}
                 isConnectSource={connectSource === id}
+                dimmed={spotlight !== null && !spotlight.has(id)}
+                onHover={setHoverCard}
               />
             );
           })}
