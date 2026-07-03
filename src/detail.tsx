@@ -120,6 +120,23 @@ function EntityPortrait({
 const STATUS_OPTIONS = ["whispered", "pursuing", "resolved", "lost"] as const;
 const DISPOSITION_OPTIONS = ["ally", "neutral", "wary", "hostile"] as const;
 
+// Integer-only EditableText: non-numeric input is rejected (no write, the
+// display reverts on blur), matching sessions.num being NOT NULL integer.
+function EditableNumber({ value, onSave }: { value: number; onSave: (n: number) => void }) {
+  return (
+    <EditableText
+      value={String(value).padStart(2, "0")}
+      onSave={(v) => {
+        const trimmed = v.trim();
+        if (!/^\d+$/.test(trimmed)) return false;
+        const n = Number.parseInt(trimmed, 10);
+        if (n === value) return false; // no-op edit; revert to padded display
+        onSave(n);
+      }}
+    />
+  );
+}
+
 function AddRelationForm({ fromId }: { fromId: string }) {
   const campaign = useCampaign();
   const [targetId, setTargetId] = useState("");
@@ -407,48 +424,48 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
               <div className="sb-stats">
                 {kind === "people" && (
                   <>
-                    <div className="stat"><div className="stat-label">Race</div><div className="stat-value">{(entity as any).race}</div></div>
-                    <div className="stat"><div className="stat-label">Role</div><div className="stat-value" style={{ fontSize: 14 }}>{(entity as any).role}</div></div>
+                    <div className="stat"><div className="stat-label">Race</div><div className="stat-value"><EditableText value={(entity as any).race ?? ""} onSave={(v) => patch({ race: v })} placeholder="—" /></div></div>
+                    <div className="stat"><div className="stat-label">Role</div><div className="stat-value" style={{ fontSize: 14 }}><EditableText value={(entity as any).role ?? ""} onSave={(v) => patch({ role: v })} placeholder="—" /></div></div>
                     <div className="stat"><div className="stat-label">Disposition</div><div className="stat-value" style={{ textTransform: "capitalize" }}>{(entity as any).disposition}</div></div>
-                    <div className="stat"><div className="stat-label">Alignment</div><div className="stat-value" style={{ fontSize: 13 }}>{(entity as any).alignment}</div></div>
+                    <div className="stat"><div className="stat-label">Alignment</div><div className="stat-value" style={{ fontSize: 13 }}><EditableText value={(entity as any).alignment ?? ""} onSave={(v) => patch({ alignment: v })} placeholder="—" /></div></div>
                   </>
                 )}
                 {kind === "locations" && (
                   <>
-                    <div className="stat"><div className="stat-label">Kind</div><div className="stat-value">{(entity as any).kind}</div></div>
-                    <div className="stat"><div className="stat-label">Region</div><div className="stat-value" style={{ fontSize: 13 }}>{(entity as any).region}</div></div>
-                    <div className="stat" style={{ gridColumn: "span 2" }}><div className="stat-label">Ruler</div><div className="stat-value" style={{ fontSize: 14 }}>{(entity as any).ruler || "Unclaimed"}</div></div>
+                    <div className="stat"><div className="stat-label">Kind</div><div className="stat-value"><EditableText value={(entity as any).kind ?? ""} onSave={(v) => (v.trim() ? patch({ kind: v }) : false)} placeholder="—" /></div></div>
+                    <div className="stat"><div className="stat-label">Region</div><div className="stat-value" style={{ fontSize: 13 }}><EditableText value={(entity as any).region ?? ""} onSave={(v) => patch({ region: v })} placeholder="—" /></div></div>
+                    <div className="stat" style={{ gridColumn: "span 2" }}><div className="stat-label">Ruler</div><div className="stat-value" style={{ fontSize: 14 }}><EditableText value={(entity as any).ruler ?? ""} onSave={(v) => patch({ ruler: v })} placeholder="Unclaimed" /></div></div>
                   </>
                 )}
                 {kind === "quests" && (
                   <>
                     <div className="stat"><div className="stat-label">Status</div><div className="stat-value"><StatusChip status={(entity as any).status} /></div></div>
-                    <div className="stat" style={{ gridColumn: "span 2" }}><div className="stat-label">Reward</div><div className="stat-value" style={{ fontSize: 13 }}>{(entity as any).reward}</div></div>
+                    <div className="stat" style={{ gridColumn: "span 2" }}><div className="stat-label">Reward</div><div className="stat-value" style={{ fontSize: 13 }}><EditableText value={(entity as any).reward ?? ""} onSave={(v) => patch({ reward: v })} placeholder="—" /></div></div>
                     <div className="stat"><div className="stat-label">Session</div><div className="stat-value">{(entity as any).session?.toUpperCase()}</div></div>
                   </>
                 )}
                 {kind === "goals" && (
                   <>
-                    <div className="stat"><div className="stat-label">Kind</div><div className="stat-value">{(entity as any).kind}</div></div>
+                    <div className="stat"><div className="stat-label">Kind</div><div className="stat-value"><EditableText value={(entity as any).kind ?? ""} onSave={(v) => patch({ kind: v })} placeholder="—" /></div></div>
                     <div className="stat"><div className="stat-label">Status</div><div className="stat-value"><StatusChip status={(entity as any).status} /></div></div>
                     <div className="stat" style={{ gridColumn: "span 2" }}><div className="stat-label">Borne By</div><div className="stat-value" style={{ fontSize: 13 }}>{(entity as any).owner}</div></div>
                   </>
                 )}
                 {kind === "factions" && (
                   <>
-                    <div className="stat"><div className="stat-label">Sigil</div><div className="stat-value">{(entity as any).sigil}</div></div>
-                    <div className="stat"><div className="stat-label">Stance</div><div className="stat-value">{(entity as any).allegiance}</div></div>
+                    <div className="stat"><div className="stat-label">Sigil</div><div className="stat-value"><EditableText value={(entity as any).sigil ?? ""} onSave={(v) => patch({ sigil: v })} placeholder="—" /></div></div>
+                    <div className="stat"><div className="stat-label">Stance</div><div className="stat-value"><EditableText value={(entity as any).allegiance ?? ""} onSave={(v) => patch({ allegiance: v })} placeholder="—" /></div></div>
                   </>
                 )}
                 {kind === "items" && (
                   <>
-                    <div className="stat"><div className="stat-label">Kind</div><div className="stat-value">{(entity as any).kind}</div></div>
+                    <div className="stat"><div className="stat-label">Kind</div><div className="stat-value"><EditableText value={(entity as any).kind ?? ""} onSave={(v) => patch({ kind: v })} placeholder="—" /></div></div>
                   </>
                 )}
                 {kind === "sessions" && (
                   <>
-                    <div className="stat"><div className="stat-label">No.</div><div className="stat-value">{String((entity as any).num).padStart(2, "0")}</div></div>
-                    <div className="stat" style={{ gridColumn: "span 3" }}><div className="stat-label">Date</div><div className="stat-value" style={{ fontSize: 14 }}>{(entity as any).date}</div></div>
+                    <div className="stat"><div className="stat-label">No.</div><div className="stat-value"><EditableNumber value={(entity as any).num ?? 0} onSave={(n) => patch({ num: n })} /></div></div>
+                    <div className="stat" style={{ gridColumn: "span 3" }}><div className="stat-label">Date</div><div className="stat-value" style={{ fontSize: 14 }}><EditableText value={(entity as any).date ?? ""} onSave={(v) => patch({ date: v })} placeholder="—" /></div></div>
                   </>
                 )}
               </div>

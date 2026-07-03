@@ -348,7 +348,8 @@ export function Topbar({ onShare }: { onShare: () => void }) {
 
 interface EditableTextProps {
   value: string;
-  onSave: (next: string) => void | Promise<void>;
+  // Return false to reject the edit: no pending display, the field reverts.
+  onSave: (next: string) => void | boolean | Promise<void>;
   placeholder?: string;
   multiline?: boolean;
   className?: string;
@@ -401,8 +402,7 @@ export function EditableText({
     const next = (ref.current?.innerText ?? "").trim();
     setEditing(false);
     if (next !== (display ?? "").trim()) {
-      setPending(next);
-      void onSave(next);
+      if (onSave(next) !== false) setPending(next);
     }
   };
 
