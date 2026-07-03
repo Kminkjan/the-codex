@@ -15,6 +15,11 @@ export function useCampaignStatus() {
   return { campaign, loading, error };
 }
 
+export function useCampaignSwitcher() {
+  const { campaigns, activeCampaignId, switchCampaign } = useContext(CampaignContext);
+  return { campaigns, activeCampaignId, switchCampaign };
+}
+
 export function useKinds() {
   const campaign = useCampaign();
   return useMemo(() => buildKinds(campaign), [campaign]);

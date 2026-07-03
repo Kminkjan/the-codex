@@ -1,5 +1,6 @@
 import { supabase } from "./utils/supabase";
-import { CURRENT_CAMPAIGN_ID, type KindKey, type PartyNote, type BoardPosition } from "./data";
+import { getActiveCampaignId } from "./activeCampaign";
+import { type KindKey, type PartyNote, type BoardPosition } from "./data";
 
 // Realtime subscriptions in campaignContext.tsx reflect writes back into UI
 // state, so callers do not need to patch local state (fire-and-forget is fine).
@@ -63,7 +64,7 @@ function toRow(kind: KindKey, patch: Record<string, unknown>): Record<string, un
 
 export async function insertPartyNote(entityId: string, note: PartyNote) {
   const { error } = await supabase.from("party_notes").insert({
-    campaign_id: CURRENT_CAMPAIGN_ID,
+    campaign_id: getActiveCampaignId(),
     entity_id: entityId,
     author: note.author,
     when_label: note.when,
@@ -80,7 +81,7 @@ export async function upsertBoardPosition(entityId: string, pos: BoardPosition) 
     .from("board_positions")
     .upsert(
       {
-        campaign_id: CURRENT_CAMPAIGN_ID,
+        campaign_id: getActiveCampaignId(),
         entity_id: entityId,
         x: pos.x,
         y: pos.y,
@@ -96,7 +97,7 @@ export async function deleteBoardPosition(entityId: string) {
   const { error } = await supabase
     .from("board_positions")
     .delete()
-    .eq("campaign_id", CURRENT_CAMPAIGN_ID)
+    .eq("campaign_id", getActiveCampaignId())
     .eq("entity_id", entityId);
   if (error) throw error;
 }
@@ -105,7 +106,7 @@ export async function deleteBoardPosition(entityId: string) {
 
 export async function insertConnection(fromId: string, toId: string, label: string) {
   const { error } = await supabase.from("connections").insert({
-    campaign_id: CURRENT_CAMPAIGN_ID,
+    campaign_id: getActiveCampaignId(),
     from_id: fromId,
     to_id: toId,
     label,
@@ -117,7 +118,7 @@ export async function deleteConnection(fromId: string, toId: string, label: stri
   const { error } = await supabase
     .from("connections")
     .delete()
-    .eq("campaign_id", CURRENT_CAMPAIGN_ID)
+    .eq("campaign_id", getActiveCampaignId())
     .eq("from_id", fromId)
     .eq("to_id", toId)
     .eq("label", label);
@@ -129,7 +130,7 @@ async function deleteConnectionsFor(entityId: string) {
   const { error } = await supabase
     .from("connections")
     .delete()
-    .eq("campaign_id", CURRENT_CAMPAIGN_ID)
+    .eq("campaign_id", getActiveCampaignId())
     .or(`from_id.eq.${entityId},to_id.eq.${entityId}`);
   if (error) throw error;
 }
@@ -139,7 +140,7 @@ async function deleteConnectionsFor(entityId: string) {
 
 export async function addEventParticipant(eventId: string, personId: string) {
   const { error } = await supabase.from("event_participants").insert({
-    campaign_id: CURRENT_CAMPAIGN_ID,
+    campaign_id: getActiveCampaignId(),
     event_id: eventId,
     person_id: personId,
   });
@@ -150,7 +151,7 @@ export async function removeEventParticipant(eventId: string, personId: string) 
   const { error } = await supabase
     .from("event_participants")
     .delete()
-    .eq("campaign_id", CURRENT_CAMPAIGN_ID)
+    .eq("campaign_id", getActiveCampaignId())
     .eq("event_id", eventId)
     .eq("person_id", personId);
   if (error) throw error;
@@ -163,7 +164,7 @@ export async function createEntity(
   id: string,
   seed: Record<string, unknown>,
 ) {
-  const row = { id, campaign_id: CURRENT_CAMPAIGN_ID, ...toRow(kind, seed) };
+  const row = { id, campaign_id: getActiveCampaignId(), ...toRow(kind, seed) };
   const { error } = await supabase.from(kind).insert(row);
   if (error) throw error;
 }
@@ -177,7 +178,7 @@ export async function updateEntity(
     .from(kind)
     .update(toRow(kind, patch))
     .eq("id", id)
-    .eq("campaign_id", CURRENT_CAMPAIGN_ID);
+    .eq("campaign_id", getActiveCampaignId());
   if (error) throw error;
 }
 
@@ -185,7 +186,7 @@ async function deletePartyNotesFor(entityId: string) {
   const { error } = await supabase
     .from("party_notes")
     .delete()
-    .eq("campaign_id", CURRENT_CAMPAIGN_ID)
+    .eq("campaign_id", getActiveCampaignId())
     .eq("entity_id", entityId);
   if (error) throw error;
 }
@@ -210,6 +211,6 @@ export async function deleteEntity(kind: KindKey, id: string) {
     .from(kind)
     .delete()
     .eq("id", id)
-    .eq("campaign_id", CURRENT_CAMPAIGN_ID);
+    .eq("campaign_id", getActiveCampaignId());
   if (error) throw error;
 }

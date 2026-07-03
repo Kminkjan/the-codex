@@ -1,8 +1,8 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { type KindKey, type PresenceUser } from "./data";
 import { Icon, MapScribble, kindIcon } from "./icons";
-import { useCampaign, useKinds } from "./hooks";
+import { useCampaign, useCampaignSwitcher, useKinds } from "./hooks";
 import { createEntity } from "./mutations";
 import { SignInDialog, useAuth } from "./auth";
 
@@ -383,6 +383,76 @@ export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, counts 
   );
 }
 
+// Campaign switcher in the Topbar. Visible to read-only viewers too —
+// switching campaigns is navigation, not an edit.
+function CampaignPicker() {
+  const campaign = useCampaign();
+  const { campaigns, activeCampaignId, switchCampaign } = useCampaignSwitcher();
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const canSwitch = campaigns.length > 1;
+
+  return (
+    <div className="campaign-picker" ref={rootRef}>
+      <button
+        className="campaign-chip"
+        onClick={() => canSwitch && setOpen((o) => !o)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        title={canSwitch ? "Switch campaign" : undefined}
+        style={{ cursor: canSwitch ? "pointer" : "default" }}
+      >
+        <span className="dot" />
+        <span style={{ fontFamily: "var(--font-fell-sc)", letterSpacing: ".1em", fontSize: 11 }}>CAMPAIGN</span>
+        <span>·</span>
+        <span style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 15 }}>{campaign.title}</span>
+        <span style={{ color: "var(--ink-faded)", fontStyle: "italic", fontSize: 12 }}>· {campaign.subtitle}</span>
+        {canSwitch && (
+          <Icon name="chevron" size={11} style={{ transform: open ? "rotate(-90deg)" : "rotate(90deg)", color: "var(--ink-faded)", flexShrink: 0 }} />
+        )}
+      </button>
+      {open && (
+        <div className="campaign-picker-menu" role="listbox">
+          {campaigns.map((c) => (
+            <button
+              key={c.id}
+              role="option"
+              aria-selected={c.id === activeCampaignId}
+              className={"campaign-picker-item" + (c.id === activeCampaignId ? " active" : "")}
+              onClick={() => { switchCampaign(c.id); setOpen(false); }}
+            >
+              <span className="dot" style={{ visibility: c.id === activeCampaignId ? "visible" : "hidden" }} />
+              <span>
+                <span style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 14, display: "block" }}>{c.title}</span>
+                {c.subtitle && (
+                  <span style={{ color: "var(--ink-faded)", fontStyle: "italic", fontSize: 12 }}>{c.subtitle}</span>
+                )}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Topbar({ onShare }: { onShare: () => void }) {
   const campaign = useCampaign();
   const { canEdit, displayName, signOut } = useAuth();
@@ -397,13 +467,7 @@ export function Topbar({ onShare }: { onShare: () => void }) {
         </div>
       </div>
       <div className="topbar-center">
-        <div className="campaign-chip">
-          <span className="dot" />
-          <span style={{ fontFamily: "var(--font-fell-sc)", letterSpacing: ".1em", fontSize: 11 }}>CAMPAIGN</span>
-          <span>·</span>
-          <span style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 15 }}>{campaign.title}</span>
-          <span style={{ color: "var(--ink-faded)", fontStyle: "italic", fontSize: 12 }}>· {campaign.subtitle}</span>
-        </div>
+        <CampaignPicker />
       </div>
       <div className="topbar-right">
         <Presence users={campaign.presence} />

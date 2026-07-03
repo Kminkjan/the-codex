@@ -174,7 +174,12 @@ export interface Campaign {
   notes: Record<string, PartyNote[]>;
 }
 
-export const CURRENT_CAMPAIGN_ID = "fendwick";
+// Lightweight row for the campaign picker (full data loads per-campaign).
+export interface CampaignSummary {
+  id: string;
+  title: string;
+  subtitle: string | null;
+}
 
 export interface KindDef {
   key: KindKey;

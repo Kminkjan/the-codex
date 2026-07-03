@@ -273,6 +273,45 @@ body {
   width: 8px; height: 8px; border-radius: 50%;
   background: var(--bloodred);
   box-shadow: 0 0 0 2px rgba(138,42,31,.25);
+  flex-shrink: 0;
+}
+
+/* Campaign picker (Topbar) — the chip is the trigger, menu drops below it. */
+.campaign-picker { position: relative; max-width: 100%; }
+.campaign-picker-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 260px;
+  background: var(--paper-cream);
+  border: 1px solid var(--vellum-deep);
+  border-radius: 4px;
+  box-shadow: 0 8px 24px rgba(40,20,5,.3);
+  padding: 4px;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+}
+.campaign-picker-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font-fell);
+  color: var(--ink);
+  white-space: nowrap;
+}
+.campaign-picker-item:hover { background: var(--vellum-light); }
+.campaign-picker-item.active { cursor: default; }
+.campaign-picker-item .dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--bloodred);
+  box-shadow: 0 0 0 2px rgba(138,42,31,.25);
+  flex-shrink: 0;
 }
 
 /* Presence avatars */

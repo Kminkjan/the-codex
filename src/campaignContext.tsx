@@ -1,9 +1,11 @@
-import { createContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useEffect, useState, type ReactNode } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "./utils/supabase";
+import { setActiveCampaignId } from "./activeCampaign";
+import { parseHash, writeCampaignHash } from "./route";
 import {
-  CURRENT_CAMPAIGN_ID,
   type Campaign,
+  type CampaignSummary,
   type BoardPosition,
   type Connection,
   type KindKey,
@@ -14,12 +16,18 @@ interface CampaignContextValue {
   campaign: Campaign | null;
   loading: boolean;
   error: string | null;
+  campaigns: CampaignSummary[];
+  activeCampaignId: string | null;
+  switchCampaign: (id: string) => void;
 }
 
 export const CampaignContext = createContext<CampaignContextValue>({
   campaign: null,
   loading: true,
   error: null,
+  campaigns: [],
+  activeCampaignId: null,
+  switchCampaign: () => {},
 });
 
 // Map a DB row (snake_case, `desc`) to the app's object shape (camelCase).
@@ -257,89 +265,161 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [campaigns, setCampaigns] = useState<CampaignSummary[]>([]);
+  const [campaignId, setCampaignId] = useState<string | null>(null);
+
+  // Load the picker list once, then resolve the active id:
+  // hash → host-page tweak → first campaign by creation date.
+  useEffect(() => {
+    let cancelled = false;
+    supabase
+      .from("campaigns")
+      .select("id,title,subtitle")
+      .order("created_at")
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) {
+          setError(error.message);
+          setLoading(false);
+          return;
+        }
+        const list = (data ?? []) as CampaignSummary[];
+        if (list.length === 0) {
+          setError("No campaigns found");
+          setLoading(false);
+          return;
+        }
+        setCampaigns(list);
+        const known = (id?: string) => list.some((c) => c.id === id);
+        const fromHash = parseHash().campaignId;
+        const fromTweaks = window.__TWEAKS__.campaignId;
+        const id = known(fromHash) ? fromHash! : known(fromTweaks) ? fromTweaks! : list[0].id;
+        // Normalize a missing or bad campaign hash without adding a history
+        // entry. A non-campaign hash (e.g. #access_token from a magic link)
+        // is left alone for supabase-js to consume.
+        const hash = window.location.hash;
+        if (!hash || /^#\/c\//.test(hash)) {
+          writeCampaignHash(id, fromHash === id ? parseHash().entityId : undefined, { replace: true });
+        }
+        setCampaignId(id);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  // One code path updates the active id: picker clicks write the hash,
+  // and this listener also covers back/forward and manual URL edits.
+  useEffect(() => {
+    const onHashChange = () => {
+      const { campaignId: id } = parseHash();
+      if (id && campaigns.some((c) => c.id === id)) {
+        if (id !== campaignId) setCampaignId(id);
+      } else if (campaignId && /^#\/c\//.test(window.location.hash)) {
+        // Campaign-shaped hash with an unknown id — restore the active one so
+        // the URL doesn't lie. Non-campaign hashes are left alone.
+        writeCampaignHash(campaignId, null, { replace: true });
+      }
+    };
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, [campaigns, campaignId]);
+
+  const switchCampaign = useCallback((id: string) => {
+    if (id === campaignId) return;
+    writeCampaignHash(id); // hashchange listener updates campaignId
+    // Persist through the host page, never localStorage.
+    window.parent.postMessage({ type: "__edit_mode_set_keys", edits: { campaignId: id } }, "*");
+  }, [campaignId]);
 
   useEffect(() => {
+    if (!campaignId) return;
     let cancelled = false;
     let channel: RealtimeChannel | null = null;
 
+    // Synchronous, before any await: mutations read this store, and clearing
+    // the campaign unmounts AppLoaded so nothing can write mid-switch.
+    setActiveCampaignId(campaignId);
+    setCampaign(null);
+    setLoading(true);
+    setError(null);
+
     (async () => {
       try {
-        const initial = await fetchCampaign(CURRENT_CAMPAIGN_ID);
+        const initial = await fetchCampaign(campaignId);
         if (cancelled) return;
         setCampaign(initial);
         setLoading(false);
 
-        const filter = `campaign_id=eq.${CURRENT_CAMPAIGN_ID}`;
-        channel = supabase.channel(`campaign:${CURRENT_CAMPAIGN_ID}`);
+        const filter = `campaign_id=eq.${campaignId}`;
+        channel = supabase.channel(`campaign:${campaignId}`);
 
         channel.on(
           "postgres_changes" as any,
           { event: "*", schema: "public", table: "people", filter },
           (payload: any) => {
-            setCampaign((c) => c ? { ...c, people: applyArrayChange(c.people, payload.eventType, payload.new ? mapPerson(payload.new) : null, payload.old ? mapPerson(payload.old) : null) } : c);
+            setCampaign((c) => c && c.id === campaignId ? { ...c, people: applyArrayChange(c.people, payload.eventType, payload.new ? mapPerson(payload.new) : null, payload.old ? mapPerson(payload.old) : null) } : c);
           },
         );
         channel.on(
           "postgres_changes" as any,
           { event: "*", schema: "public", table: "locations", filter },
           (payload: any) => {
-            setCampaign((c) => c ? { ...c, locations: applyArrayChange(c.locations, payload.eventType, payload.new ? mapLocation(payload.new) : null, payload.old ? mapLocation(payload.old) : null) } : c);
+            setCampaign((c) => c && c.id === campaignId ? { ...c, locations: applyArrayChange(c.locations, payload.eventType, payload.new ? mapLocation(payload.new) : null, payload.old ? mapLocation(payload.old) : null) } : c);
           },
         );
         channel.on(
           "postgres_changes" as any,
           { event: "*", schema: "public", table: "quests", filter },
           (payload: any) => {
-            setCampaign((c) => c ? { ...c, quests: applyArrayChange(c.quests, payload.eventType, payload.new ? mapQuest(payload.new) : null, payload.old ? mapQuest(payload.old) : null) } : c);
+            setCampaign((c) => c && c.id === campaignId ? { ...c, quests: applyArrayChange(c.quests, payload.eventType, payload.new ? mapQuest(payload.new) : null, payload.old ? mapQuest(payload.old) : null) } : c);
           },
         );
         channel.on(
           "postgres_changes" as any,
           { event: "*", schema: "public", table: "goals", filter },
           (payload: any) => {
-            setCampaign((c) => c ? { ...c, goals: applyArrayChange(c.goals, payload.eventType, payload.new ? mapGoal(payload.new) : null, payload.old ? mapGoal(payload.old) : null) } : c);
+            setCampaign((c) => c && c.id === campaignId ? { ...c, goals: applyArrayChange(c.goals, payload.eventType, payload.new ? mapGoal(payload.new) : null, payload.old ? mapGoal(payload.old) : null) } : c);
           },
         );
         channel.on(
           "postgres_changes" as any,
           { event: "*", schema: "public", table: "factions", filter },
           (payload: any) => {
-            setCampaign((c) => c ? { ...c, factions: applyArrayChange(c.factions, payload.eventType, payload.new ? mapFaction(payload.new) : null, payload.old ? mapFaction(payload.old) : null) } : c);
+            setCampaign((c) => c && c.id === campaignId ? { ...c, factions: applyArrayChange(c.factions, payload.eventType, payload.new ? mapFaction(payload.new) : null, payload.old ? mapFaction(payload.old) : null) } : c);
           },
         );
         channel.on(
           "postgres_changes" as any,
           { event: "*", schema: "public", table: "items", filter },
           (payload: any) => {
-            setCampaign((c) => c ? { ...c, items: applyArrayChange(c.items, payload.eventType, payload.new ? mapItem(payload.new) : null, payload.old ? mapItem(payload.old) : null) } : c);
+            setCampaign((c) => c && c.id === campaignId ? { ...c, items: applyArrayChange(c.items, payload.eventType, payload.new ? mapItem(payload.new) : null, payload.old ? mapItem(payload.old) : null) } : c);
           },
         );
         channel.on(
           "postgres_changes" as any,
           { event: "*", schema: "public", table: "lore", filter },
           (payload: any) => {
-            setCampaign((c) => c ? { ...c, lore: applyArrayChange(c.lore, payload.eventType, payload.new ? mapLore(payload.new) : null, payload.old ? mapLore(payload.old) : null) } : c);
+            setCampaign((c) => c && c.id === campaignId ? { ...c, lore: applyArrayChange(c.lore, payload.eventType, payload.new ? mapLore(payload.new) : null, payload.old ? mapLore(payload.old) : null) } : c);
           },
         );
         channel.on(
           "postgres_changes" as any,
           { event: "*", schema: "public", table: "sessions", filter },
           (payload: any) => {
-            setCampaign((c) => c ? { ...c, sessions: applyArrayChange(c.sessions, payload.eventType, payload.new ? mapSession(payload.new) : null, payload.old ? mapSession(payload.old) : null) } : c);
+            setCampaign((c) => c && c.id === campaignId ? { ...c, sessions: applyArrayChange(c.sessions, payload.eventType, payload.new ? mapSession(payload.new) : null, payload.old ? mapSession(payload.old) : null) } : c);
           },
         );
         channel.on(
           "postgres_changes" as any,
           { event: "*", schema: "public", table: "arcs", filter },
           (payload: any) => {
-            setCampaign((c) => c ? { ...c, arcs: applyArrayChange(c.arcs, payload.eventType, payload.new ? mapArc(payload.new) : null, payload.old ? mapArc(payload.old) : null) } : c);
+            setCampaign((c) => c && c.id === campaignId ? { ...c, arcs: applyArrayChange(c.arcs, payload.eventType, payload.new ? mapArc(payload.new) : null, payload.old ? mapArc(payload.old) : null) } : c);
           },
         );
         channel.on(
           "postgres_changes" as any,
           { event: "*", schema: "public", table: "events", filter },
           (payload: any) => {
-            setCampaign((c) => c ? { ...c, events: applyArrayChange(c.events, payload.eventType, payload.new ? mapEvent(payload.new) : null, payload.old ? mapEvent(payload.old) : null) } : c);
+            setCampaign((c) => c && c.id === campaignId ? { ...c, events: applyArrayChange(c.events, payload.eventType, payload.new ? mapEvent(payload.new) : null, payload.old ? mapEvent(payload.old) : null) } : c);
           },
         );
         channel.on(
@@ -347,8 +427,9 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
           { event: "*", schema: "public", table: "event_participants", filter },
           () => {
             // Composite PK, no client-side id — refetch, same as connections.
-            supabase.from("event_participants").select("*").eq("campaign_id", CURRENT_CAMPAIGN_ID).then(({ data }) => {
-              setCampaign((c) => c ? { ...c, eventParticipants: buildParticipants(data ?? []) } : c);
+            supabase.from("event_participants").select("*").eq("campaign_id", campaignId).then(({ data }) => {
+              if (cancelled) return;
+              setCampaign((c) => c && c.id === campaignId ? { ...c, eventParticipants: buildParticipants(data ?? []) } : c);
             });
           },
         );
@@ -356,7 +437,7 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
           "postgres_changes" as any,
           { event: "*", schema: "public", table: "presence_users", filter },
           (payload: any) => {
-            setCampaign((c) => c ? { ...c, presence: applyArrayChange(c.presence, payload.eventType, payload.new ? mapPresence(payload.new) : null, payload.old ? mapPresence(payload.old) : null) } : c);
+            setCampaign((c) => c && c.id === campaignId ? { ...c, presence: applyArrayChange(c.presence, payload.eventType, payload.new ? mapPresence(payload.new) : null, payload.old ? mapPresence(payload.old) : null) } : c);
           },
         );
         channel.on(
@@ -364,8 +445,9 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
           { event: "*", schema: "public", table: "connections", filter },
           () => {
             // Connections have no stable `id` on the client (stored as tuples). Refetch.
-            supabase.from("connections").select("*").eq("campaign_id", CURRENT_CAMPAIGN_ID).then(({ data }) => {
-              setCampaign((c) => c ? { ...c, connections: (data ?? []).map(mapConnection) } : c);
+            supabase.from("connections").select("*").eq("campaign_id", campaignId).then(({ data }) => {
+              if (cancelled) return;
+              setCampaign((c) => c && c.id === campaignId ? { ...c, connections: (data ?? []).map(mapConnection) } : c);
             });
           },
         );
@@ -373,8 +455,9 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
           "postgres_changes" as any,
           { event: "*", schema: "public", table: "board_positions", filter },
           () => {
-            supabase.from("board_positions").select("*").eq("campaign_id", CURRENT_CAMPAIGN_ID).then(({ data }) => {
-              setCampaign((c) => c ? { ...c, board: Object.fromEntries((data ?? []).map(mapBoardPosition)) } : c);
+            supabase.from("board_positions").select("*").eq("campaign_id", campaignId).then(({ data }) => {
+              if (cancelled) return;
+              setCampaign((c) => c && c.id === campaignId ? { ...c, board: Object.fromEntries((data ?? []).map(mapBoardPosition)) } : c);
             });
           },
         );
@@ -382,13 +465,14 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
           "postgres_changes" as any,
           { event: "*", schema: "public", table: "party_notes", filter },
           () => {
-            supabase.from("party_notes").select("*").eq("campaign_id", CURRENT_CAMPAIGN_ID).order("created_at").then(({ data }) => {
+            supabase.from("party_notes").select("*").eq("campaign_id", campaignId).order("created_at").then(({ data }) => {
+              if (cancelled) return;
               const byEntity: Record<string, PartyNote[]> = {};
               (data ?? []).forEach((r: any) => {
                 const { entityId, note } = mapPartyNoteRow(r);
                 (byEntity[entityId] = byEntity[entityId] || []).push(note);
               });
-              setCampaign((c) => c ? { ...c, notes: byEntity } : c);
+              setCampaign((c) => c && c.id === campaignId ? { ...c, notes: byEntity } : c);
             });
           },
         );
@@ -405,10 +489,10 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
       cancelled = true;
       if (channel) supabase.removeChannel(channel);
     };
-  }, []);
+  }, [campaignId]);
 
   return (
-    <CampaignContext.Provider value={{ campaign, loading, error }}>
+    <CampaignContext.Provider value={{ campaign, loading, error, campaigns, activeCampaignId: campaignId, switchCampaign }}>
       {children}
     </CampaignContext.Provider>
   );
