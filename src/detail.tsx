@@ -427,7 +427,8 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
             ? (ev: any) => ev.session === entityId && "during this session"
             : null;
     if (eventRel) {
-      campaign.events.forEach((ev) => {
+      // Array order isn't trustworthy after realtime splices — sort by orderNum.
+      campaign.events.slice().sort((a, b) => a.orderNum - b.orderNum).forEach((ev) => {
         const rel = eventRel(ev);
         if (!rel) return;
         related.events = related.events || [];
