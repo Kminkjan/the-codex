@@ -109,6 +109,9 @@ const mapSession = (r: any) => ({
   num: r.num,
   title: r.title,
   date: r.date,
+  summary: r.summary ?? undefined,
+  imageUrl: r.image_url ?? undefined,
+  inGameDate: r.in_game_date ?? undefined,
 });
 
 const mapPresence = (r: any) => ({

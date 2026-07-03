@@ -30,7 +30,10 @@ const fieldAlias: Record<KindKey, Record<string, string>> = {
     imageUrl: "image_url",
   },
   lore: {},
-  sessions: {},
+  sessions: {
+    imageUrl: "image_url",
+    inGameDate: "in_game_date",
+  },
 };
 
 function toRow(kind: KindKey, patch: Record<string, unknown>): Record<string, unknown> {
