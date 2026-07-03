@@ -5,7 +5,10 @@ import { supabase } from "./utils/supabase";
 type AuthState = {
   user: User | null;
   displayName: string | null;
+  /** True for non-anonymous (magic-link) sessions; RLS rejects anonymous writes. */
+  canEdit: boolean;
   setDisplayName: (name: string) => Promise<void>;
+  signInWithEmail: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -55,8 +58,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const user = session?.user ?? null;
+  const canEdit = !!user && !user.is_anonymous;
   const displayName =
-    (user?.user_metadata?.display_name as string | undefined)?.trim() || null;
+    (user?.user_metadata?.display_name as string | undefined)?.trim() ||
+    (user?.email ? user.email.split("@")[0] : null);
 
   const setDisplayName = async (name: string) => {
     const trimmed = name.trim();
@@ -67,16 +72,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (updateErr) throw updateErr;
   };
 
+  const signInWithEmail = async (email: string) => {
+    const { error: otpErr } = await supabase.auth.signInWithOtp({
+      email: email.trim(),
+      options: { emailRedirectTo: window.location.origin },
+    });
+    if (otpErr) throw otpErr;
+  };
+
   const signOut = async () => {
     await supabase.auth.signOut();
-    setSession(null);
+    // Drop back to read-only viewing instead of a blank screen: the app
+    // always expects a session (anonymous = viewer).
+    const { data } = await supabase.auth.signInAnonymously();
+    setSession(data.session ?? null);
   };
 
   if (!ready) return null;
   if (error) return <AuthError message={error} />;
 
   return (
-    <AuthContext.Provider value={{ user, displayName, setDisplayName, signOut }}>
+    <AuthContext.Provider
+      value={{ user, displayName, canEdit, setDisplayName, signInWithEmail, signOut }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -117,7 +135,9 @@ export function DisplayNameGate({ children }: { children: ReactNode }) {
   const [err, setErr] = useState<string | null>(null);
 
   if (!user) return null;
-  if (displayName) return <>{children}</>;
+  // Anonymous visitors are read-only viewers — the name only signs party
+  // notes, which they can't write, so skip the gate for them.
+  if (user.is_anonymous || displayName) return <>{children}</>;
 
   const submit = async () => {
     if (!draft.trim() || saving) return;
@@ -176,6 +196,98 @@ export function DisplayNameGate({ children }: { children: ReactNode }) {
         >
           {saving ? "Signing the page…" : "Enter the journal"}
         </button>
+        {err && (
+          <div style={{ marginTop: 14, color: "var(--bloodred)", fontSize: 12, fontStyle: "italic" }}>
+            {err}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function SignInDialog({ onClose }: { onClose: () => void }) {
+  const { signInWithEmail } = useAuth();
+  const [email, setEmail] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const submit = async () => {
+    if (!email.trim() || sending) return;
+    setSending(true);
+    setErr(null);
+    try {
+      await signInWithEmail(email);
+      setSent(true);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, display: "grid", placeItems: "center",
+        background: "rgba(40,20,5,.45)", zIndex: 100,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          maxWidth: 440, width: "90%", textAlign: "center",
+          padding: "36px 32px",
+          background: "var(--vellum-light)",
+          boxShadow: "0 10px 40px rgba(40,20,5,.25)",
+          fontFamily: "var(--font-fell)",
+        }}
+      >
+        <div style={{ fontFamily: "var(--font-fell-sc)", letterSpacing: ".3em", fontSize: 11, color: "var(--ink-faded)", marginBottom: 10 }}>
+          ✦ PROVE YOUR MEMBERSHIP ✦
+        </div>
+        {sent ? (
+          <div style={{ fontStyle: "italic", fontSize: 15, color: "var(--ink)" }}>
+            A sign-in link has been sent to <strong>{email.trim()}</strong>.
+            <br />Check your email, then return here.
+          </div>
+        ) : (
+          <>
+            <div style={{ fontStyle: "italic", fontSize: 15, marginBottom: 22, color: "var(--ink)" }}>
+              Members of the party sign in by email to edit the codex.
+            </div>
+            <input
+              autoFocus
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
+              placeholder="you@example.com"
+              style={{
+                width: "100%", padding: "10px 12px", marginBottom: 14,
+                background: "transparent",
+                border: "1px solid var(--ink-faded)",
+                fontFamily: "var(--font-fell)", fontSize: 15, color: "var(--ink)",
+                textAlign: "center",
+              }}
+            />
+            <button
+              onClick={submit}
+              disabled={!email.trim() || sending}
+              style={{
+                width: "100%", padding: "10px 16px",
+                background: "var(--ink)", color: "var(--vellum-light)",
+                fontFamily: "var(--font-fell-sc)", letterSpacing: ".2em", fontSize: 12,
+                border: "none", cursor: email.trim() ? "pointer" : "not-allowed",
+                opacity: email.trim() ? 1 : 0.5,
+              }}
+            >
+              {sending ? "Sending the raven…" : "Send sign-in link"}
+            </button>
+          </>
+        )}
         {err && (
           <div style={{ marginTop: 14, color: "var(--bloodred)", fontSize: 12, fontStyle: "italic" }}>
             {err}

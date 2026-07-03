@@ -27,9 +27,18 @@ Practical implication: if you find yourself adding `useState` to mirror DB state
 
 ### Auth
 
-[src/auth.tsx](src/auth.tsx) runs `signInAnonymously()` on first load if there's no session, then gates the app on a display name (stored in `user_metadata.display_name`, used as the `author` on `party_notes`). RLS (migration [0003_enable_writes.sql](supabase/migrations/0003_enable_writes.sql)) requires `authenticated` — anonymous JWTs satisfy this. Reads remain open to `anon`.
+**Two tiers** (issue #4): anonymous sessions are read-only **viewers**; email magic-link sessions are **editors**.
 
-Anonymous sign-ins must be enabled in the Supabase dashboard (Authentication → Providers), otherwise `AuthProvider` surfaces a gate-barred error screen.
+[src/auth.tsx](src/auth.tsx) runs `signInAnonymously()` on first load if there's no session — every visitor always has a session. Anonymous users skip the display-name gate and land straight in the journal read-only. "Sign in to edit" in the Topbar opens `SignInDialog` → `signInWithOtp` (magic link, `emailRedirectTo: window.location.origin`; the client's default `detectSessionInUrl` consumes the link token). Editors' display name comes from `user_metadata.display_name`, falling back to their email prefix; it signs `party_notes`. `signOut` drops back to a fresh anonymous session, not a blank screen.
+
+`useAuth().canEdit` (`!!user && !user.is_anonymous`) is the single gate for edit affordances — `EditableText`/`EnumSelect` check it themselves and render plain text when false; buttons that mutate (Pin new, Draw string, sidebar `+`, PIN/ARCHIVE/STRIKE, note composer, Add Relation, portrait upload, bulk archive) are hidden behind it. Gate any new edit surface the same way.
+
+RLS (migration [0006_reject_anonymous_writes.sql](supabase/migrations/0006_reject_anonymous_writes.sql)) keeps reads open to `anon` but write policies require `(auth.jwt() ->> 'is_anonymous')::boolean is not true` — anonymous JWTs hold the `authenticated` *role*, so the claim is the only reliable gate. Storage (`entity-images`) writes are gated the same way. Advisors may still flag the policies as claim-based rather than row-based; per-campaign membership is issue #18.
+
+Dashboard config this depends on (Authentication → …):
+- Providers: **Anonymous ON** (viewer JWTs) and **Email ON** (magic link).
+- **Sign-ups disabled** — editors are invite-only, added manually via the dashboard.
+- URL Configuration: Site URL = production URL; `http://localhost:5173` in Redirect URLs for dev.
 
 ### Entity model
 

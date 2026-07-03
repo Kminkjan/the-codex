@@ -6,6 +6,7 @@ import {
 } from "./data";
 import { CompassRose, Icon, kindIcon } from "./icons";
 import { useCampaign, useFindEntity, useKinds } from "./hooks";
+import { useAuth } from "./auth";
 import { CardBody, PinnedCard } from "./components";
 import { entityLabel } from "./data";
 import {
@@ -43,6 +44,7 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
   const campaign = useCampaign();
   const findEntity = useFindEntity();
   const kinds = useKinds();
+  const { canEdit } = useAuth();
 
   const positions = campaign.board;
   const connections = campaign.connections;
@@ -78,6 +80,7 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
   const toggleKind = (k: KindKey) => setFilters((f) => ({ ...f, [k]: !(f as any)[k] }));
 
   const onDragEnd = (id: string, newPos: { x: number; y: number }) => {
+    if (!canEdit) return; // read-only: card snaps back on next render
     const base = positions[id];
     if (!base) return;
     upsertBoardPosition(id, { ...base, ...newPos }).catch((e) =>
@@ -225,15 +228,15 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
           ))}
         </div>
 
-        <button
+        {canEdit && <button
           className={`btn ${connectMode ? "btn-primary" : ""}`}
           onClick={() => { setConnectMode((m) => !m); setConnectSource(null); }}
           title="Draw a connection between two cards"
         >
           <Icon name="link" size={14} /> {connectMode ? "Cancel string" : "Draw string"}
-        </button>
+        </button>}
 
-        <div style={{ position: "relative" }}>
+        {canEdit && <div style={{ position: "relative" }}>
           <button
             className="btn btn-primary"
             onClick={() => setAddMenuOpen((o) => !o)}
@@ -277,7 +280,7 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
               </div>
             </>
           )}
-        </div>
+        </div>}
       </div>
 
       <div
@@ -341,7 +344,7 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
                     </text>
                   )}
                   <path id={`yp${i}`} d={pathD} fill="none" stroke="none" />
-                  {isHover && (
+                  {isHover && canEdit && (
                     <g
                       transform={`translate(${midX} ${midY})`}
                       style={{ cursor: "pointer", pointerEvents: "all" }}
