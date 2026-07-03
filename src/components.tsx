@@ -14,6 +14,32 @@ interface Position {
   kind: KindKey;
 }
 
+// Play-note exports write single key/value rows as one-row "tables"
+// (`| **Attendees** | Mort, Fynn |`). Without a `| --- |` delimiter these
+// aren't GFM tables, so react-markdown renders them as literal pipe text.
+// Collapse any such loose pipe row into a plain "label: value" line; real
+// tables (a row adjacent to a delimiter, or a body row under a header) are
+// left untouched.
+const isDelimRow = (l: string) => /^\|?[\s:\-|]+\|?$/.test(l.trim()) && l.includes("-");
+const isPipeRow = (l: string) => /^\|.*\|$/.test(l.trim());
+function normalizeLoosePipeRows(md: string): string {
+  const lines = md.split("\n");
+  return lines
+    .map((line, i) => {
+      const t = line.trim();
+      if (!isPipeRow(t) || isDelimRow(t)) return line;
+      const prev = lines[i - 1]?.trim() ?? "";
+      const next = lines[i + 1]?.trim() ?? "";
+      // Part of a real table: a body row (prev is a row) or a header (next is
+      // the delimiter). Everything else is a loose row to collapse.
+      if (isPipeRow(prev) || isDelimRow(next)) return line;
+      const cells = t.replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim()).filter(Boolean);
+      if (cells.length < 2) return cells[0] ?? line;
+      return `${cells[0]}: ${cells.slice(1).join(" — ")}`;
+    })
+    .join("\n");
+}
+
 interface PinnedCardProps {
   entity: any;
   pos: Position;
@@ -140,7 +166,9 @@ export function PosterCard({ person }: { person: any }) {
       <div className="name">{person.name}</div>
       <div className="desc">— {person.epithet}</div>
       <div className="reward">
-        <span><strong>Race</strong> · {person.race}</span>
+        {person.race
+          ? <span><strong>Race</strong> · {person.race}</span>
+          : <span />}
         {sess && <span>Sess {sess.num}</span>}
       </div>
     </div>
@@ -715,7 +743,7 @@ export function EditableMarkdown({
         className={`md-body ${className ?? ""}`}
         style={{ opacity: empty ? 0.55 : 1, fontStyle: empty ? "italic" : undefined, ...style }}
       >
-        {empty ? placeholder : <ReactMarkdown remarkPlugins={[remarkGfm]}>{display}</ReactMarkdown>}
+        {empty ? placeholder : <ReactMarkdown remarkPlugins={[remarkGfm]}>{normalizeLoosePipeRows(display)}</ReactMarkdown>}
       </div>
     );
   }
@@ -784,7 +812,7 @@ export function EditableMarkdown({
         setEditing(true);
       }}
     >
-      {empty ? (placeholder || "Click to edit…") : <ReactMarkdown remarkPlugins={[remarkGfm]}>{display}</ReactMarkdown>}
+      {empty ? (placeholder || "Click to edit…") : <ReactMarkdown remarkPlugins={[remarkGfm]}>{normalizeLoosePipeRows(display)}</ReactMarkdown>}
     </div>
   );
 }
