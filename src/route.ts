@@ -3,10 +3,21 @@
 // #access_token=... hash must be left untouched for supabase-js to consume.
 const HASH_RE = /^#\/c\/([^/]+)(?:\/e\/(.+))?$/;
 
+// Malformed percent-encoding (e.g. "#/c/abc%") must not throw — a bad URL
+// then flows through the normal unknown-id fallbacks instead of wedging the
+// loader or crashing the render tree.
+function safeDecode(segment: string): string {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+}
+
 export function parseHash(): { campaignId?: string; entityId?: string } {
   const m = HASH_RE.exec(window.location.hash);
   if (!m) return {};
-  return { campaignId: decodeURIComponent(m[1]), entityId: m[2] ? decodeURIComponent(m[2]) : undefined };
+  return { campaignId: safeDecode(m[1]), entityId: m[2] ? safeDecode(m[2]) : undefined };
 }
 
 export function campaignHash(campaignId: string, entityId?: string | null): string {
