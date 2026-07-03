@@ -5,6 +5,7 @@ import { useCampaignStatus, useKinds } from "./hooks";
 import { Icon } from "./icons";
 import { Sidebar, Topbar } from "./components";
 import { NoticeBoard, KindList } from "./board";
+import { ArcsPage } from "./arcs";
 import { DetailSheet } from "./detail";
 import { CommandPalette, useCommandPaletteHotkey } from "./commandPalette";
 import { CleanupPanel } from "./cleanupPanel";
@@ -108,7 +109,8 @@ function AppLoaded() {
         <Sidebar active={view} onSelect={setView} onOpenEntity={setOpenId} onOpenCleanup={() => setCleanupOpen(true)} counts={counts} />
         <main className="main">
           {view === "board" && <NoticeBoard onOpenEntity={setOpenId} />}
-          {view !== "board" && <KindList kind={view} onOpenEntity={setOpenId} />}
+          {view === "arcs" && <ArcsPage onOpenEntity={setOpenId} />}
+          {view !== "board" && view !== "arcs" && <KindList kind={view} onOpenEntity={setOpenId} />}
         </main>
       </div>
 
