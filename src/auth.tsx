@@ -2,6 +2,29 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "./utils/supabase";
 
+// Dev-only editor quick-login for local/automated testing. Anonymous sessions
+// fail both the canEdit gate and the RLS write policy, so real end-to-end
+// testing needs a genuine non-anonymous session. This is compiled out of
+// production (import.meta.env.DEV is false there) and reads throwaway creds
+// from the gitignored .env — see VITE_DEV_EDITOR_* there. Call
+// window.__devSignIn() from the console (or the preview harness).
+if (import.meta.env.DEV && import.meta.env.VITE_DEV_EDITOR_EMAIL) {
+  (window as any).__devSignIn = async () => {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: import.meta.env.VITE_DEV_EDITOR_EMAIL as string,
+      password: import.meta.env.VITE_DEV_EDITOR_PASSWORD as string,
+    });
+    if (error) { console.error("[dev] sign-in failed:", error.message); return error.message; }
+    // Skip the DisplayNameGate for the throwaway editor by seeding a name.
+    if (!data.user?.user_metadata?.display_name) {
+      await supabase.auth.updateUser({ data: { display_name: "Dev Editor" } });
+    }
+    console.info("[dev] signed in as editor:", data.user?.email);
+    return "ok";
+  };
+  console.info("[dev] editor quick-login available: run window.__devSignIn()");
+}
+
 type AuthState = {
   user: User | null;
   displayName: string | null;
