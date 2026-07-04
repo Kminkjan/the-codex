@@ -196,7 +196,7 @@ export function PosterCard({ person }: { person: any }) {
           : <span className="silhouette" />}
       </div>
       <div className="name">{person.name}</div>
-      <div className="desc">— {person.epithet}</div>
+      {!!person.epithet?.trim() && <div className="desc">— {person.epithet}</div>}
       <div className="reward">
         {person.race
           ? <span><strong>Race</strong> · {person.race}</span>

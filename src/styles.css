@@ -1179,6 +1179,9 @@ button.session-pin { line-height: 1; }
   backdrop-filter: blur(2px);
   z-index: 50;
   display: flex; justify-content: center;
+  /* Without this the sheet stretches to full viewport height (flex default),
+     leaving a wall of blank vellum under short entries. */
+  align-items: flex-start;
   padding: 40px 20px;
   overflow-y: auto;
 }

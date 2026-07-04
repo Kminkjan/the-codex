@@ -33,6 +33,26 @@ const chipStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 
+// A stat box must earn its slot: for read-only viewers an empty stat is pure
+// noise ("Race —"), so it vanishes; editors keep it as the click-to-fill
+// affordance. Pass `empty` from the underlying field.
+function Stat({ label, empty, span, valueStyle, children }: {
+  label: string;
+  empty?: boolean;
+  span?: 2 | 3;
+  valueStyle?: React.CSSProperties;
+  children: React.ReactNode;
+}) {
+  const { canEdit } = useAuth();
+  if (empty && !canEdit) return null;
+  return (
+    <div className="stat" style={span ? { gridColumn: `span ${span}` } : undefined}>
+      <div className="stat-label">{label}</div>
+      <div className="stat-value" style={valueStyle}>{children}</div>
+    </div>
+  );
+}
+
 function PortraitFallback({ kind }: { kind: KindKey }) {
   if (kind === "people") return <span className="silhouette" />;
   return (
@@ -547,7 +567,9 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                 onSave={(v) => patch({ [primaryField[kind]]: v })}
                 placeholder="Untitled"
               />
-              {kind === "people" && (
+              {/* Viewers don't need a "— an epithet —" placeholder taking the
+                  subtitle slot; editors keep it as the click-to-fill affordance. */}
+              {kind === "people" && (canEdit || (entity as any).epithet?.trim()) && (
                 <EditableText
                   className="sb-epithet"
                   value={(entity as any).epithet ?? ""}
@@ -567,66 +589,67 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
               <div className="sb-stats">
                 {kind === "people" && (
                   <>
-                    <div className="stat"><div className="stat-label">Race</div><div className="stat-value"><EditableText value={(entity as any).race ?? ""} onSave={(v) => patch({ race: v })} placeholder="—" /></div></div>
-                    <div className="stat"><div className="stat-label">Role</div><div className="stat-value" style={{ fontSize: 14 }}><EditableText value={(entity as any).role ?? ""} onSave={(v) => patch({ role: v })} placeholder="—" /></div></div>
-                    <div className="stat"><div className="stat-label">Disposition</div><div className="stat-value" style={{ textTransform: "capitalize" }}>{(entity as any).disposition}</div></div>
-                    <div className="stat"><div className="stat-label">Alignment</div><div className="stat-value" style={{ fontSize: 13 }}><EditableText value={(entity as any).alignment ?? ""} onSave={(v) => patch({ alignment: v })} placeholder="—" /></div></div>
+                    <Stat label="Race" empty={!(entity as any).race?.trim()}><EditableText value={(entity as any).race ?? ""} onSave={(v) => patch({ race: v })} placeholder="—" /></Stat>
+                    <Stat label="Role" empty={!(entity as any).role?.trim()} valueStyle={{ fontSize: 14 }}><EditableText value={(entity as any).role ?? ""} onSave={(v) => patch({ role: v })} placeholder="—" /></Stat>
+                    <Stat label="Disposition" empty={!(entity as any).disposition} valueStyle={{ textTransform: "capitalize" }}><EnumSelect value={(entity as any).disposition} options={DISPOSITION_OPTIONS} allowClear onSave={(v) => patch({ disposition: v })} /></Stat>
+                    <Stat label="Alignment" empty={!(entity as any).alignment?.trim()} valueStyle={{ fontSize: 13 }}><EditableText value={(entity as any).alignment ?? ""} onSave={(v) => patch({ alignment: v })} placeholder="—" /></Stat>
                   </>
                 )}
                 {kind === "locations" && (
                   <>
-                    <div className="stat"><div className="stat-label">Kind</div><div className="stat-value"><EditableText value={(entity as any).kind ?? ""} onSave={(v) => (v.trim() ? patch({ kind: v }) : false)} placeholder="—" /></div></div>
-                    <div className="stat"><div className="stat-label">Region</div><div className="stat-value" style={{ fontSize: 13 }}><EditableText value={(entity as any).region ?? ""} onSave={(v) => patch({ region: v })} placeholder="—" /></div></div>
-                    <div className="stat" style={{ gridColumn: "span 2" }}><div className="stat-label">Ruler</div><div className="stat-value" style={{ fontSize: 14 }}><EditableText value={(entity as any).ruler ?? ""} onSave={(v) => patch({ ruler: v })} placeholder="Unclaimed" /></div></div>
+                    <Stat label="Kind" empty={!(entity as any).kind?.trim()}><EditableText value={(entity as any).kind ?? ""} onSave={(v) => (v.trim() ? patch({ kind: v }) : false)} placeholder="—" /></Stat>
+                    <Stat label="Region" empty={!(entity as any).region?.trim()} valueStyle={{ fontSize: 13 }}><EditableText value={(entity as any).region ?? ""} onSave={(v) => patch({ region: v })} placeholder="—" /></Stat>
+                    <Stat label="Ruler" empty={!(entity as any).ruler?.trim()} span={2} valueStyle={{ fontSize: 14 }}><EditableText value={(entity as any).ruler ?? ""} onSave={(v) => patch({ ruler: v })} placeholder="Unclaimed" /></Stat>
                   </>
                 )}
                 {kind === "quests" && (
                   <>
-                    <div className="stat"><div className="stat-label">Status</div><div className="stat-value"><StatusChip status={(entity as any).status} /></div></div>
-                    <div className="stat" style={{ gridColumn: "span 2" }}><div className="stat-label">Reward</div><div className="stat-value" style={{ fontSize: 13 }}><EditableText value={(entity as any).reward ?? ""} onSave={(v) => patch({ reward: v })} placeholder="—" /></div></div>
-                    <div className="stat"><div className="stat-label">Session</div><div className="stat-value">{(entity as any).session?.toUpperCase()}</div></div>
-                    <div className="stat" style={{ gridColumn: "span 2" }}><div className="stat-label">Arc</div><div className="stat-value" style={{ fontSize: 13 }}><EntitySelect value={(entity as any).arc} options={arcOptions} allowClear onSave={(id) => patch({ arc: id ?? "" })} /></div></div>
+                    <Stat label="Status" empty={!(entity as any).status}>{canEdit ? <EnumSelect value={(entity as any).status} options={STATUS_OPTIONS} allowClear onSave={(v) => patch({ status: v })} /> : <StatusChip status={(entity as any).status} />}</Stat>
+                    <Stat label="Reward" empty={!(entity as any).reward?.trim()} span={2} valueStyle={{ fontSize: 13 }}><EditableText value={(entity as any).reward ?? ""} onSave={(v) => patch({ reward: v })} placeholder="—" /></Stat>
+                    <Stat label="Session" empty={!(entity as any).session}>{(() => {
+                      const s = campaign.sessions.find((x) => x.id === (entity as any).session);
+                      return s ? `Sess ${s.num}` : (entity as any).session?.toUpperCase();
+                    })()}</Stat>
+                    <Stat label="Arc" empty={!(entity as any).arc} span={2} valueStyle={{ fontSize: 13 }}><EntitySelect value={(entity as any).arc} options={arcOptions} allowClear onSave={(id) => patch({ arc: id ?? "" })} /></Stat>
                   </>
                 )}
                 {kind === "goals" && (
                   <>
-                    <div className="stat"><div className="stat-label">Kind</div><div className="stat-value"><EditableText value={(entity as any).kind ?? ""} onSave={(v) => patch({ kind: v })} placeholder="—" /></div></div>
-                    <div className="stat"><div className="stat-label">Status</div><div className="stat-value"><StatusChip status={(entity as any).status} /></div></div>
-                    <div className="stat" style={{ gridColumn: "span 2" }}><div className="stat-label">Borne By</div><div className="stat-value" style={{ fontSize: 13 }}>{(entity as any).owner}</div></div>
+                    <Stat label="Kind" empty={!(entity as any).kind?.trim()}><EditableText value={(entity as any).kind ?? ""} onSave={(v) => patch({ kind: v })} placeholder="—" /></Stat>
+                    <Stat label="Status" empty={!(entity as any).status}>{canEdit ? <EnumSelect value={(entity as any).status} options={STATUS_OPTIONS} allowClear onSave={(v) => patch({ status: v })} /> : <StatusChip status={(entity as any).status} />}</Stat>
+                    <Stat label="Borne By" empty={!(entity as any).owner?.trim()} span={2} valueStyle={{ fontSize: 13 }}>{(entity as any).owner}</Stat>
                   </>
                 )}
                 {kind === "factions" && (
                   <>
-                    <div className="stat"><div className="stat-label">Sigil</div><div className="stat-value"><EditableText value={(entity as any).sigil ?? ""} onSave={(v) => patch({ sigil: v })} placeholder="—" /></div></div>
-                    <div className="stat"><div className="stat-label">Stance</div><div className="stat-value"><EditableText value={(entity as any).allegiance ?? ""} onSave={(v) => patch({ allegiance: v })} placeholder="—" /></div></div>
+                    <Stat label="Sigil" empty={!(entity as any).sigil?.trim()}><EditableText value={(entity as any).sigil ?? ""} onSave={(v) => patch({ sigil: v })} placeholder="—" /></Stat>
+                    <Stat label="Stance" empty={!(entity as any).allegiance?.trim()}><EditableText value={(entity as any).allegiance ?? ""} onSave={(v) => patch({ allegiance: v })} placeholder="—" /></Stat>
                   </>
                 )}
                 {kind === "items" && (
-                  <>
-                    <div className="stat"><div className="stat-label">Kind</div><div className="stat-value"><EditableText value={(entity as any).kind ?? ""} onSave={(v) => patch({ kind: v })} placeholder="—" /></div></div>
-                  </>
+                  <Stat label="Kind" empty={!(entity as any).kind?.trim()}><EditableText value={(entity as any).kind ?? ""} onSave={(v) => patch({ kind: v })} placeholder="—" /></Stat>
                 )}
                 {kind === "sessions" && (
                   <>
-                    <div className="stat"><div className="stat-label">No.</div><div className="stat-value"><EditableNumber value={(entity as any).num ?? 0} onSave={(n) => patch({ num: n })} /></div></div>
-                    <div className="stat"><div className="stat-label">Date</div><div className="stat-value" style={{ fontSize: 14 }}><EditableText value={(entity as any).date ?? ""} onSave={(v) => patch({ date: v })} placeholder="—" /></div></div>
-                    <div className="stat" style={{ gridColumn: "span 2" }}><div className="stat-label">Reckoning</div><div className="stat-value" style={{ fontSize: 14 }}><EditableText value={(entity as any).inGameDate ?? ""} onSave={(v) => patch({ inGameDate: v })} placeholder="— by Faerûn's reckoning —" /></div></div>
-                    <div className="stat" style={{ gridColumn: "span 2" }}><div className="stat-label">Arc</div><div className="stat-value" style={{ fontSize: 13 }}><EntitySelect value={(entity as any).arc} options={arcOptions} allowClear onSave={(id) => patch({ arc: id ?? "" })} /></div></div>
+                    <Stat label="No."><EditableNumber value={(entity as any).num ?? 0} onSave={(n) => patch({ num: n })} /></Stat>
+                    <Stat label="Date" empty={!(entity as any).date?.trim()} valueStyle={{ fontSize: 14 }}><EditableText value={(entity as any).date ?? ""} onSave={(v) => patch({ date: v })} placeholder="—" /></Stat>
+                    <Stat label="Reckoning" empty={!(entity as any).inGameDate?.trim()} span={2} valueStyle={{ fontSize: 14 }}><EditableText value={(entity as any).inGameDate ?? ""} onSave={(v) => patch({ inGameDate: v })} placeholder="— by Faerûn's reckoning —" /></Stat>
+                    <Stat label="Arc" empty={!(entity as any).arc} span={2} valueStyle={{ fontSize: 13 }}><EntitySelect value={(entity as any).arc} options={arcOptions} allowClear onSave={(id) => patch({ arc: id ?? "" })} /></Stat>
                   </>
                 )}
                 {kind === "arcs" && (
                   <>
-                    <div className="stat" style={{ gridColumn: "span 2" }}><div className="stat-label">First Session</div><div className="stat-value" style={{ fontSize: 13 }}><EntitySelect value={(entity as any).startSession} options={sessionOptions} allowClear onSave={(id) => patch({ startSession: id ?? "" })} /></div></div>
-                    <div className="stat" style={{ gridColumn: "span 2" }}><div className="stat-label">Last Session</div><div className="stat-value" style={{ fontSize: 13 }}><EntitySelect value={(entity as any).endSession} options={sessionOptions} allowClear onSave={(id) => patch({ endSession: id ?? "" })} /></div></div>
-                    <div className="stat"><div className="stat-label">Order</div><div className="stat-value"><EditableNumber value={(entity as any).orderNum ?? 0} onSave={(n) => patch({ orderNum: n })} /></div></div>
+                    <Stat label="First Session" empty={!(entity as any).startSession} span={2} valueStyle={{ fontSize: 13 }}><EntitySelect value={(entity as any).startSession} options={sessionOptions} allowClear onSave={(id) => patch({ startSession: id ?? "" })} /></Stat>
+                    <Stat label="Last Session" empty={!(entity as any).endSession} span={2} valueStyle={{ fontSize: 13 }}><EntitySelect value={(entity as any).endSession} options={sessionOptions} allowClear onSave={(id) => patch({ endSession: id ?? "" })} /></Stat>
+                    <Stat label="Order"><EditableNumber value={(entity as any).orderNum ?? 0} onSave={(n) => patch({ orderNum: n })} /></Stat>
                   </>
                 )}
                 {kind === "events" && (
                   <>
-                    <div className="stat" style={{ gridColumn: "span 3" }}><div className="stat-label">Reckoning</div><div className="stat-value" style={{ fontSize: 14 }}><EditableText value={(entity as any).inGameDate ?? ""} onSave={(v) => patch({ inGameDate: v })} placeholder="— by Faerûn's reckoning —" /></div></div>
-                    <div className="stat"><div className="stat-label">Order</div><div className="stat-value"><EditableNumber value={(entity as any).orderNum ?? 0} onSave={(n) => patch({ orderNum: n })} /></div></div>
-                    <div className="stat" style={{ gridColumn: "span 2" }}><div className="stat-label">Session</div><div className="stat-value" style={{ fontSize: 13 }}><EntitySelect value={(entity as any).session} options={sessionOptions} allowClear onSave={(id) => patch({ session: id ?? "" })} /></div></div>
-                    <div className="stat" style={{ gridColumn: "span 2" }}><div className="stat-label">Location</div><div className="stat-value" style={{ fontSize: 13 }}><EntitySelect value={(entity as any).location} options={locationOptions} allowClear onSave={(id) => patch({ location: id ?? "" })} /></div></div>
+                    <Stat label="Reckoning" empty={!(entity as any).inGameDate?.trim()} span={3} valueStyle={{ fontSize: 14 }}><EditableText value={(entity as any).inGameDate ?? ""} onSave={(v) => patch({ inGameDate: v })} placeholder="— by Faerûn's reckoning —" /></Stat>
+                    <Stat label="Order"><EditableNumber value={(entity as any).orderNum ?? 0} onSave={(n) => patch({ orderNum: n })} /></Stat>
+                    <Stat label="Session" empty={!(entity as any).session} span={2} valueStyle={{ fontSize: 13 }}><EntitySelect value={(entity as any).session} options={sessionOptions} allowClear onSave={(id) => patch({ session: id ?? "" })} /></Stat>
+                    <Stat label="Location" empty={!(entity as any).location} span={2} valueStyle={{ fontSize: 13 }}><EntitySelect value={(entity as any).location} options={locationOptions} allowClear onSave={(id) => patch({ location: id ?? "" })} /></Stat>
                   </>
                 )}
               </div>
@@ -742,31 +765,6 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                     onSave={(v) => patch({ hooks: v })}
                     placeholder="(no warning given)"
                     style={{ display: "inline" }}
-                  />
-                </div>
-              )}
-
-              {(kind === "quests" || kind === "goals") && (
-                <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 10, fontFamily: "var(--font-fell-sc)", fontSize: 11, letterSpacing: ".2em", color: "var(--ink-secondary)" }}>
-                  STATUS
-                  <EnumSelect
-                    value={(entity as any).status}
-                    options={STATUS_OPTIONS}
-                    allowClear
-                    onSave={(v) => patch({ status: v })}
-                  />
-                  <StatusChip status={(entity as any).status} />
-                </div>
-              )}
-
-              {kind === "people" && (
-                <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 10, fontFamily: "var(--font-fell-sc)", fontSize: 11, letterSpacing: ".2em", color: "var(--ink-secondary)" }}>
-                  DISPOSITION
-                  <EnumSelect
-                    value={(entity as any).disposition}
-                    options={DISPOSITION_OPTIONS}
-                    allowClear
-                    onSave={(v) => patch({ disposition: v })}
                   />
                 </div>
               )}
