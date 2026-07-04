@@ -26,6 +26,7 @@
 
   --mustard:       #b08228;        /* gold leaf */
   --mustard-pale:  #d9b870;
+  --mustard-deep:  #6e5018;        /* pursuing-status ink on light paper */
   --forest:        #3d5536;
   --forest-pale:   #7a8f6c;
   --slate:         #465061;
@@ -90,6 +91,7 @@
   --bloodred:      #c63d2f;
   --bloodred-deep: #e05a4a;
   --mustard:       #d4a728;
+  --mustard-deep:  #d9b870;        /* dark stock flips this to a pale ink */
   /* Light rim + deeper drop shadow: card-to-board separation in the dark. */
   --card-edge:     rgba(220,205,160,.32);
   --shadow-card:   0 0 0 1px rgba(232,220,181,.05), 0 1px 0 rgba(255,255,255,.06) inset, 0 10px 22px rgba(0,0,0,.6), 0 2px 3px rgba(0,0,0,.55);
@@ -778,6 +780,19 @@ button.session-pin { line-height: 1; }
   background: radial-gradient(circle at 35% 30%, #9aa5b0 0%, #4a5560 55%, #2a3038 100%);
 }
 
+/* Kind tags ("✦ Quest ✦", "✦ city ✦", …) share one type treatment; each card
+   block below sets only its color. (.card-poster .wanted keeps its own rule —
+   it's larger and doubles as the poster's header band.) */
+.card-quest .quest-tag,
+.card-location .loc-type,
+.card-goal .goal-kind,
+.card-item .i-label,
+.card-lore .l-label {
+  font-family: var(--font-fell-sc);
+  font-size: 11.5px;
+  letter-spacing: .1em;
+}
+
 /* Wanted poster (People) */
 .card-poster {
   width: 220px;
@@ -885,12 +900,7 @@ button.session-pin { line-height: 1; }
   display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
   margin-bottom: 4px;
 }
-.card-quest .quest-tag {
-  font-family: var(--font-fell-sc);
-  font-size: 11.5px;
-  letter-spacing: .1em;
-  color: var(--bloodred-deep);
-}
+.card-quest .quest-tag { color: var(--bloodred-deep); }
 .card-quest .quest-title {
   font-family: var(--font-display);
   font-weight: 600;
@@ -942,12 +952,7 @@ button.session-pin { line-height: 1; }
 .card-location .loc-body {
   padding: 10px 12px 12px;
 }
-.card-location .loc-type {
-  font-family: var(--font-fell-sc);
-  font-size: 11.5px;
-  letter-spacing: .1em;
-  color: var(--teal-deep);
-}
+.card-location .loc-type { color: var(--teal-deep); }
 .card-location .loc-name {
   font-family: var(--font-display);
   font-weight: 600;
@@ -976,12 +981,7 @@ button.session-pin { line-height: 1; }
   border: 1px solid var(--card-edge);
   position: relative;
 }
-.card-goal .goal-kind {
-  font-family: var(--font-fell-sc);
-  font-size: 11.5px;
-  letter-spacing: .1em;
-  color: var(--mustard);
-}
+.card-goal .goal-kind { color: var(--mustard); }
 .card-goal .goal-text {
   font-family: var(--font-hand);
   font-size: 19px;
@@ -1049,12 +1049,7 @@ button.session-pin { line-height: 1; }
   border: 1px solid var(--card-edge);
   position: relative;
 }
-.card-item .i-label {
-  font-family: var(--font-fell-sc);
-  font-size: 11.5px;
-  letter-spacing: .1em;
-  color: var(--mustard);
-}
+.card-item .i-label { color: var(--mustard); }
 .card-item .i-name {
   font-family: var(--font-display);
   font-weight: 600;
@@ -1083,12 +1078,7 @@ button.session-pin { line-height: 1; }
   position: relative;
   transform: rotate(0deg);
 }
-.card-lore .l-label {
-  font-family: var(--font-fell-sc);
-  font-size: 11.5px;
-  letter-spacing: .1em;
-  color: var(--forest);
-}
+.card-lore .l-label { color: var(--forest); }
 .card-lore .l-title {
   font-family: var(--font-fell-sc);
   font-size: 14px;
@@ -1537,10 +1527,8 @@ button.session-pin { line-height: 1; }
 .status-chip .dot { width: 6px; height: 6px; border-radius: 50%; }
 .status-chip.whispered { background: rgba(74,109,104,.12); border-color: var(--teal-deep); color: var(--teal-deep); }
 .status-chip.whispered .dot { background: var(--teal-deep); }
-.status-chip.pursuing { background: rgba(176,130,40,.15); border-color: var(--mustard); color: #6e5018; }
+.status-chip.pursuing { background: rgba(176,130,40,.15); border-color: var(--mustard); color: var(--mustard-deep); }
 .status-chip.pursuing .dot { background: var(--mustard); }
-/* #6e5018 is tuned for light paper; on grimoire stock it vanishes. */
-[data-theme="grimoire"] .status-chip.pursuing { color: var(--mustard-pale); }
 .status-chip.resolved { background: rgba(61,85,54,.15); border-color: var(--forest); color: var(--forest); }
 .status-chip.resolved .dot { background: var(--forest); }
 .status-chip.lost { background: rgba(138,42,31,.12); border-color: var(--bloodred); color: var(--bloodred-deep); }
@@ -1660,6 +1648,12 @@ button.session-pin { line-height: 1; }
 .ent-glyph.items { background: #8a6a28; }
 .ent-glyph.lore { background: var(--forest-pale); color: var(--ink); }
 .ent-glyph.sessions { background: var(--ink-faded); }
+/* Grimoire lifts --teal-deep/--forest/--slate for use as TEXT on dark stock;
+   as glyph backgrounds under white text those pastels lose all contrast, so
+   the glyphs keep the original dark values. */
+[data-theme="grimoire"] .ent-glyph.locations { background: #2f4c48; }
+[data-theme="grimoire"] .ent-glyph.goals     { background: #3d5536; }
+[data-theme="grimoire"] .ent-glyph.factions  { background: #465061; }
 
 /* Compass rosette decoration */
 .compass {
