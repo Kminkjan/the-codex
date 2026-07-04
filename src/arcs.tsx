@@ -72,7 +72,7 @@ export function ArcsPage({ onOpenEntity }: { onOpenEntity: (id: string) => void 
                 >
                   {arc.title}
                 </h2>
-                <span style={{ fontFamily: "var(--font-fell-sc)", letterSpacing: ".12em", fontSize: 11, color: "var(--ink-faded)" }}>
+                <span style={{ fontFamily: "var(--font-fell-sc)", letterSpacing: ".12em", fontSize: 11, color: "var(--ink-secondary)" }}>
                   {assigned.length} {assigned.length === 1 ? "session" : "sessions"}
                   {quests.length > 0 && ` · ${quests.length} ${quests.length === 1 ? "quest" : "quests"}`}
                   {range && ` · ${range}`}
@@ -108,7 +108,7 @@ export function ArcsPage({ onOpenEntity }: { onOpenEntity: (id: string) => void 
 
         {unassigned.length > 0 && arcs.length > 0 && (
           <section style={{ marginTop: 34 }}>
-            <div style={{ fontFamily: "var(--font-fell-sc)", letterSpacing: ".18em", fontSize: 12, color: "var(--ink-faded)" }}>
+            <div style={{ fontFamily: "var(--font-fell-sc)", letterSpacing: ".18em", fontSize: 12, color: "var(--ink-secondary)" }}>
               ✦ UNCLAIMED SESSIONS ✦
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 8 }}>

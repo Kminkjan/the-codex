@@ -280,7 +280,7 @@ function EventParticipantsEditor({ eventId, onOpen }: { eventId: string; onOpen:
               }}
               style={{
                 background: "transparent", border: "none", cursor: "pointer",
-                color: "var(--ink-faded)", fontSize: 12, padding: "0 2px",
+                color: "var(--ink-secondary)", fontSize: 12, padding: "0 2px",
               }}
             >✕</button>
           ) : (
@@ -747,7 +747,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
               )}
 
               {(kind === "quests" || kind === "goals") && (
-                <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 10, fontFamily: "var(--font-fell-sc)", fontSize: 11, letterSpacing: ".2em", color: "var(--ink-faded)" }}>
+                <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 10, fontFamily: "var(--font-fell-sc)", fontSize: 11, letterSpacing: ".2em", color: "var(--ink-secondary)" }}>
                   STATUS
                   <EnumSelect
                     value={(entity as any).status}
@@ -760,7 +760,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
               )}
 
               {kind === "people" && (
-                <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 10, fontFamily: "var(--font-fell-sc)", fontSize: 11, letterSpacing: ".2em", color: "var(--ink-faded)" }}>
+                <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 10, fontFamily: "var(--font-fell-sc)", fontSize: 11, letterSpacing: ".2em", color: "var(--ink-secondary)" }}>
                   DISPOSITION
                   <EnumSelect
                     value={(entity as any).disposition}
@@ -774,7 +774,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
               <h3 style={{ marginTop: 28 }}>Party Notes</h3>
               <div className="notes-stack">
                 {notes.length === 0 && (
-                  <div style={{ fontFamily: "var(--font-fell)", fontStyle: "italic", color: "var(--ink-faded)", fontSize: 13 }}>
+                  <div style={{ fontFamily: "var(--font-fell)", fontStyle: "italic", color: "var(--ink-secondary)", fontSize: 13 }}>
                     No notes yet. The margin waits.
                   </div>
                 )}
@@ -812,7 +812,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
             </div>
 
             <div className="detail-rail">
-              <div style={{ fontFamily: "var(--font-fell-sc)", fontSize: 11, letterSpacing: ".16em", color: "var(--ink-faded)", marginBottom: 14 }}>
+              <div style={{ fontFamily: "var(--font-fell-sc)", fontSize: 11, letterSpacing: ".16em", color: "var(--ink-secondary)", marginBottom: 14 }}>
                 ✦ RELATIONS ✦
               </div>
 

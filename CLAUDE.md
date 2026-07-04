@@ -57,6 +57,7 @@ The app supports an "edit mode" handshake with a parent window via `window.__TWE
 - **Route everything campaign-scoped through the active campaign id** — components read it via `useCampaign()`/`useCampaignSwitcher()`, mutations via `getActiveCampaignId()` from [src/activeCampaign.ts](src/activeCampaign.ts); never query without the `campaign_id` filter. RLS doesn't enforce per-campaign access today — any signed-in editor can write to any campaign (per-campaign membership is future work).
 - **New entity IDs are `crypto.randomUUID()` strings** generated client-side. All PKs are `text` except `connections.id` (bigserial) and `party_notes.id` (bigserial).
 - **Styling is inline style objects + a few CSS classes** in [src/styles.css](src/styles.css). CSS variables (`--ink`, `--vellum`, `--bloodred`, `--font-fell-sc`, etc.) carry the parchment aesthetic — reach for those before inventing colors.
+- **Ink tiers are picked by role** (see the `:root` comment in styles.css): `--ink-secondary` is the contrast floor for any text ≤14px — IM Fell's thin strokes need it, especially on the grimoire theme. `--ink-faded`/`--ink-ghost` are reserved for off-states, hints, and decoration, never for small content text. Colors that read as text on card stock (tags, chips) must be theme-aware variables — hardcoded light-paper colors vanish on grimoire.
 - **Committed `.js` / `.d.ts` siblings of the `.tsx` files are gitignored** (`src/**/*.js`, `src/**/*.d.ts` except `global.d.ts`). They're `tsc` outputs — ignore them.
 
 ## Ritual

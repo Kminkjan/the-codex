@@ -9,9 +9,17 @@
   --vellum-dark:   #d6c49b;
   --vellum-deep:   #b89c6a;
 
-  /* Ink palette */
+  /* Ink tiers — pick by role, not by taste:
+       --ink            titles and emphasis
+       --ink-body       primary reading text
+       --ink-secondary  small secondary text; the FLOOR for anything ≤14px
+                        (IM Fell's thin strokes need the extra contrast)
+       --ink-faded      de-emphasis only: off-states, hints, decoration —
+                        never on sub-15px content text
+       --ink-ghost      placeholders and whispers */
   --ink:           #2a1f14;        /* deepest ink */
   --ink-body:      #3b2c1c;
+  --ink-secondary: #5a4530;
   --ink-faded:     #6b533a;
   --ink-ghost:     #8a7551;
 
@@ -71,6 +79,7 @@
   --ink-body:      #d4c79a;
   /* Lifted from #9d8f64 / #6a5f3f: secondary text on dark card stock was
      hovering at ~4.6:1 — too low for 12px serif. These clear ~7:1. */
+  --ink-secondary: #c7b98c;
   --ink-faded:     #b3a578;
   --ink-ghost:     #7d7050;
   /* Papers lightened a step so cards separate from the cork behind them. */
@@ -89,7 +98,8 @@
   --forest:        #8fae7e;
   --slate:         #9aa8c0;
   --bloodred:      #c63d2f;
-  --bloodred-deep: #e05a4a;
+  /* #e05a4a sat at ~3.7-3.9:1 as tag text on the dark papers; this clears 5:1. */
+  --bloodred-deep: #ee7d68;
   --mustard:       #d4a728;
   --mustard-deep:  #d9b870;        /* dark stock flips this to a pale ink */
   /* Light rim + deeper drop shadow: card-to-board separation in the dark. */
@@ -103,6 +113,7 @@
   --vellum-deep:   #d6cdb9;
   --ink:           #1a1a1a;
   --ink-body:      #2e2e2e;
+  --ink-secondary: #4a4a4a;
   --ink-faded:     #5e5e5e;
   --ink-ghost:     #9a9a9a;
   --paper-cream:   #ffffff;
@@ -257,7 +268,7 @@ body {
   font-family: var(--font-fell);
   font-style: italic;
   font-size: 12px;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
   margin-top: -2px;
   letter-spacing: .02em;
 }
@@ -413,7 +424,7 @@ button.session-pin { line-height: 1; }
   font-family: var(--font-fell);
   font-style: italic;
   font-size: 12px;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
 }
 
 /* Presence avatars */
@@ -491,7 +502,7 @@ button.session-pin { line-height: 1; }
   font-family: var(--font-fell-sc);
   font-size: 11px;
   letter-spacing: .16em;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
   padding: 8px 16px 4px;
   display: flex; align-items: center; justify-content: space-between;
 }
@@ -527,7 +538,7 @@ button.session-pin { line-height: 1; }
   margin-left: auto;
   font-family: var(--font-ui);
   font-size: 11px;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
   background: var(--vellum-dark);
   padding: 1px 7px;
   border-radius: 10px;
@@ -535,7 +546,7 @@ button.session-pin { line-height: 1; }
 }
 .nav-item .icon {
   width: 16px; height: 16px;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
   flex: 0 0 16px;
 }
 .nav-item.active .icon { color: var(--bloodred); }
@@ -545,14 +556,14 @@ button.session-pin { line-height: 1; }
   display: flex; align-items: center; gap: 8px;
   padding: 6px 16px 6px 20px;
   font-family: var(--font-fell);
-  font-size: 14px;
-  color: var(--ink-faded);
+  font-size: 14.5px;
+  color: var(--ink-body);
   cursor: pointer;
 }
 .session-chip:hover { background: rgba(139,94,40,.06); }
 .session-chip .num {
   font-family: var(--font-fell-sc);
-  font-size: 11px;
+  font-size: 11.5px;
   background: var(--paper-cream);
   border: 1px solid var(--vellum-deep);
   padding: 2px 6px;
@@ -597,7 +608,7 @@ button.session-pin { line-height: 1; }
   font-style: italic;
   font-weight: 400;
   font-size: 14px;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
   margin-left: 8px;
   white-space: nowrap;
 }
@@ -863,7 +874,7 @@ button.session-pin { line-height: 1; }
   font-size: 13px;
   line-height: 1.35;
   text-align: center;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
   margin-top: 2px;
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -912,7 +923,7 @@ button.session-pin { line-height: 1; }
 .card-quest .quest-desc {
   font-family: var(--font-fell);
   font-size: 14px;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
   line-height: 1.45;
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -923,7 +934,7 @@ button.session-pin { line-height: 1; }
   display: flex; gap: 8px; align-items: center; margin-top: 10px;
   font-family: var(--font-ui);
   font-size: 11.5px;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
   text-transform: uppercase;
   letter-spacing: .08em;
 }
@@ -964,7 +975,7 @@ button.session-pin { line-height: 1; }
   font-family: var(--font-fell);
   font-size: 13.5px;
   line-height: 1.4;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -981,7 +992,7 @@ button.session-pin { line-height: 1; }
   border: 1px solid var(--card-edge);
   position: relative;
 }
-.card-goal .goal-kind { color: var(--mustard); }
+.card-goal .goal-kind { color: var(--mustard-deep); }
 .card-goal .goal-text {
   font-family: var(--font-hand);
   font-size: 19px;
@@ -997,7 +1008,7 @@ button.session-pin { line-height: 1; }
   font-family: var(--font-fell);
   font-style: italic; /* attribution voice, italic on purpose */
   font-size: 13px;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
   margin-top: 8px;
 }
 
@@ -1033,7 +1044,7 @@ button.session-pin { line-height: 1; }
   font-family: var(--font-fell);
   font-size: 13px;
   line-height: 1.35;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
   margin-top: 3px;
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -1049,7 +1060,7 @@ button.session-pin { line-height: 1; }
   border: 1px solid var(--card-edge);
   position: relative;
 }
-.card-item .i-label { color: var(--mustard); }
+.card-item .i-label { color: var(--mustard-deep); }
 .card-item .i-name {
   font-family: var(--font-display);
   font-weight: 600;
@@ -1061,7 +1072,7 @@ button.session-pin { line-height: 1; }
   font-family: var(--font-fell);
   font-size: 13px;
   line-height: 1.4;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
   margin-top: 3px;
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -1309,7 +1320,7 @@ button.session-pin { line-height: 1; }
   font-family: var(--font-fell-sc);
   font-size: 11px;
   letter-spacing: .16em;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
 }
 .stat .stat-value {
   font-family: var(--font-display);
@@ -1323,7 +1334,7 @@ button.session-pin { line-height: 1; }
   font-family: var(--font-fell);
   font-style: italic;
   font-size: 12px;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
 }
 
 /* Body columns */
@@ -1342,7 +1353,7 @@ button.session-pin { line-height: 1; }
   font-family: var(--font-fell-sc);
   font-size: 11px;
   letter-spacing: .2em;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
   margin: 0 0 14px;
   display: flex; align-items: center; gap: 8px;
 }
@@ -1415,7 +1426,7 @@ button.session-pin { line-height: 1; }
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: .08em;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
   margin-top: 10px;
   display: flex; justify-content: space-between;
 }
@@ -1453,7 +1464,7 @@ button.session-pin { line-height: 1; }
   font-family: var(--font-fell-sc);
   font-size: 11px;
   letter-spacing: .16em;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
   margin: 0 0 10px;
 }
 .rail-chip {
@@ -1487,7 +1498,7 @@ button.session-pin { line-height: 1; }
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: .08em;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
 }
 .rail-chip.people  { border-left-color: var(--bloodred); }
 .rail-chip.locations { border-left-color: var(--teal-deep); }
@@ -1561,7 +1572,7 @@ button.session-pin { line-height: 1; }
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: .1em;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
   margin-bottom: 6px;
 }
 .tweak-row .seg {
@@ -1629,7 +1640,7 @@ button.session-pin { line-height: 1; }
   font-size: 11px;
   text-align: center;
   padding: 4px 0;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
   border-bottom: 1px solid var(--vellum-deep);
 }
 
@@ -1790,7 +1801,7 @@ button.session-pin { line-height: 1; }
 }
 .cmdk-snippet {
   font-size: 12px;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1808,13 +1819,13 @@ button.session-pin { line-height: 1; }
   font-family: var(--font-fell-sc);
   letter-spacing: .2em;
   font-size: 10px;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
 }
 /* ── Archive / Pin ──────────────────────── */
 .detail-action-btn {
   background: transparent;
-  border: 1px solid var(--ink-faded);
-  color: var(--ink-faded);
+  border: 1px solid var(--ink-secondary);
+  color: var(--ink-secondary);
   padding: 4px 8px;
   font-family: var(--font-fell-sc);
   letter-spacing: .16em;
@@ -1931,7 +1942,7 @@ button.session-pin { line-height: 1; }
   margin-left: 4px;
   font-family: var(--font-ui);
   font-size: 10px;
-  color: var(--ink-ghost);
+  color: var(--ink-faded);
   font-style: italic;
 }
 
@@ -1989,7 +2000,7 @@ button.session-pin { line-height: 1; }
   font-family: var(--font-fell);
   font-style: italic;
   font-size: 14px;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
 }
 .cleanup-close {
   position: absolute;
@@ -2040,7 +2051,7 @@ button.session-pin { line-height: 1; }
   font-family: var(--font-fell-sc);
   font-size: 12px;
   letter-spacing: .2em;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
 }
 .cleanup-row {
   display: flex; align-items: center; gap: 12px;
@@ -2056,7 +2067,7 @@ button.session-pin { line-height: 1; }
   margin-left: auto;
   font-style: italic;
   font-size: 12px;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
 }
 .cleanup-footer {
   display: flex; justify-content: space-between; align-items: center;
@@ -2069,7 +2080,7 @@ button.session-pin { line-height: 1; }
   font-family: var(--font-fell-sc);
   font-size: 11px;
   letter-spacing: .16em;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
 }
 .cleanup-link-btn {
   background: transparent;

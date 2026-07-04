@@ -21,7 +21,7 @@ function LoadingSheet() {
       fontStyle: "italic",
     }}>
       <div style={{ textAlign: "center" }}>
-        <div style={{ fontFamily: "var(--font-fell-sc)", letterSpacing: ".3em", fontSize: 12, color: "var(--ink-faded)", marginBottom: 12 }}>
+        <div style={{ fontFamily: "var(--font-fell-sc)", letterSpacing: ".3em", fontSize: 12, color: "var(--ink-secondary)", marginBottom: 12 }}>
           ✦ THE CODEX ✦
         </div>
         <div>Unbinding the codex…</div>
@@ -44,7 +44,7 @@ function ErrorSheet({ message }: { message: string }) {
         <div style={{ fontStyle: "italic", fontSize: 16, marginBottom: 16 }}>
           The codex could not be opened.
         </div>
-        <pre style={{ fontFamily: "var(--font-ui)", fontSize: 12, color: "var(--ink-faded)", whiteSpace: "pre-wrap" }}>
+        <pre style={{ fontFamily: "var(--font-ui)", fontSize: 12, color: "var(--ink-secondary)", whiteSpace: "pre-wrap" }}>
           {message}
         </pre>
       </div>
@@ -209,7 +209,7 @@ function AppLoaded() {
                 <button className={density === "compact" ? "active" : ""} onClick={() => { setDensity("compact"); persist({ density: "compact" }); }}>Compact</button>
               </div>
             </div>
-            <div style={{ fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 12, color: "var(--ink-faded)", textAlign: "center", marginTop: 4 }}>
+            <div style={{ fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 12, color: "var(--ink-secondary)", textAlign: "center", marginTop: 4 }}>
               "What a party writes down, the world remembers."
             </div>
           </div>

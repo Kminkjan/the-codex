@@ -135,7 +135,7 @@ function AuthError({ message }: { message: string }) {
         <div style={{ fontStyle: "italic", fontSize: 16, marginBottom: 16 }}>
           The codex could not admit you.
         </div>
-        <pre style={{ fontFamily: "var(--font-ui)", fontSize: 12, color: "var(--ink-faded)", whiteSpace: "pre-wrap" }}>
+        <pre style={{ fontFamily: "var(--font-ui)", fontSize: 12, color: "var(--ink-secondary)", whiteSpace: "pre-wrap" }}>
           {message}
         </pre>
       </div>
@@ -181,7 +181,7 @@ export function DisplayNameGate({ children }: { children: ReactNode }) {
         boxShadow: "0 10px 40px rgba(40,20,5,.25)",
         fontFamily: "var(--font-fell)",
       }}>
-        <div style={{ fontFamily: "var(--font-fell-sc)", letterSpacing: ".3em", fontSize: 11, color: "var(--ink-faded)", marginBottom: 10 }}>
+        <div style={{ fontFamily: "var(--font-fell-sc)", letterSpacing: ".3em", fontSize: 11, color: "var(--ink-secondary)", marginBottom: 10 }}>
           ✦ THE CODEX ASKS YOUR NAME ✦
         </div>
         <div style={{ fontStyle: "italic", fontSize: 15, marginBottom: 22, color: "var(--ink)" }}>
@@ -263,7 +263,7 @@ export function SignInDialog({ onClose }: { onClose: () => void }) {
           fontFamily: "var(--font-fell)",
         }}
       >
-        <div style={{ fontFamily: "var(--font-fell-sc)", letterSpacing: ".3em", fontSize: 11, color: "var(--ink-faded)", marginBottom: 10 }}>
+        <div style={{ fontFamily: "var(--font-fell-sc)", letterSpacing: ".3em", fontSize: 11, color: "var(--ink-secondary)", marginBottom: 10 }}>
           ✦ PROVE YOUR MEMBERSHIP ✦
         </div>
         {sent ? (
