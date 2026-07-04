@@ -67,6 +67,8 @@ interface PinnedCardProps {
   onConnectClick: (id: string) => void;
   isConnectSource: boolean;
   dimmed?: boolean;
+  // Session focus: card stays fully legible but collapses to headline-only.
+  receded?: boolean;
   onHover?: (id: string | null) => void;
 }
 
@@ -81,6 +83,7 @@ export function PinnedCard({
   onConnectClick,
   isConnectSource,
   dimmed,
+  receded,
   onHover,
 }: PinnedCardProps) {
   const [dragging, setDragging] = useState(false);
@@ -134,7 +137,7 @@ export function PinnedCard({
   return (
     <div
       ref={ref}
-      className={`pinned ${dragging ? "dragging" : ""} ${archived ? "archived" : ""} ${pinnedFlag ? "is-pinned" : ""} ${dimmed ? "dimmed" : ""}`}
+      className={`pinned ${dragging ? "dragging" : ""} ${archived ? "archived" : ""} ${pinnedFlag ? "is-pinned" : ""} ${dimmed ? "dimmed" : ""} ${receded ? "receded" : ""}`}
       data-kind={pos.kind}
       data-id={entity.id}
       style={{
@@ -215,7 +218,7 @@ export function QuestCard({ quest }: { quest: any }) {
       <div className="quest-desc">{quest.desc}</div>
       <div className="quest-meta">
         <span>Reward</span>
-        <span style={{ fontFamily: "var(--font-fell)", textTransform: "none", fontSize: 11, letterSpacing: 0, color: "var(--ink-body)" }}>{quest.reward}</span>
+        <span style={{ fontFamily: "var(--font-fell)", textTransform: "none", fontSize: 12.5, letterSpacing: 0, color: "var(--ink-body)" }}>{quest.reward}</span>
       </div>
     </div>
   );
