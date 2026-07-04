@@ -98,7 +98,7 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
   // The entities tied to the focused session: quests logged in it and people
   // last seen there (sessions link to nothing else in the model). null means
   // "no focus" — either "All sessions", or a session with nothing linked to it
-  // (an empty set would otherwise dim the whole board, spotlighting nothing).
+  // (an empty set would otherwise recede the whole board, spotlighting nothing).
   const sessionFocus: Set<string> | null = (() => {
     if (filters.sessions === "all") return null;
     const s = new Set([
@@ -108,13 +108,14 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
     return s.size > 0 ? s : null;
   })();
 
-  // Spotlight: a hovered card and its neighbors stay lit while the rest recede.
-  // With no hover, a focused session takes over the spotlight so its cards pop
-  // and the rest of the board dims (see .pinned.dimmed / .yarn.lit in styles.css).
-  const spotlight = hoverCard
+  // Hover spotlight: a hovered card and its neighbors stay lit while the rest
+  // dim (.pinned.dimmed). Session focus is a separate, milder treatment: cards
+  // outside the focused session collapse to headline-only (.pinned.receded)
+  // but stay fully legible — a live session shouldn't ghost the whole board.
+  const hoverSpot = hoverCard
     ? new Set([hoverCard, ...visibleConnections.flatMap(([a, b]) =>
         a === hoverCard ? [b] : b === hoverCard ? [a] : [])])
-    : sessionFocus;
+    : null;
 
   const toggleKind = (k: KindKey) => setFilters((f) => ({ ...f, [k]: !(f as any)[k] }));
 
@@ -283,7 +284,7 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
             className="session-focus"
             value={filters.sessions}
             onChange={(e) => setFilters((f) => ({ ...f, sessions: e.target.value }))}
-            title="Spotlight the cards from one session; the rest of the board dims"
+            title="Spotlight the cards from one session; the rest of the board drops to headlines"
           >
             <option value="all">All sessions</option>
             {campaign.sessions
@@ -448,7 +449,8 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
                 connectMode={connectMode}
                 onConnectClick={handleConnectClick}
                 isConnectSource={connectSource === id}
-                dimmed={spotlight !== null && !spotlight.has(id)}
+                dimmed={hoverSpot !== null && !hoverSpot.has(id)}
+                receded={hoverSpot === null && sessionFocus !== null && !sessionFocus.has(id)}
                 onHover={setHoverCard}
               />
             );

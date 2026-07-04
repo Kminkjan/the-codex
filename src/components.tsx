@@ -67,6 +67,8 @@ interface PinnedCardProps {
   onConnectClick: (id: string) => void;
   isConnectSource: boolean;
   dimmed?: boolean;
+  // Session focus: card stays fully legible but collapses to headline-only.
+  receded?: boolean;
   onHover?: (id: string | null) => void;
 }
 
@@ -81,6 +83,7 @@ export function PinnedCard({
   onConnectClick,
   isConnectSource,
   dimmed,
+  receded,
   onHover,
 }: PinnedCardProps) {
   const [dragging, setDragging] = useState(false);
@@ -134,7 +137,7 @@ export function PinnedCard({
   return (
     <div
       ref={ref}
-      className={`pinned ${dragging ? "dragging" : ""} ${archived ? "archived" : ""} ${pinnedFlag ? "is-pinned" : ""} ${dimmed ? "dimmed" : ""}`}
+      className={`pinned ${dragging ? "dragging" : ""} ${archived ? "archived" : ""} ${pinnedFlag ? "is-pinned" : ""} ${dimmed ? "dimmed" : ""} ${receded ? "receded" : ""}`}
       data-kind={pos.kind}
       data-id={entity.id}
       style={{
@@ -193,7 +196,7 @@ export function PosterCard({ person }: { person: any }) {
           : <span className="silhouette" />}
       </div>
       <div className="name">{person.name}</div>
-      <div className="desc">— {person.epithet}</div>
+      {!!person.epithet?.trim() && <div className="desc">— {person.epithet}</div>}
       <div className="reward">
         {person.race
           ? <span><strong>Race</strong> · {person.race}</span>
@@ -215,7 +218,7 @@ export function QuestCard({ quest }: { quest: any }) {
       <div className="quest-desc">{quest.desc}</div>
       <div className="quest-meta">
         <span>Reward</span>
-        <span style={{ fontFamily: "var(--font-fell)", textTransform: "none", fontSize: 11, letterSpacing: 0, color: "var(--ink-body)" }}>{quest.reward}</span>
+        <span style={{ fontFamily: "var(--font-fell)", textTransform: "none", fontSize: 12.5, letterSpacing: 0, color: "var(--ink-body)" }}>{quest.reward}</span>
       </div>
     </div>
   );
@@ -443,7 +446,7 @@ export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, counts 
             fontFamily: "var(--font-fell)",
             fontStyle: "italic",
             fontSize: 12,
-            color: "var(--ink-faded)",
+            color: "var(--ink-secondary)",
             padding: "2px 6px",
             cursor: "pointer",
           }}
@@ -512,7 +515,7 @@ function CampaignPicker() {
         <span style={{ fontFamily: "var(--font-fell-sc)", letterSpacing: ".1em", fontSize: 11 }}>CAMPAIGN</span>
         <span>·</span>
         <span style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 15 }}>{campaign.title}</span>
-        <span style={{ color: "var(--ink-faded)", fontStyle: "italic", fontSize: 12 }}>· {campaign.subtitle}</span>
+        <span style={{ color: "var(--ink-secondary)", fontStyle: "italic", fontSize: 12 }}>· {campaign.subtitle}</span>
         {canSwitch && (
           <Icon name="chevron" size={11} style={{ transform: open ? "rotate(-90deg)" : "rotate(90deg)", color: "var(--ink-faded)", flexShrink: 0 }} />
         )}
@@ -531,7 +534,7 @@ function CampaignPicker() {
               <span>
                 <span style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 14, display: "block" }}>{c.title}</span>
                 {c.subtitle && (
-                  <span style={{ color: "var(--ink-faded)", fontStyle: "italic", fontSize: 12 }}>{c.subtitle}</span>
+                  <span style={{ color: "var(--ink-secondary)", fontStyle: "italic", fontSize: 12 }}>{c.subtitle}</span>
                 )}
               </span>
             </button>
@@ -624,7 +627,7 @@ function SessionPin() {
               <span className="dot" style={{ visibility: s.id === campaign.activeSessionId ? "visible" : "hidden" }} />
               <span>
                 <span style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 14, display: "block" }}>Session {s.num}</span>
-                {s.title && <span style={{ color: "var(--ink-faded)", fontStyle: "italic", fontSize: 12 }}>{s.title}</span>}
+                {s.title && <span style={{ color: "var(--ink-secondary)", fontStyle: "italic", fontSize: 12 }}>{s.title}</span>}
               </span>
             </button>
           ))}
@@ -658,7 +661,7 @@ export function Topbar({ onShare }: { onShare: () => void }) {
           <>
             <span style={{
               fontFamily: "var(--font-fell)", fontStyle: "italic",
-              fontSize: 12, color: "var(--ink-faded)",
+              fontSize: 12, color: "var(--ink-secondary)",
             }}>
               {displayName}
             </span>
@@ -674,8 +677,8 @@ export function Topbar({ onShare }: { onShare: () => void }) {
           <>
             <span style={{
               fontFamily: "var(--font-fell-sc)", letterSpacing: ".14em",
-              fontSize: 10, color: "var(--ink-faded)",
-              border: "1px dashed var(--ink-faded)", padding: "3px 8px",
+              fontSize: 10, color: "var(--ink-secondary)",
+              border: "1px dashed var(--ink-secondary)", padding: "3px 8px",
             }}>
               READ-ONLY
             </span>

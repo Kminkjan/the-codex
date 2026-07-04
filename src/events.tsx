@@ -59,7 +59,7 @@ export function EventsPage({ onOpenEntity }: { onOpenEntity: (id: string) => voi
 
         {groups.map((group, gi) => (
           <section key={gi} style={{ marginTop: 26 }}>
-            <div style={{ fontFamily: "var(--font-fell-sc)", letterSpacing: ".18em", fontSize: 12, color: "var(--ink-faded)" }}>
+            <div style={{ fontFamily: "var(--font-fell-sc)", letterSpacing: ".18em", fontSize: 12, color: "var(--ink-secondary)" }}>
               ✦ {group.date.toUpperCase()} ✦
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 10, borderLeft: "1px solid var(--ink-ghost)", paddingLeft: 18 }}>
@@ -81,7 +81,7 @@ export function EventsPage({ onOpenEntity }: { onOpenEntity: (id: string) => voi
                       <h3 style={{ margin: 0, fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 19, color: "var(--ink)" }}>
                         {ev.title}
                       </h3>
-                      <span style={{ fontFamily: "var(--font-fell-sc)", letterSpacing: ".1em", fontSize: 10.5, color: "var(--ink-faded)" }}>
+                      <span style={{ fontFamily: "var(--font-fell-sc)", letterSpacing: ".1em", fontSize: 10.5, color: "var(--ink-secondary)" }}>
                         {session && `S${String(session.num).padStart(2, "0")}`}
                         {location && `${session ? " · " : ""}${location.name}`}
                         {participants > 0 && ` · ${participants} present`}

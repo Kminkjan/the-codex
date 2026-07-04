@@ -9,9 +9,17 @@
   --vellum-dark:   #d6c49b;
   --vellum-deep:   #b89c6a;
 
-  /* Ink palette */
+  /* Ink tiers — pick by role, not by taste:
+       --ink            titles and emphasis
+       --ink-body       primary reading text
+       --ink-secondary  small secondary text; the FLOOR for anything ≤14px
+                        (IM Fell's thin strokes need the extra contrast)
+       --ink-faded      de-emphasis only: off-states, hints, decoration —
+                        never on sub-15px content text
+       --ink-ghost      placeholders and whispers */
   --ink:           #2a1f14;        /* deepest ink */
   --ink-body:      #3b2c1c;
+  --ink-secondary: #5a4530;
   --ink-faded:     #6b533a;
   --ink-ghost:     #8a7551;
 
@@ -26,6 +34,7 @@
 
   --mustard:       #b08228;        /* gold leaf */
   --mustard-pale:  #d9b870;
+  --mustard-deep:  #6e5018;        /* pursuing-status ink on light paper */
   --forest:        #3d5536;
   --forest-pale:   #7a8f6c;
   --slate:         #465061;
@@ -54,6 +63,10 @@
   --shadow-pin:    0 2px 1px rgba(0,0,0,.35), 0 4px 10px rgba(0,0,0,.25);
   --shadow-card:   0 1px 0 rgba(255,255,255,.25) inset, 0 8px 20px rgba(60,35,10,.35), 0 2px 3px rgba(60,35,10,.4);
   --shadow-deep:   0 14px 30px rgba(30,15,5,.45), 0 3px 6px rgba(30,15,5,.5);
+
+  /* Card chrome — themed so dark mode can carry a lighter rim that separates
+     card stock from the cork behind it. */
+  --card-edge:     rgba(139,94,40,.4);
 }
 
 /* ── Theme variants ───────────────────────── */
@@ -64,20 +77,34 @@
   --vellum-deep:   #0d0d16;
   --ink:           #e8dcb5;
   --ink-body:      #d4c79a;
-  --ink-faded:     #9d8f64;
-  --ink-ghost:     #6a5f3f;
-  --paper-cream:   #1f2038;
-  --paper-tan:     #2a2840;
-  --paper-grey:    #1c1d30;
-  --paper-scroll:  #26223a;
-  --paper-note:    #2d2845;
+  /* Lifted from #9d8f64 / #6a5f3f: secondary text on dark card stock was
+     hovering at ~4.6:1 — too low for 12px serif. These clear ~7:1. */
+  --ink-secondary: #c7b98c;
+  --ink-faded:     #b3a578;
+  --ink-ghost:     #7d7050;
+  /* Papers lightened a step so cards separate from the cork behind them. */
+  --paper-cream:   #262847;
+  --paper-tan:     #322f4e;
+  --paper-grey:    #23243c;
+  --paper-scroll:  #2e2a48;
+  --paper-note:    #363052;
   --cork:          #3a2a40;
   --cork-deep:     #241828;
   --board-bg:      #1a1120;
   --teal-oxidized: #6bb5a5;
+  /* These read as text/borders on dark card stock — the light-theme values
+     (#2f4c48 / #3d5536 / #465061) vanish against the dark papers. */
+  --teal-deep:     #7fb5aa;
+  --forest:        #8fae7e;
+  --slate:         #9aa8c0;
   --bloodred:      #c63d2f;
-  --bloodred-deep: #e05a4a;
+  /* #e05a4a sat at ~3.7-3.9:1 as tag text on the dark papers; this clears 5:1. */
+  --bloodred-deep: #ee7d68;
   --mustard:       #d4a728;
+  --mustard-deep:  #d9b870;        /* dark stock flips this to a pale ink */
+  /* Light rim + deeper drop shadow: card-to-board separation in the dark. */
+  --card-edge:     rgba(220,205,160,.32);
+  --shadow-card:   0 0 0 1px rgba(232,220,181,.05), 0 1px 0 rgba(255,255,255,.06) inset, 0 10px 22px rgba(0,0,0,.6), 0 2px 3px rgba(0,0,0,.55);
 }
 [data-theme="modern"] {
   --vellum:        #f5f1ea;
@@ -86,6 +113,7 @@
   --vellum-deep:   #d6cdb9;
   --ink:           #1a1a1a;
   --ink-body:      #2e2e2e;
+  --ink-secondary: #4a4a4a;
   --ink-faded:     #5e5e5e;
   --ink-ghost:     #9a9a9a;
   --paper-cream:   #ffffff;
@@ -240,7 +268,7 @@ body {
   font-family: var(--font-fell);
   font-style: italic;
   font-size: 12px;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
   margin-top: -2px;
   letter-spacing: .02em;
 }
@@ -396,7 +424,7 @@ button.session-pin { line-height: 1; }
   font-family: var(--font-fell);
   font-style: italic;
   font-size: 12px;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
 }
 
 /* Presence avatars */
@@ -474,7 +502,7 @@ button.session-pin { line-height: 1; }
   font-family: var(--font-fell-sc);
   font-size: 11px;
   letter-spacing: .16em;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
   padding: 8px 16px 4px;
   display: flex; align-items: center; justify-content: space-between;
 }
@@ -510,7 +538,7 @@ button.session-pin { line-height: 1; }
   margin-left: auto;
   font-family: var(--font-ui);
   font-size: 11px;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
   background: var(--vellum-dark);
   padding: 1px 7px;
   border-radius: 10px;
@@ -518,7 +546,7 @@ button.session-pin { line-height: 1; }
 }
 .nav-item .icon {
   width: 16px; height: 16px;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
   flex: 0 0 16px;
 }
 .nav-item.active .icon { color: var(--bloodred); }
@@ -528,14 +556,14 @@ button.session-pin { line-height: 1; }
   display: flex; align-items: center; gap: 8px;
   padding: 6px 16px 6px 20px;
   font-family: var(--font-fell);
-  font-size: 14px;
-  color: var(--ink-faded);
+  font-size: 14.5px;
+  color: var(--ink-body);
   cursor: pointer;
 }
 .session-chip:hover { background: rgba(139,94,40,.06); }
 .session-chip .num {
   font-family: var(--font-fell-sc);
-  font-size: 11px;
+  font-size: 11.5px;
   background: var(--paper-cream);
   border: 1px solid var(--vellum-deep);
   padding: 2px 6px;
@@ -580,7 +608,7 @@ button.session-pin { line-height: 1; }
   font-style: italic;
   font-weight: 400;
   font-size: 14px;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
   margin-left: 8px;
   white-space: nowrap;
 }
@@ -707,8 +735,14 @@ button.session-pin { line-height: 1; }
   transform-origin: 50% 10%;
 }
 .pinned:hover { z-index: 4; filter: brightness(1.03); }
-/* Spotlight: while a card is hovered, cards not connected to it recede */
-.pinned.dimmed { opacity: .45; }
+/* Spotlight: while a card is hovered, unrelated cards recede — desaturated and
+   darkened rather than made transparent, so their text stays legible. */
+.pinned.dimmed { opacity: .7; filter: saturate(.35) brightness(.82); }
+
+/* Session focus: cards outside the focused session keep full opacity but drop
+   to headline-only (see the shared block below) with a mild desaturation, so
+   the focused cast pops without turning the rest of the board into ghosts. */
+.pinned.receded:not(.is-pinned) { filter: saturate(.55) brightness(.92); }
 
 /* Hierarchy: featured (pinned) cards anchor the board — they sit above the
    rest, carry a warm glow, and never fade during another card's spotlight.
@@ -722,27 +756,17 @@ button.session-pin { line-height: 1; }
   filter: brightness(1.03) drop-shadow(0 6px 14px rgba(20,12,4,.4)) drop-shadow(0 0 16px rgba(212,167,40,.28));
 }
 .pinned.is-pinned.dimmed { opacity: 1; }
-/* Recede regular cards at rest — but not archived ones, which keep their own
-   fainter .55 treatment (excluded here so this rule can't out-specify it). */
-.pinned:not(.is-pinned):not(.dimmed):not(.archived) { opacity: .9; }
 
-/* Semantic zoom: below ~0.7 scale, regular cards drop to headline + kind-tag so
-   the board reads at a glance; featured cards keep their body as anchors. */
-.board-surface.zoom-far .pinned:not(.is-pinned) .desc,
-.board-surface.zoom-far .pinned:not(.is-pinned) .reward,
-.board-surface.zoom-far .pinned:not(.is-pinned) .quest-desc,
-.board-surface.zoom-far .pinned:not(.is-pinned) .quest-meta,
-.board-surface.zoom-far .pinned:not(.is-pinned) .loc-desc,
-.board-surface.zoom-far .pinned:not(.is-pinned) .goal-owner,
-.board-surface.zoom-far .pinned:not(.is-pinned) .f-sub,
-.board-surface.zoom-far .pinned:not(.is-pinned) .i-desc,
-.board-surface.zoom-far .pinned:not(.is-pinned) .l-text {
+/* Headline-only mode: regular cards drop to title + kind-tag so the board
+   reads at a glance. Triggered by semantic zoom (below ~0.7 scale) and by
+   session focus (.receded); featured cards always keep their body as anchors. */
+:is(.board-surface.zoom-far .pinned, .pinned.receded):not(.is-pinned) :is(.desc, .reward, .quest-desc, .quest-meta, .loc-desc, .goal-owner, .f-sub, .i-desc, .l-text) {
   display: none;
 }
 /* Goals have no separate title — the body IS the headline, so clamp it to one
    line rather than hiding it. (Lore now has its own .l-title, so its body is
    hidden above like every other description.) */
-.board-surface.zoom-far .pinned:not(.is-pinned) .goal-text {
+:is(.board-surface.zoom-far .pinned, .pinned.receded):not(.is-pinned) .goal-text {
   -webkit-line-clamp: 1;
 }
 
@@ -767,6 +791,19 @@ button.session-pin { line-height: 1; }
   background: radial-gradient(circle at 35% 30%, #9aa5b0 0%, #4a5560 55%, #2a3038 100%);
 }
 
+/* Kind tags ("✦ Quest ✦", "✦ city ✦", …) share one type treatment; each card
+   block below sets only its color. (.card-poster .wanted keeps its own rule —
+   it's larger and doubles as the poster's header band.) */
+.card-quest .quest-tag,
+.card-location .loc-type,
+.card-goal .goal-kind,
+.card-item .i-label,
+.card-lore .l-label {
+  font-family: var(--font-fell-sc);
+  font-size: 11.5px;
+  letter-spacing: .1em;
+}
+
 /* Wanted poster (People) */
 .card-poster {
   width: 220px;
@@ -775,7 +812,7 @@ button.session-pin { line-height: 1; }
   padding: 14px 14px 12px;
   box-shadow: var(--shadow-card);
   position: relative;
-  border: 1px solid rgba(139,94,40,.4);
+  border: 1px solid var(--card-edge);
 }
 .card-poster::before {
   /* torn top edge */
@@ -787,7 +824,7 @@ button.session-pin { line-height: 1; }
 .card-poster .wanted {
   font-family: var(--font-fell-sc);
   font-size: 12px;
-  letter-spacing: .16em;
+  letter-spacing: .1em;
   color: var(--bloodred-deep);
   text-align: center;
   padding: 2px 0 6px;
@@ -833,10 +870,11 @@ button.session-pin { line-height: 1; }
 }
 .card-poster .desc {
   font-family: var(--font-fell);
-  font-style: italic;
-  font-size: 12px;
+  font-style: italic; /* epithet — attribution voice, italic on purpose */
+  font-size: 13px;
+  line-height: 1.35;
   text-align: center;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
   margin-top: 2px;
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -848,7 +886,7 @@ button.session-pin { line-height: 1; }
   padding-top: 8px;
   border-top: 1px dashed var(--ink-ghost);
   font-family: var(--font-fell);
-  font-size: 12px;
+  font-size: 12.5px;
   color: var(--ink-body);
   display: flex; justify-content: space-between;
 }
@@ -862,7 +900,7 @@ button.session-pin { line-height: 1; }
   padding: 14px 16px 14px;
   position: relative;
   box-shadow: var(--shadow-card);
-  border: 1px solid rgba(139,94,40,.35);
+  border: 1px solid var(--card-edge);
   /* scroll edges */
   clip-path: polygon(
     0% 4%, 3% 0%, 8% 3%, 14% 1%, 20% 4%, 28% 1%, 36% 3%, 46% 0%, 55% 3%, 66% 1%, 76% 3%, 86% 0%, 95% 3%, 100% 5%,
@@ -873,12 +911,7 @@ button.session-pin { line-height: 1; }
   display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
   margin-bottom: 4px;
 }
-.card-quest .quest-tag {
-  font-family: var(--font-fell-sc);
-  font-size: 11px;
-  letter-spacing: .16em;
-  color: var(--bloodred-deep);
-}
+.card-quest .quest-tag { color: var(--bloodred-deep); }
 .card-quest .quest-title {
   font-family: var(--font-display);
   font-weight: 600;
@@ -890,9 +923,8 @@ button.session-pin { line-height: 1; }
 .card-quest .quest-desc {
   font-family: var(--font-fell);
   font-size: 14px;
-  font-style: italic;
-  color: var(--ink-faded);
-  line-height: 1.35;
+  color: var(--ink-secondary);
+  line-height: 1.45;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
@@ -901,10 +933,10 @@ button.session-pin { line-height: 1; }
 .card-quest .quest-meta {
   display: flex; gap: 8px; align-items: center; margin-top: 10px;
   font-family: var(--font-ui);
-  font-size: 11px;
-  color: var(--ink-faded);
+  font-size: 11.5px;
+  color: var(--ink-secondary);
   text-transform: uppercase;
-  letter-spacing: .1em;
+  letter-spacing: .08em;
 }
 
 /* Location map card */
@@ -914,7 +946,7 @@ button.session-pin { line-height: 1; }
   color: var(--ink);
   padding: 0;
   box-shadow: var(--shadow-card);
-  border: 1px solid rgba(139,94,40,.4);
+  border: 1px solid var(--card-edge);
   position: relative;
 }
 .card-location .map-region {
@@ -931,12 +963,7 @@ button.session-pin { line-height: 1; }
 .card-location .loc-body {
   padding: 10px 12px 12px;
 }
-.card-location .loc-type {
-  font-family: var(--font-fell-sc);
-  font-size: 11px;
-  letter-spacing: .16em;
-  color: var(--teal-deep);
-}
+.card-location .loc-type { color: var(--teal-deep); }
 .card-location .loc-name {
   font-family: var(--font-display);
   font-weight: 600;
@@ -946,9 +973,9 @@ button.session-pin { line-height: 1; }
 }
 .card-location .loc-desc {
   font-family: var(--font-fell);
-  font-style: italic;
-  font-size: 13px;
-  color: var(--ink-faded);
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: var(--ink-secondary);
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -962,15 +989,10 @@ button.session-pin { line-height: 1; }
   color: var(--ink);
   padding: 12px 14px;
   box-shadow: var(--shadow-card);
-  border: 1px solid rgba(139,94,40,.35);
+  border: 1px solid var(--card-edge);
   position: relative;
 }
-.card-goal .goal-kind {
-  font-family: var(--font-fell-sc);
-  font-size: 11px;
-  letter-spacing: .16em;
-  color: var(--mustard);
-}
+.card-goal .goal-kind { color: var(--mustard-deep); }
 .card-goal .goal-text {
   font-family: var(--font-hand);
   font-size: 19px;
@@ -984,9 +1006,9 @@ button.session-pin { line-height: 1; }
 }
 .card-goal .goal-owner {
   font-family: var(--font-fell);
-  font-style: italic;
-  font-size: 12px;
-  color: var(--ink-faded);
+  font-style: italic; /* attribution voice, italic on purpose */
+  font-size: 13px;
+  color: var(--ink-secondary);
   margin-top: 8px;
 }
 
@@ -996,7 +1018,7 @@ button.session-pin { line-height: 1; }
   background: var(--paper-grey);
   padding: 10px 12px;
   box-shadow: var(--shadow-card);
-  border: 1px solid rgba(139,94,40,.4);
+  border: 1px solid var(--card-edge);
   position: relative;
   display: flex; align-items: center; gap: 10px;
 }
@@ -1020,9 +1042,9 @@ button.session-pin { line-height: 1; }
 }
 .card-faction .f-sub {
   font-family: var(--font-fell);
-  font-style: italic;
-  font-size: 12px;
-  color: var(--ink-faded);
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--ink-secondary);
   margin-top: 3px;
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -1035,15 +1057,10 @@ button.session-pin { line-height: 1; }
   background: var(--paper-cream);
   padding: 10px 12px;
   box-shadow: var(--shadow-card);
-  border: 1px solid rgba(139,94,40,.4);
+  border: 1px solid var(--card-edge);
   position: relative;
 }
-.card-item .i-label {
-  font-family: var(--font-fell-sc);
-  font-size: 11px;
-  letter-spacing: .16em;
-  color: var(--mustard);
-}
+.card-item .i-label { color: var(--mustard-deep); }
 .card-item .i-name {
   font-family: var(--font-display);
   font-weight: 600;
@@ -1053,9 +1070,9 @@ button.session-pin { line-height: 1; }
 }
 .card-item .i-desc {
   font-family: var(--font-fell);
-  font-style: italic;
-  font-size: 12px;
-  color: var(--ink-faded);
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ink-secondary);
   margin-top: 3px;
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -1068,16 +1085,11 @@ button.session-pin { line-height: 1; }
   background: var(--paper-cream);
   padding: 10px 12px;
   box-shadow: var(--shadow-card);
-  border: 1px solid rgba(139,94,40,.4);
+  border: 1px solid var(--card-edge);
   position: relative;
   transform: rotate(0deg);
 }
-.card-lore .l-label {
-  font-family: var(--font-fell-sc);
-  font-size: 11px;
-  letter-spacing: .16em;
-  color: var(--forest);
-}
+.card-lore .l-label { color: var(--forest); }
 .card-lore .l-title {
   font-family: var(--font-fell-sc);
   font-size: 14px;
@@ -1092,9 +1104,8 @@ button.session-pin { line-height: 1; }
 }
 .card-lore .l-text {
   font-family: var(--font-fell);
-  font-style: italic;
   font-size: 13.5px;
-  line-height: 1.3;
+  line-height: 1.4;
   color: var(--ink);
   margin-top: 4px;
   display: -webkit-box;
@@ -1168,6 +1179,9 @@ button.session-pin { line-height: 1; }
   backdrop-filter: blur(2px);
   z-index: 50;
   display: flex; justify-content: center;
+  /* Without this the sheet stretches to full viewport height (flex default),
+     leaving a wall of blank vellum under short entries. */
+  align-items: flex-start;
   padding: 40px 20px;
   overflow-y: auto;
 }
@@ -1309,7 +1323,7 @@ button.session-pin { line-height: 1; }
   font-family: var(--font-fell-sc);
   font-size: 11px;
   letter-spacing: .16em;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
 }
 .stat .stat-value {
   font-family: var(--font-display);
@@ -1323,7 +1337,7 @@ button.session-pin { line-height: 1; }
   font-family: var(--font-fell);
   font-style: italic;
   font-size: 12px;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
 }
 
 /* Body columns */
@@ -1342,7 +1356,7 @@ button.session-pin { line-height: 1; }
   font-family: var(--font-fell-sc);
   font-size: 11px;
   letter-spacing: .2em;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
   margin: 0 0 14px;
   display: flex; align-items: center; gap: 8px;
 }
@@ -1415,7 +1429,7 @@ button.session-pin { line-height: 1; }
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: .08em;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
   margin-top: 10px;
   display: flex; justify-content: space-between;
 }
@@ -1453,7 +1467,7 @@ button.session-pin { line-height: 1; }
   font-family: var(--font-fell-sc);
   font-size: 11px;
   letter-spacing: .16em;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
   margin: 0 0 10px;
 }
 .rail-chip {
@@ -1487,7 +1501,7 @@ button.session-pin { line-height: 1; }
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: .08em;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
 }
 .rail-chip.people  { border-left-color: var(--bloodred); }
 .rail-chip.locations { border-left-color: var(--teal-deep); }
@@ -1527,7 +1541,7 @@ button.session-pin { line-height: 1; }
 .status-chip .dot { width: 6px; height: 6px; border-radius: 50%; }
 .status-chip.whispered { background: rgba(74,109,104,.12); border-color: var(--teal-deep); color: var(--teal-deep); }
 .status-chip.whispered .dot { background: var(--teal-deep); }
-.status-chip.pursuing { background: rgba(176,130,40,.15); border-color: var(--mustard); color: #6e5018; }
+.status-chip.pursuing { background: rgba(176,130,40,.15); border-color: var(--mustard); color: var(--mustard-deep); }
 .status-chip.pursuing .dot { background: var(--mustard); }
 .status-chip.resolved { background: rgba(61,85,54,.15); border-color: var(--forest); color: var(--forest); }
 .status-chip.resolved .dot { background: var(--forest); }
@@ -1561,7 +1575,7 @@ button.session-pin { line-height: 1; }
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: .1em;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
   margin-bottom: 6px;
 }
 .tweak-row .seg {
@@ -1629,7 +1643,7 @@ button.session-pin { line-height: 1; }
   font-size: 11px;
   text-align: center;
   padding: 4px 0;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
   border-bottom: 1px solid var(--vellum-deep);
 }
 
@@ -1648,6 +1662,12 @@ button.session-pin { line-height: 1; }
 .ent-glyph.items { background: #8a6a28; }
 .ent-glyph.lore { background: var(--forest-pale); color: var(--ink); }
 .ent-glyph.sessions { background: var(--ink-faded); }
+/* Grimoire lifts --teal-deep/--forest/--slate for use as TEXT on dark stock;
+   as glyph backgrounds under white text those pastels lose all contrast, so
+   the glyphs keep the original dark values. */
+[data-theme="grimoire"] .ent-glyph.locations { background: #2f4c48; }
+[data-theme="grimoire"] .ent-glyph.goals     { background: #3d5536; }
+[data-theme="grimoire"] .ent-glyph.factions  { background: #465061; }
 
 /* Compass rosette decoration */
 .compass {
@@ -1784,7 +1804,7 @@ button.session-pin { line-height: 1; }
 }
 .cmdk-snippet {
   font-size: 12px;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1802,13 +1822,13 @@ button.session-pin { line-height: 1; }
   font-family: var(--font-fell-sc);
   letter-spacing: .2em;
   font-size: 10px;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
 }
 /* ── Archive / Pin ──────────────────────── */
 .detail-action-btn {
   background: transparent;
-  border: 1px solid var(--ink-faded);
-  color: var(--ink-faded);
+  border: 1px solid var(--ink-secondary);
+  color: var(--ink-secondary);
   padding: 4px 8px;
   font-family: var(--font-fell-sc);
   letter-spacing: .16em;
@@ -1842,8 +1862,8 @@ button.session-pin { line-height: 1; }
 /* Dim archived cards wherever they render on the Board/KindList */
 .pinned.archived,
 .kind-card.archived {
-  opacity: .55;
-  filter: saturate(.5);
+  opacity: .8;
+  filter: saturate(.45) contrast(.95);
 }
 .pinned.archived::before,
 .kind-card.archived::before {
@@ -1925,7 +1945,7 @@ button.session-pin { line-height: 1; }
   margin-left: 4px;
   font-family: var(--font-ui);
   font-size: 10px;
-  color: var(--ink-ghost);
+  color: var(--ink-faded);
   font-style: italic;
 }
 
@@ -1983,7 +2003,7 @@ button.session-pin { line-height: 1; }
   font-family: var(--font-fell);
   font-style: italic;
   font-size: 14px;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
 }
 .cleanup-close {
   position: absolute;
@@ -2034,7 +2054,7 @@ button.session-pin { line-height: 1; }
   font-family: var(--font-fell-sc);
   font-size: 12px;
   letter-spacing: .2em;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
 }
 .cleanup-row {
   display: flex; align-items: center; gap: 12px;
@@ -2050,7 +2070,7 @@ button.session-pin { line-height: 1; }
   margin-left: auto;
   font-style: italic;
   font-size: 12px;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
 }
 .cleanup-footer {
   display: flex; justify-content: space-between; align-items: center;
@@ -2063,7 +2083,7 @@ button.session-pin { line-height: 1; }
   font-family: var(--font-fell-sc);
   font-size: 11px;
   letter-spacing: .16em;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
 }
 .cleanup-link-btn {
   background: transparent;

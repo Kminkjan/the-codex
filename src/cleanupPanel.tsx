@@ -192,7 +192,7 @@ export function CleanupPanel({ onClose, onOpenEntity }: CleanupPanelProps) {
             value={n}
             onChange={(e) => setN(Number(e.target.value))}
           />
-          <span style={{ fontFamily: "var(--font-fell-sc)", letterSpacing: ".16em", fontSize: 11, color: "var(--ink-faded)" }}>
+          <span style={{ fontFamily: "var(--font-fell-sc)", letterSpacing: ".16em", fontSize: 11, color: "var(--ink-secondary)" }}>
             LAST {n} SESSIONS
           </span>
           <button className="cleanup-link-btn" onClick={selectAll}>select all</button>
