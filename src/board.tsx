@@ -253,7 +253,7 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
   return (
     <>
       <div className="board-toolbar">
-        <h1>The Notice Board <em>— last edit: just now, by Kael</em></h1>
+        <h1>The Notice Board</h1>
         <div style={{ flex: 1 }} />
 
         <div className="filter-group">
@@ -381,7 +381,7 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
           }}>
             <span className="pin-head" style={{ left: "10%" }} />
             <span className="pin-head" style={{ left: "90%" }} />
-            ✦ THE NOTICE BOARD OF THE CROOKED TANKARD ✦
+            ✦ {campaign.title.toUpperCase()} ✦
           </div>
 
           <svg className="yarn-layer" viewBox={`0 0 ${bounds.w} ${bounds.h}`} preserveAspectRatio="none">
@@ -456,22 +456,7 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
             );
           })}
 
-          <div className="pinned" style={{ left: 1050, top: 500, transform: "rotate(-6deg)", cursor: "default" }}>
-            <span className="pin-head" />
-            <div className="card-note">
-              <div className="n-text">Don't break the black seal. Vareth read it once — he can't remember his own sister now.</div>
-              <div className="n-author">— Nym</div>
-            </div>
-          </div>
-          <div className="pinned" style={{ left: 1750, top: 1100, transform: "rotate(4deg)", cursor: "default" }}>
-            <span className="pin-head iron" />
-            <div className="card-note" style={{ background: "#f0e4b8" }}>
-              <div className="n-text">The bells at Blackmere rang TWICE last tide. Once for Oriane. Once for someone we haven't met yet.</div>
-              <div className="n-author">— Sera</div>
-            </div>
-          </div>
-
-          <div className="wax-seal" style={{ top: 120, left: 60 }}>EC</div>
+          <div className="wax-seal" style={{ top: 120, left: 60 }}>✦</div>
           <div className="wax-seal" style={{ top: 1820, left: 2200, background: "radial-gradient(circle at 35% 30%, #c5a04a 0%, #8a6820 60%, #5a430f 100%)" }}>✦</div>
         </div>
 
