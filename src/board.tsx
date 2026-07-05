@@ -101,7 +101,11 @@ export function NoticeBoard({
   const [panning, setPanning] = useState(false);
   const [connectMode, setConnectMode] = useState(false);
   const [connectSource, setConnectSource] = useState<string | null>(null);
-  const [hoverConn, setHoverConn] = useState<number | null>(null);
+  // Keyed on a stable edge identity (a|b|label|source), NOT the visibleEdges
+  // index — that array is re-filtered on every render (Derived-strings toggle,
+  // realtime splices), so an index would drift the highlight/delete onto the
+  // wrong string mid-hover.
+  const [hoverConn, setHoverConn] = useState<string | null>(null);
   const [hoverCard, setHoverCard] = useState<string | null>(null);
   // Locate-on-board: the card being flashed (with the locate seq as a nonce so
   // re-locating the same card restarts the flash), and whether the surface is
@@ -582,8 +586,10 @@ export function NoticeBoard({
               const { a, b, label, source } = e;
               const A = centerOf(a), B = centerOf(b);
               if (!A || !B) return null;
+              // Stable identity for hover state (index would drift on re-filter).
+              const eKey = `${a}|${b}|${label}|${source}`;
               const faded = sessionFocus && !(sessionFocus.has(a) || sessionFocus.has(b));
-              const isHover = hoverConn === i;
+              const isHover = hoverConn === eKey;
               const lit = isHover || (hoverCard !== null && (a === hoverCard || b === hoverCard));
               // FK-derived edges render dashed and are read-only — they have no
               // connections row, so no hover-delete affordance.
@@ -594,7 +600,7 @@ export function NoticeBoard({
               return (
                 <g key={i}
                    className={`yarn ${derived ? "derived" : ""} ${lit ? "lit" : faded ? "faded" : ""}`}
-                   onMouseEnter={() => setHoverConn(i)}
+                   onMouseEnter={() => setHoverConn(eKey)}
                    onMouseLeave={() => setHoverConn(null)}
                    style={{ pointerEvents: "stroke" }}
                 >
