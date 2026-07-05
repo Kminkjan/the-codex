@@ -1,6 +1,11 @@
 {
   "compilerOptions": {
     "composite": true,
+    // Composite projects must emit, so aim it out of the tree — a vite.config.js
+    // sibling would shadow vite.config.ts the same way src/ .js siblings shadow
+    // the .tsx (see tsconfig.json's noEmit note).
+    "outDir": "./node_modules/.tmp/tsc-node",
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
     "skipLibCheck": true,
     "module": "ESNext",
     "moduleResolution": "bundler",

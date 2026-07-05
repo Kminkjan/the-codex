@@ -7,6 +7,8 @@ import {
   type SimulationLinkDatum,
 } from "d3-force";
 import { packSiblings, packEnclose } from "d3-hierarchy";
+import Graph from "graphology";
+import louvain from "graphology-communities-louvain";
 import type { BoardPosition, KindKey } from "./data";
 import type { DerivedEdge } from "./relations";
 
@@ -38,7 +40,21 @@ export type TidyTuning = {
   hubPull: number;           // pull members toward their hub (tightness of a sphere)
   collidePad: number;        // breathing room around each card
   clusterGap: number;        // empty space added around each sphere before packing
+  louvainResolution: number; // community granularity: lower merges, higher splits
 };
+
+// mulberry32 — a tiny seeded PRNG so Louvain's tie-breaking is reproducible
+// and "Tidy" stays deterministic run-to-run.
+function mulberry32(seed: number) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
 
 // forceLink strength scales with edge weight so a shared faction (w3) draws
 // cards tighter than a shared location/manual string (w2) than a quest-giver
@@ -57,9 +73,9 @@ interface MiniLink extends SimulationLinkDatum<MiniNode> {
 /**
  * Two-phase "tidy" that arranges the board into **spheres of influence**:
  *
- *  1. Weighted **label propagation** partitions the cards into communities
- *     (denser than connected components, so an FK-enriched graph splits into
- *     sub-spheres instead of merging into one blob); each community's
+ *  1. Weighted **Louvain** partitions the cards into communities (denser than
+ *     connected components, so an FK-enriched graph splits into sub-spheres
+ *     instead of merging into one blob); each community's
  *     most-connected entity is its hub. Each community is laid out **internally**
  *     with its own small force sim (weighted links + repulsion + collision + a
  *     pull toward the hub), producing a tight sphere centred on its hub. Isolated
@@ -85,9 +101,10 @@ export function computeTidyLayout(input: {
     linkDistance: 55,
     linkStrengthPerWeight: 0.15, // w1→.15, w2→.30 (== old constant), w3→.45
     charge: -200,
-    hubPull: 0.42,
-    collidePad: 24,
-    clusterGap: 170, // generous whitespace between spheres so they read as distinct
+    hubPull: 0.5,
+    collidePad: 20,
+    clusterGap: 140, // whitespace between spheres so they read as distinct
+    louvainResolution: 0.9, // stable plateau on both seeded campaigns (see scripts/ab-clustering.ts)
     ...tuneOverride,
   };
   // Isolated cards (no edges) are parked in a tidy grid below the clusters
@@ -101,53 +118,46 @@ export function computeTidyLayout(input: {
 
   // Collapse the unified edges to one weight per unordered card pair (MAX, so a
   // pair's strength stays in the designed w1..w3 band even with parallel manual
-  // strings), and build a weighted adjacency map + degree count.
+  // strings), and count each card's degree over those pairs.
   const degree = new Map<string, number>(cards.map((c) => [c.id, 0]));
-  const adjW = new Map<string, Map<string, number>>(cards.map((c) => [c.id, new Map()]));
   const pairWeight = new Map<string, number>();
   for (const e of edges) {
     if (e.a === e.b || !cardIds.has(e.a) || !cardIds.has(e.b)) continue;
     const key = e.a < e.b ? `${e.a}|${e.b}` : `${e.b}|${e.a}`;
     pairWeight.set(key, Math.max(pairWeight.get(key) ?? 0, e.weight));
   }
-  for (const [key, w] of pairWeight) {
+  for (const key of pairWeight.keys()) {
     const [a, b] = key.split("|");
     degree.set(a, (degree.get(a) ?? 0) + 1);
     degree.set(b, (degree.get(b) ?? 0) + 1);
-    adjW.get(a)!.set(b, w);
-    adjW.get(b)!.set(a, w);
   }
 
   const radiusOf = (d: { id: string; w: number; h: number }) =>
     Math.hypot(d.w / 2, d.h / 2) + TUNE.collidePad + Math.min(degree.get(d.id) ?? 0, 10) * 6;
 
-  // Community detection via **weighted label propagation**. Each node adopts the
-  // neighbour label with the greatest summed edge weight; ties break to the
-  // lexicographically smallest label. Deterministic (fixed sorted node order,
-  // order-independent tie-break, capped rounds) so "Tidy" is reproducible. This
-  // is denser than connected components — a hub linked to many entities splits
-  // into sub-communities rather than absorbing the whole board into one blob.
+  // Community detection via **weighted Louvain** (modularity optimization over
+  // the same weighted pairs the force sim uses). It replaced the earlier
+  // hand-rolled label propagation after an A/B on both seeded campaigns
+  // (scripts/ab-clustering.ts): label propagation tore semantic groups apart —
+  // e.g. it split the party's own guild from its leader and orphaned members
+  // into 2-card islands — while Louvain recovered the story's actual spheres at
+  // clearly higher modularity. (An earlier pre-#42 Louvain attempt over-split,
+  // but that graph was unweighted and sparse; the weighted projection fixed it,
+  // and a single low-weight bridge between two dense spheres no longer merges
+  // them.) Deterministic: nodes/edges inserted in sorted order + seeded rng.
   const sortedIds = cards.map((c) => c.id).sort();
-  const community = new Map<string, string>(sortedIds.map((id) => [id, id]));
-  for (let round = 0; round < 20; round++) {
-    let changed = false;
-    for (const id of sortedIds) {
-      const nbrs = adjW.get(id)!;
-      if (nbrs.size === 0) continue;
-      const score = new Map<string, number>();
-      for (const [nb, w] of nbrs) {
-        const lb = community.get(nb)!;
-        score.set(lb, (score.get(lb) ?? 0) + w);
-      }
-      let best: string | null = null;
-      let bestScore = -Infinity;
-      for (const [lb, s] of score) {
-        if (s > bestScore || (s === bestScore && (best === null || lb < best))) { best = lb; bestScore = s; }
-      }
-      if (best !== null && best !== community.get(id)) { community.set(id, best); changed = true; }
-    }
-    if (!changed) break;
+  const graph = new Graph({ type: "undirected" });
+  for (const id of sortedIds) graph.addNode(id);
+  for (const [key, w] of [...pairWeight.entries()].sort(([a], [b]) => (a < b ? -1 : 1))) {
+    const [a, b] = key.split("|");
+    graph.addEdge(a, b, { weight: w });
   }
+  const assignments = louvain(graph, {
+    resolution: TUNE.louvainResolution,
+    rng: mulberry32(42),
+    getEdgeWeight: "weight",
+  });
+  const community = new Map<string, string>(sortedIds.map((id) => [id, String(assignments[id])]));
 
   // Group cards by community label; find each community's hub (highest degree,
   // tie-break smallest id).
@@ -218,9 +228,9 @@ export function computeTidyLayout(input: {
 
   // ---- Phase 2: circle-pack the real spheres; grid only the true loners. -----
   // A "loner" is a card with NO edges (degree 0). A 1-member community that
-  // still has edges — label propagation can orphan a connected leaf — is packed
-  // among the spheres, not exiled to the grid, so its yarn doesn't stretch
-  // across the inter-sphere whitespace the grid exists to keep clear.
+  // still has edges — community detection can leave a connected node alone — is
+  // packed among the spheres, not exiled to the grid, so its yarn doesn't
+  // stretch across the inter-sphere whitespace the grid exists to keep clear.
   const isLoner = (b: Blob) => b.local.length === 1 && (degree.get(b.local[0].id) ?? 0) === 0;
   const clusterBlobs = blobs.filter((b) => !isLoner(b));
   const singletonBlobs = blobs.filter(isLoner);
