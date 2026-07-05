@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CampaignProvider } from "./campaignContext";
 import { AuthProvider, DisplayNameGate } from "./auth";
 import { useCampaign, useCampaignStatus, useFindEntity, useKinds } from "./hooks";
@@ -71,9 +71,22 @@ function AppLoaded() {
   const [shareToast, setShareToast] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [cleanupOpen, setCleanupOpen] = useState(false);
+  // Ephemeral "jump to this card on the board" intent, raised by the command
+  // palette and consumed by NoticeBoard (which owns pan/zoom). seq (a
+  // monotonic counter that survives the null reset) lets the same card be
+  // re-located; onLocated nulls the intent so returning to the board later
+  // doesn't re-pan. This is a UI intent, not mirrored DB state.
+  const [locate, setLocate] = useState<{ id: string; seq: number } | null>(null);
+  const locateSeq = useRef(0);
 
   const togglePalette = useCallback(() => setPaletteOpen((o) => !o), []);
   useCommandPaletteHotkey(togglePalette);
+
+  const locateOnBoard = useCallback((id: string) => {
+    setView("board");
+    setLocate({ id, seq: ++locateSeq.current });
+    setPaletteOpen(false);
+  }, []);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
@@ -136,7 +149,13 @@ function AppLoaded() {
         <Topbar onShare={onShare} />
         <Sidebar active={view} onSelect={setView} onOpenEntity={setOpenId} onOpenCleanup={() => setCleanupOpen(true)} counts={counts} />
         <main className="main">
-          {view === "board" && <NoticeBoard onOpenEntity={setOpenId} />}
+          {view === "board" && (
+            <NoticeBoard
+              onOpenEntity={setOpenId}
+              locateRequest={locate}
+              onLocated={() => setLocate(null)}
+            />
+          )}
           {view === "arcs" && <ArcsPage onOpenEntity={setOpenId} />}
           {view === "events" && <EventsPage onOpenEntity={setOpenId} />}
           {!["board", "arcs", "events"].includes(view) && <KindList kind={view} onOpenEntity={setOpenId} />}
@@ -155,6 +174,7 @@ function AppLoaded() {
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}
         onOpenEntity={(id) => { setOpenId(id); setPaletteOpen(false); }}
+        onLocate={locateOnBoard}
       />
 
       {cleanupOpen && (
