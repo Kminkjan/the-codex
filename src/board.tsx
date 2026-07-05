@@ -89,14 +89,16 @@ export function NoticeBoard({
   const [connectSource, setConnectSource] = useState<string | null>(null);
   const [hoverConn, setHoverConn] = useState<number | null>(null);
   const [hoverCard, setHoverCard] = useState<string | null>(null);
-  // Locate-on-board: the card being flashed, and whether the surface is mid-
-  // glide (a one-shot transition on the pan/zoom — kept off at rest so panning
-  // and dragging stay snappy). Both are ephemeral UI state, not DB mirrors.
-  const [flashId, setFlashId] = useState<string | null>(null);
+  // Locate-on-board: the card being flashed (with the locate seq as a nonce so
+  // re-locating the same card restarts the flash), and whether the surface is
+  // mid-glide (a one-shot transition on the pan/zoom — kept off at rest so
+  // panning and dragging stay snappy). Both are ephemeral UI state, not DB
+  // mirrors.
+  const [flash, setFlash] = useState<{ id: string; n: number } | null>(null);
   const [gliding, setGliding] = useState(false);
+  const flashId = flash?.id ?? null;
   const canvasRef = useRef<HTMLDivElement>(null);
   const lastLocateSeq = useRef(-1);
-  const flashTimers = useRef<number[]>([]);
 
   const visible = (id: string) => {
     const pos = positions[id];
@@ -220,13 +222,14 @@ export function NoticeBoard({
 
   // Search wayfinding: when the palette raises a locate request, reveal the
   // card (turn its kind filter / archived visibility back on if hidden), pan
-  // and zoom so it sits dead-center, then flash it. Guarded by seq so it fires
-  // once per request; timers live in a ref so nulling the request (via
-  // onLocated) can't cancel the flash mid-decay.
+  // and zoom so it sits dead-center, then arm the flash. Guarded by seq so it
+  // fires once per request. The flash's decay lives in its own effect below,
+  // keyed on the flash state — not tied to locateRequest — so nulling the
+  // request (via onLocated) can't cut the flash short.
   useEffect(() => {
     if (!locateRequest || locateRequest.seq === lastLocateSeq.current) return;
     lastLocateSeq.current = locateRequest.seq;
-    const { id } = locateRequest;
+    const { id, seq } = locateRequest;
 
     const pos = positions[id];
     if (!pos) {
@@ -249,16 +252,20 @@ export function NoticeBoard({
       setPan({ x: rect.width / 2 - c.x * target, y: rect.height / 2 - c.y * target });
     }
 
-    flashTimers.current.forEach(clearTimeout);
-    setFlashId(id);
-    flashTimers.current = [
-      window.setTimeout(() => setGliding(false), 650),
-      window.setTimeout(() => setFlashId(null), 2000),
-    ];
+    setFlash({ id, n: seq });
     onLocated?.();
   }, [locateRequest]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => () => { flashTimers.current.forEach(clearTimeout); }, []);
+  // Decay the flash: end the glide, then clear the flash. Keyed on the flash
+  // state (not locateRequest), so it re-derives its timers from state on every
+  // run — including React StrictMode's mount/cleanup/mount replay, which would
+  // otherwise tear the timers down and leave the flash stuck on.
+  useEffect(() => {
+    if (!flash) return;
+    const t1 = window.setTimeout(() => setGliding(false), 650);
+    const t2 = window.setTimeout(() => setFlash(null), 2000);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [flash]);
 
   // Probe outward for an open spot so a new card doesn't stack on others (or
   // land under the title banner). Sweeps a grid below the banner strip and

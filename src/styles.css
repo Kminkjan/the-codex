@@ -787,9 +787,9 @@ button.session-pin { line-height: 1; }
   55%  { filter: drop-shadow(0 0 14px rgba(212,167,40,.55)) drop-shadow(0 0 6px rgba(138,42,31,.4)); }
   100% { filter: drop-shadow(0 0 0 rgba(212,167,40,0)); }
 }
+/* z-index 8 lifts the flaring card above both regular (3) and featured (6)
+   cards so it's never occluded mid-flash; only one card flares at a time. */
 .pinned.locating { animation: locate-flash 1.9s ease-out; z-index: 8; }
-/* Featured cards outrank the flash z-index; keep them on top while flaring. */
-.pinned.is-pinned.locating { z-index: 8; }
 
 .pin-head {
   position: absolute;

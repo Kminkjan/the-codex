@@ -261,6 +261,12 @@ export function CommandPalette({ open, onClose, onOpenEntity, onLocate }: Comman
   // located there. Sessions/arcs/events and never-pinned cards have no
   // position, so they show no locate affordance.
   const boardIds = useMemo(() => new Set(Object.keys(campaign.board)), [campaign.board]);
+  // Single source of truth for "can this hit be located on the board" — keeps
+  // the ⌥↵ handler and the row's "On board" button in lockstep.
+  const canLocate = useCallback(
+    (hit: PaletteHit | undefined): boolean => !!onLocate && !!hit && boardIds.has(hit.id),
+    [onLocate, boardIds],
+  );
 
   useEffect(() => { setSelected(0); }, [query]);
 
@@ -294,9 +300,9 @@ export function CommandPalette({ open, onClose, onOpenEntity, onLocate }: Comman
     if (!hit) return;
     // Alt+Enter on a card without a board pin has nowhere to jump — fall back
     // to opening its detail sheet so the shortcut is never a dead key.
-    if (onLocate && boardIds.has(hit.id)) onLocate(hit.id);
+    if (canLocate(hit)) onLocate!(hit.id);
     else onOpenEntity(hit.id);
-  }, [onLocate, boardIds, onOpenEntity]);
+  }, [canLocate, onLocate, onOpenEntity]);
 
   if (!open) return null;
 
@@ -340,9 +346,13 @@ export function CommandPalette({ open, onClose, onOpenEntity, onLocate }: Comman
             placeholder="Search the codex…"
             spellCheck={false}
             autoComplete="off"
+            role="combobox"
+            aria-expanded={results.length > 0}
+            aria-controls="cmdk-listbox"
+            aria-activedescendant={results.length > 0 ? `cmdk-opt-${selected}` : undefined}
           />
         </div>
-        <div className="cmdk-list" ref={listRef}>
+        <div className="cmdk-list" ref={listRef} role="listbox" id="cmdk-listbox">
           {query.trim() === "" && (
             <div className="cmdk-empty">Type to search people, places, quests, goals, factions, items, lore, sessions, and party notes.</div>
           )}
@@ -353,6 +363,7 @@ export function CommandPalette({ open, onClose, onOpenEntity, onLocate }: Comman
             <div
               key={`${hit.id}:${hit.matchSource}`}
               data-idx={i}
+              id={`cmdk-opt-${i}`}
               role="option"
               aria-selected={i === selected}
               className={`cmdk-row${i === selected ? " active" : ""}`}
@@ -371,12 +382,12 @@ export function CommandPalette({ open, onClose, onOpenEntity, onLocate }: Comman
               </div>
               <span className="cmdk-kind">{KIND_LABEL[hit.kind]}</span>
               {hit.archived && <span className="cmdk-kind-archived">archived</span>}
-              {onLocate && boardIds.has(hit.id) && (
+              {canLocate(hit) && (
                 <button
                   type="button"
                   className="cmdk-locate"
                   title="Jump to this card on the notice board (⌥↵)"
-                  onClick={(e) => { e.stopPropagation(); onLocate(hit.id); }}
+                  onClick={(e) => { e.stopPropagation(); onLocate!(hit.id); }}
                 >
                   <Icon name="search" size={12} /> On board
                 </button>
