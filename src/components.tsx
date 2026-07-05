@@ -69,6 +69,8 @@ interface PinnedCardProps {
   dimmed?: boolean;
   // Session focus: card stays fully legible but collapses to headline-only.
   receded?: boolean;
+  // Search wayfinding: brief flash when the palette jumps here.
+  locating?: boolean;
   onHover?: (id: string | null) => void;
 }
 
@@ -84,6 +86,7 @@ export function PinnedCard({
   isConnectSource,
   dimmed,
   receded,
+  locating,
   onHover,
 }: PinnedCardProps) {
   const [dragging, setDragging] = useState(false);
@@ -137,7 +140,7 @@ export function PinnedCard({
   return (
     <div
       ref={ref}
-      className={`pinned ${dragging ? "dragging" : ""} ${archived ? "archived" : ""} ${pinnedFlag ? "is-pinned" : ""} ${dimmed ? "dimmed" : ""} ${receded ? "receded" : ""}`}
+      className={`pinned ${dragging ? "dragging" : ""} ${archived ? "archived" : ""} ${pinnedFlag ? "is-pinned" : ""} ${dimmed ? "dimmed" : ""} ${receded ? "receded" : ""} ${locating ? "locating" : ""}`}
       data-kind={pos.kind}
       data-id={entity.id}
       style={{

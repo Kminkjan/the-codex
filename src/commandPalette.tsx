@@ -244,9 +244,10 @@ interface CommandPaletteProps {
   open: boolean;
   onClose: () => void;
   onOpenEntity: (id: string) => void;
+  onLocate?: (id: string) => void;
 }
 
-export function CommandPalette({ open, onClose, onOpenEntity }: CommandPaletteProps) {
+export function CommandPalette({ open, onClose, onOpenEntity, onLocate }: CommandPaletteProps) {
   const campaign = useCampaign();
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(0);
@@ -256,6 +257,16 @@ export function CommandPalette({ open, onClose, onOpenEntity }: CommandPalettePr
 
   const index = useMemo(() => buildIndex(campaign), [campaign]);
   const results = useMemo(() => searchHits(index, campaign, query), [index, campaign, query]);
+  // Which hits actually have a pin on the notice board — only those can be
+  // located there. Sessions/arcs/events and never-pinned cards have no
+  // position, so they show no locate affordance.
+  const boardIds = useMemo(() => new Set(Object.keys(campaign.board)), [campaign.board]);
+  // Single source of truth for "can this hit be located on the board" — keeps
+  // the ⌥↵ handler and the row's "On board" button in lockstep.
+  const canLocate = useCallback(
+    (hit: PaletteHit | undefined): boolean => !!onLocate && !!hit && boardIds.has(hit.id),
+    [onLocate, boardIds],
+  );
 
   useEffect(() => { setSelected(0); }, [query]);
 
@@ -285,6 +296,14 @@ export function CommandPalette({ open, onClose, onOpenEntity }: CommandPalettePr
     onOpenEntity(hit.id);
   }, [onOpenEntity]);
 
+  const locate = useCallback((hit: PaletteHit | undefined) => {
+    if (!hit) return;
+    // Alt+Enter on a card without a board pin has nowhere to jump — fall back
+    // to opening its detail sheet so the shortcut is never a dead key.
+    if (canLocate(hit)) onLocate!(hit.id);
+    else onOpenEntity(hit.id);
+  }, [canLocate, onLocate, onOpenEntity]);
+
   if (!open) return null;
 
   const handleKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (e) => {
@@ -308,7 +327,8 @@ export function CommandPalette({ open, onClose, onOpenEntity }: CommandPalettePr
     }
     if (e.key === "Enter") {
       e.preventDefault();
-      choose(results[selected]);
+      if (e.altKey) locate(results[selected]);
+      else choose(results[selected]);
     }
   };
 
@@ -326,9 +346,13 @@ export function CommandPalette({ open, onClose, onOpenEntity }: CommandPalettePr
             placeholder="Search the codex…"
             spellCheck={false}
             autoComplete="off"
+            role="combobox"
+            aria-expanded={results.length > 0}
+            aria-controls="cmdk-listbox"
+            aria-activedescendant={results.length > 0 ? `cmdk-opt-${selected}` : undefined}
           />
         </div>
-        <div className="cmdk-list" ref={listRef}>
+        <div className="cmdk-list" ref={listRef} role="listbox" id="cmdk-listbox">
           {query.trim() === "" && (
             <div className="cmdk-empty">Type to search people, places, quests, goals, factions, items, lore, sessions, and party notes.</div>
           )}
@@ -336,13 +360,15 @@ export function CommandPalette({ open, onClose, onOpenEntity }: CommandPalettePr
             <div className="cmdk-empty">Nothing in the codex matches "{query}".</div>
           )}
           {results.map((hit, i) => (
-            <button
+            <div
               key={`${hit.id}:${hit.matchSource}`}
               data-idx={i}
+              id={`cmdk-opt-${i}`}
+              role="option"
+              aria-selected={i === selected}
               className={`cmdk-row${i === selected ? " active" : ""}`}
               onMouseEnter={() => setSelected(i)}
               onClick={() => choose(hit)}
-              type="button"
             >
               <Icon name={KIND_ICON[hit.kind]} size={16} />
               <div className="cmdk-row-text">
@@ -356,12 +382,23 @@ export function CommandPalette({ open, onClose, onOpenEntity }: CommandPalettePr
               </div>
               <span className="cmdk-kind">{KIND_LABEL[hit.kind]}</span>
               {hit.archived && <span className="cmdk-kind-archived">archived</span>}
-            </button>
+              {canLocate(hit) && (
+                <button
+                  type="button"
+                  className="cmdk-locate"
+                  title="Jump to this card on the notice board (⌥↵)"
+                  onClick={(e) => { e.stopPropagation(); onLocate!(hit.id); }}
+                >
+                  <Icon name="search" size={12} /> On board
+                </button>
+              )}
+            </div>
           ))}
         </div>
         <div className="cmdk-hint">
           <span>↑↓ navigate</span>
           <span>↵ open</span>
+          <span>⌥↵ on board</span>
           <span>esc close</span>
         </div>
       </div>

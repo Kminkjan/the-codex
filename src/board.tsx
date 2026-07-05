@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   type KindKey,
   sortForDisplay,
@@ -41,7 +41,15 @@ interface Filters {
   [key: string]: boolean | string | undefined;
 }
 
-export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => void }) {
+export function NoticeBoard({
+  onOpenEntity,
+  locateRequest,
+  onLocated,
+}: {
+  onOpenEntity: (id: string) => void;
+  locateRequest?: { id: string; seq: number } | null;
+  onLocated?: () => void;
+}) {
   const campaign = useCampaign();
   const findEntity = useFindEntity();
   const kinds = useKinds();
@@ -81,7 +89,16 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
   const [connectSource, setConnectSource] = useState<string | null>(null);
   const [hoverConn, setHoverConn] = useState<number | null>(null);
   const [hoverCard, setHoverCard] = useState<string | null>(null);
+  // Locate-on-board: the card being flashed (with the locate seq as a nonce so
+  // re-locating the same card restarts the flash), and whether the surface is
+  // mid-glide (a one-shot transition on the pan/zoom — kept off at rest so
+  // panning and dragging stay snappy). Both are ephemeral UI state, not DB
+  // mirrors.
+  const [flash, setFlash] = useState<{ id: string; n: number } | null>(null);
+  const [gliding, setGliding] = useState(false);
+  const flashId = flash?.id ?? null;
   const canvasRef = useRef<HTMLDivElement>(null);
+  const lastLocateSeq = useRef(-1);
 
   const visible = (id: string) => {
     const pos = positions[id];
@@ -202,6 +219,53 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
     const s = cardSize[p.kind] || { w: 200, h: 140 };
     return { x: p.x + s.w / 2, y: p.y + s.h / 2 };
   };
+
+  // Search wayfinding: when the palette raises a locate request, reveal the
+  // card (turn its kind filter / archived visibility back on if hidden), pan
+  // and zoom so it sits dead-center, then arm the flash. Guarded by seq so it
+  // fires once per request. The flash's decay lives in its own effect below,
+  // keyed on the flash state — not tied to locateRequest — so nulling the
+  // request (via onLocated) can't cut the flash short.
+  useEffect(() => {
+    if (!locateRequest || locateRequest.seq === lastLocateSeq.current) return;
+    lastLocateSeq.current = locateRequest.seq;
+    const { id, seq } = locateRequest;
+
+    const pos = positions[id];
+    if (!pos) {
+      // Not pinned to the board — nothing to center on; open its sheet instead.
+      onOpenEntity(id);
+      onLocated?.();
+      return;
+    }
+
+    if (!(filters as any)[pos.kind]) setFilters((f) => ({ ...f, [pos.kind]: true }));
+    const ent = findEntity(id);
+    if (ent && (ent as any).archived) setShowArchived(true);
+
+    const rect = canvasRef.current?.getBoundingClientRect();
+    const c = centerOf(id);
+    if (rect && c) {
+      const target = Math.min(1.6, Math.max(scale, 1));
+      setGliding(true);
+      setScale(target);
+      setPan({ x: rect.width / 2 - c.x * target, y: rect.height / 2 - c.y * target });
+    }
+
+    setFlash({ id, n: seq });
+    onLocated?.();
+  }, [locateRequest]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Decay the flash: end the glide, then clear the flash. Keyed on the flash
+  // state (not locateRequest), so it re-derives its timers from state on every
+  // run — including React StrictMode's mount/cleanup/mount replay, which would
+  // otherwise tear the timers down and leave the flash stuck on.
+  useEffect(() => {
+    if (!flash) return;
+    const t1 = window.setTimeout(() => setGliding(false), 650);
+    const t2 = window.setTimeout(() => setFlash(null), 2000);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [flash]);
 
   // Probe outward for an open spot so a new card doesn't stack on others (or
   // land under the title banner). Sweeps a grid below the banner strip and
@@ -360,7 +424,7 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
         onWheel={onWheel}
       >
         <div
-          className={`board-surface ${scale < 0.7 ? "zoom-far" : ""}`}
+          className={`board-surface ${scale < 0.7 ? "zoom-far" : ""} ${gliding ? "gliding" : ""}`}
           style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`, width: bounds.w, height: bounds.h }}
         >
           <div className="board-frame" />
@@ -449,8 +513,12 @@ export function NoticeBoard({ onOpenEntity }: { onOpenEntity: (id: string) => vo
                 connectMode={connectMode}
                 onConnectClick={handleConnectClick}
                 isConnectSource={connectSource === id}
-                dimmed={hoverSpot !== null && !hoverSpot.has(id)}
+                dimmed={
+                  (hoverSpot !== null && !hoverSpot.has(id)) ||
+                  (flashId !== null && id !== flashId)
+                }
                 receded={hoverSpot === null && sessionFocus !== null && !sessionFocus.has(id)}
+                locating={flashId === id}
                 onHover={setHoverCard}
               />
             );
