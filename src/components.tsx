@@ -188,13 +188,13 @@ export function PosterCard({ person }: { person: any }) {
   return (
     <div className="card-poster">
       {seenLive && <span className="seen-live-dot" title="Seen this session" />}
-      <div className="wanted">
-        {person.disposition === "hostile"
-          ? "✦ Wanted ✦"
-          : person.disposition === "ally"
-          ? "✦ Known Ally ✦"
-          : "✦ Of Note ✦"}
-      </div>
+      {/* Allies dominate the board, so their band is noise — a band's presence
+          is the signal (Wanted / Of Note), plain allies go headerless. */}
+      {person.disposition !== "ally" && (
+        <div className="wanted">
+          {person.disposition === "hostile" ? "✦ Wanted ✦" : "✦ Of Note ✦"}
+        </div>
+      )}
       <div className="portrait">
         {person.imageUrl
           ? <img src={person.imageUrl} alt={person.name} className="portrait-img" />
@@ -401,13 +401,13 @@ export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, counts 
             key={k.key}
             className={`nav-item ${active === k.key ? "active" : ""}`}
             onClick={() => onSelect(k.key)}
+            // One number per row — the archive story lives in the tooltip and
+            // in "Tidy the Codex" below.
+            title={c.archived > 0 ? `${c.active} active · ${c.archived} archived` : undefined}
           >
             <span className="icon"><Icon name={kindIcon[k.key]} /></span>
             {k.label}
             <span className="count">{c.active}</span>
-            {c.archived > 0 && (
-              <span className="count-archived" title={`${c.archived} archived`}>+{c.archived}</span>
-            )}
           </div>
         );
       })}
@@ -692,8 +692,10 @@ export function Topbar({ onShare }: { onShare: () => void }) {
         <button className="btn" onClick={onShare}><Icon name="share" size={14} /> Share link</button>
         {canEdit ? (
           <>
+            {/* Functional micro-text, not flavor — the UI face reads better
+                than 12px italic serif. */}
             <span style={{
-              fontFamily: "var(--font-fell)", fontStyle: "italic",
+              fontFamily: "var(--font-ui)",
               fontSize: 12, color: "var(--ink-secondary)",
             }}>
               {displayName}
