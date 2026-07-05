@@ -16,7 +16,11 @@
     "noFallthroughCasesInSwitch": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
-    "types": ["vite/client"]
+    "types": ["vite/client"],
+    // Typecheck only — Vite owns transpilation. Without this, `tsc -b` drops
+    // compiled .js siblings into src/ that Vite's dev resolver prefers over the
+    // .tsx, so the dev server silently runs stale code after every build.
+    "noEmit": true
   },
   "include": ["src"],
   "references": [{ "path": "./tsconfig.node.json" }]
