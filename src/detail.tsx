@@ -339,6 +339,8 @@ interface DetailSheetProps {
 interface Related {
   entity: any;
   rel: string;
+  // Optional context tag shown after the relation verb (e.g. an event's session).
+  tag?: string;
 }
 
 export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
@@ -424,13 +426,18 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
             ? (ev: any) => ev.session === entityId && "during this session"
             : null;
     if (eventRel) {
+      const sessionsById = new Map(campaign.sessions.map((s) => [s.id, s]));
       // Array order isn't trustworthy after realtime splices — sort by orderNum.
       campaign.events.slice().sort((a, b) => a.orderNum - b.orderNum).forEach((ev) => {
         const rel = eventRel(ev);
         if (!rel) return;
         related.events = related.events || [];
         if (!related.events.find((r) => r.entity.id === ev.id)) {
-          related.events.push({ entity: findEntity(ev.id), rel });
+          // Tag the chip with the event's session (its temporal anchor), the way
+          // the Chronicle page labels each event — skip on a session's own sheet
+          // where every chip would restate that session.
+          const sess = kind !== "sessions" && ev.session ? sessionsById.get(ev.session) : undefined;
+          related.events.push({ entity: findEntity(ev.id), rel, tag: sess ? sessionLabel(sess.num) : undefined });
         }
       });
     }
@@ -820,7 +827,10 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                         <div className="rc-icon"><Icon name={kindIcon[k]} size={14} /></div>
                         <div style={{ flex: 1 }}>
                           <div className="rc-name">{entityLabel(r.entity)}</div>
-                          <div className="rc-rel">{r.rel}</div>
+                          <div className="rc-rel">
+                            {r.rel}
+                            {r.tag && <span className="rc-tag">{r.tag}</span>}
+                          </div>
                         </div>
                         <Icon name="chevron" size={12} />
                       </div>
