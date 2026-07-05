@@ -1027,6 +1027,7 @@ export interface EntityOption {
   id: string;
   label: string;
   kind: KindKey;
+  archived?: boolean;
 }
 
 interface EntityComboboxProps {
@@ -1070,16 +1071,26 @@ export function EntityCombobox({
   const [rect, setRect] = useState<{ left: number; top: number; width: number; flip: boolean; maxHeight: number } | null>(null);
 
   const index = useMemo<Indexed[]>(
-    () => options.map((o) => ({ id: o.id, kind: o.kind, label: o.label, primary: o.label, secondary: "" })),
+    () => options.map((o) => ({ id: o.id, kind: o.kind, label: o.label, primary: o.label, secondary: "", archived: o.archived })),
     [options],
   );
   const results = useMemo(() => rankIndex(index, query), [index, query]);
 
   // A "clear" pseudo-row sits at index 0 when clearable and unfiltered, so the
-  // row indices below are offset by it.
-  const showClear = allowClear && query.trim() === "" && !!current;
+  // row indices below are offset by it. Shown whenever clearing is allowed —
+  // including when the current value is dangling (references a deleted
+  // entity, so `current` doesn't resolve) — matching the old <select>, which
+  // always exposed an empty option in that case regardless of allowClear.
+  const showClear = allowClear && query.trim() === "";
   const offset = showClear ? 1 : 0;
   const rowCount = results.length + offset;
+
+  // Clamp the active row whenever the list shrinks for any reason (a new
+  // search query, or the options themselves changing e.g. via a realtime
+  // update) so Enter never targets a row past the end of a stale index.
+  useEffect(() => {
+    setSelected((s) => Math.min(s, Math.max(rowCount - 1, 0)));
+  }, [rowCount]);
 
   const reposition = useCallback(() => {
     const el = triggerRef.current;
@@ -1093,7 +1104,12 @@ export function EntityCombobox({
     // popover never runs past the viewport edge.
     const flip = spaceBelow < 300 && spaceAbove > spaceBelow;
     const maxHeight = Math.min(320, Math.max(140, flip ? spaceAbove : spaceBelow));
-    setRect({ left: r.left, top: flip ? r.top : r.bottom, width: r.width, flip, maxHeight });
+    const width = Math.max(r.width, 240);
+    // Clamp left so the popover's right edge never runs past the viewport —
+    // it defaults to the trigger's left edge but slides left if that would
+    // overflow (e.g. a narrow FK field near the right edge of a resized window).
+    const left = Math.min(r.left, window.innerWidth - width - margin);
+    setRect({ left: Math.max(left, margin), top: flip ? r.top : r.bottom, width: r.width, flip, maxHeight });
   }, []);
 
   useEffect(() => {

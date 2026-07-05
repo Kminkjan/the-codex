@@ -182,13 +182,13 @@ function AddRelationForm({ fromId }: { fromId: string }) {
 
   const allOptions = useMemo(
     () => [
-      ...campaign.people.map((p) => ({ id: p.id, label: p.name, kind: "people" as const })),
-      ...campaign.locations.map((l) => ({ id: l.id, label: l.name, kind: "locations" as const })),
-      ...campaign.quests.map((q) => ({ id: q.id, label: q.title, kind: "quests" as const })),
-      ...campaign.goals.map((g) => ({ id: g.id, label: g.text, kind: "goals" as const })),
-      ...campaign.factions.map((f) => ({ id: f.id, label: f.name, kind: "factions" as const })),
-      ...campaign.items.map((i) => ({ id: i.id, label: i.name, kind: "items" as const })),
-      ...campaign.lore.map((l) => ({ id: l.id, label: l.title, kind: "lore" as const })),
+      ...campaign.people.map((p) => ({ id: p.id, label: p.name, kind: "people" as const, archived: p.archived })),
+      ...campaign.locations.map((l) => ({ id: l.id, label: l.name, kind: "locations" as const, archived: l.archived })),
+      ...campaign.quests.map((q) => ({ id: q.id, label: q.title, kind: "quests" as const, archived: q.archived })),
+      ...campaign.goals.map((g) => ({ id: g.id, label: g.text, kind: "goals" as const, archived: g.archived })),
+      ...campaign.factions.map((f) => ({ id: f.id, label: f.name, kind: "factions" as const, archived: f.archived })),
+      ...campaign.items.map((i) => ({ id: i.id, label: i.name, kind: "items" as const, archived: i.archived })),
+      ...campaign.lore.map((l) => ({ id: l.id, label: l.title, kind: "lore" as const, archived: l.archived })),
       ...campaign.sessions.map((s) => ({ id: s.id, label: s.title, kind: "sessions" as const })),
       ...campaign.arcs.map((a) => ({ id: a.id, label: a.title, kind: "arcs" as const })),
       ...campaign.events.map((e) => ({ id: e.id, label: e.title, kind: "events" as const })),
@@ -441,13 +441,22 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
       console.error(`updateEntity(${kind}) failed`, e),
     );
 
-  const arcOptions = campaign.arcs
-    .slice()
-    .sort((a, b) => a.orderNum - b.orderNum)
-    .map((a) => ({ id: a.id, label: a.title, kind: "arcs" as const }));
-  const sessionOptions = campaign.sessions
-    .map((s) => ({ id: s.id, label: `S${String(s.num).padStart(2, "0")} — ${s.title}`, kind: "sessions" as const }));
-  const locationOptions = campaign.locations.map((l) => ({ id: l.id, label: l.name, kind: "locations" as const }));
+  const arcOptions = useMemo(
+    () => campaign.arcs
+      .slice()
+      .sort((a, b) => a.orderNum - b.orderNum)
+      .map((a) => ({ id: a.id, label: a.title, kind: "arcs" as const })),
+    [campaign.arcs],
+  );
+  const sessionOptions = useMemo(
+    () => campaign.sessions
+      .map((s) => ({ id: s.id, label: `S${String(s.num).padStart(2, "0")} — ${s.title}`, kind: "sessions" as const })),
+    [campaign.sessions],
+  );
+  const locationOptions = useMemo(
+    () => campaign.locations.map((l) => ({ id: l.id, label: l.name, kind: "locations" as const, archived: l.archived })),
+    [campaign.locations],
+  );
 
   const onDelete = () => {
     if (!entity) return;
