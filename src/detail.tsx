@@ -381,7 +381,9 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
     if (!ent) return;
     const k = ent._kind as string;
     related[k] = related[k] || [];
-    if (!related[k].find((r) => r.entity.id === ent.id)) {
+    // Dedupe by (entity, label): parallel manual strings between the same pair
+    // with different labels ("ally of" AND "owes a debt to") must both survive.
+    if (!related[k].find((r) => r.entity.id === ent.id && r.rel === e.label)) {
       related[k].push({ entity: ent, rel: e.label });
     }
   });
