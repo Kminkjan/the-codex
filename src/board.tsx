@@ -163,6 +163,15 @@ export function NoticeBoard({
 
   const toggleKind = (k: KindKey) => setFilters((f) => ({ ...f, [k]: !(f as any)[k] }));
 
+  // Alt-click isolates one kind; alt-click the lone survivor to restore all.
+  const soloKind = (k: KindKey) => setFilters((f) => {
+    const keys = kinds.map((x) => x.key);
+    const alreadySolo = keys.every((key) => (f as any)[key] === (key === k));
+    const next = { ...f };
+    keys.forEach((key) => { (next as any)[key] = alreadySolo ? true : key === k; });
+    return next;
+  });
+
   const onDragEnd = (id: string, newPos: { x: number; y: number }) => {
     if (!canEdit) return; // read-only: card snaps back on next render
     const base = positions[id];
@@ -189,6 +198,7 @@ export function NoticeBoard({
   };
 
   const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const [viewMenuOpen, setViewMenuOpen] = useState(false);
 
   const onCreate = async (k: Exclude<KindKey, "sessions" | "arcs" | "events">) => {
     setAddMenuOpen(false);
@@ -429,40 +439,33 @@ export function NoticeBoard({
   return (
     <>
       <div className="board-toolbar">
-        <h1>The Notice Board <em>— last edit: just now, by Kael</em></h1>
+        <h1>The Notice Board</h1>
         <div style={{ flex: 1 }} />
 
-        <div className="filter-group">
-          {kinds.map((k) => (
-            <span
-              key={k.key}
-              className={`filter-pill ${(filters as any)[k.key] ? "active" : ""}`}
-              onClick={() => toggleKind(k.key)}
-            >
-              <span className="swatch" style={{ background: k.color }} />
-              {k.label}
-            </span>
-          ))}
+        <div className="filter-group bare">
+          {(() => {
+            // With every kind on (the rest state) the lit style carries no
+            // information — render all pills quiet, and only light/dim them
+            // once the set is actually filtered.
+            const allOn = kinds.every((k) => (filters as any)[k.key]);
+            return kinds.map((k) => {
+              const on = (filters as any)[k.key];
+              return (
+                <span
+                  key={k.key}
+                  className={`filter-pill ${on && !allOn ? "active" : ""} ${on ? "" : "off"}`}
+                  onClick={(e) => (e.altKey ? soloKind(k.key) : toggleKind(k.key))}
+                  title={`Toggle ${k.label.toLowerCase()} — ⌥-click to solo`}
+                >
+                  <span className="swatch" style={{ background: k.color }} />
+                  {k.label}
+                </span>
+              );
+            });
+          })()}
         </div>
 
-        <div className="filter-group">
-          <span
-            className={`filter-pill ${showArchived ? "active" : ""}`}
-            onClick={() => setShowArchived((v) => !v)}
-            title="Include archived cards on the board"
-          >
-            {showArchived ? "✓ Archived" : "Show archived"}
-          </span>
-          <span
-            className={`filter-pill ${showDerived ? "active" : ""}`}
-            onClick={() => setShowDerived((v) => !v)}
-            title="Show the dashed strings derived from relations (resides at, member of, quest giver)"
-          >
-            {showDerived ? "✓ Derived strings" : "Derived strings"}
-          </span>
-        </div>
-
-        <div className={`filter-group ${filters.sessions !== "all" ? "active" : ""}`}>
+        <div className={`filter-group ${filters.sessions !== "all" ? "active" : "bare"}`}>
           <select
             className="session-focus"
             value={filters.sessions}
@@ -481,8 +484,44 @@ export function NoticeBoard({
           </select>
         </div>
 
+        <div style={{ position: "relative" }}>
+          <button
+            className="btn btn-ghost"
+            onClick={() => setViewMenuOpen((o) => !o)}
+            title="View options: archived cards, derived strings"
+          >
+            <Icon name="eye" size={14} /> View
+          </button>
+          {viewMenuOpen && (
+            <>
+              <div
+                onClick={() => setViewMenuOpen(false)}
+                style={{ position: "fixed", inset: 0, zIndex: 40 }}
+              />
+              <div className="view-menu">
+                <label className="view-menu-row" title="Include archived cards on the board">
+                  <input
+                    type="checkbox"
+                    checked={showArchived}
+                    onChange={(e) => setShowArchived(e.target.checked)}
+                  />
+                  Show archived cards
+                </label>
+                <label className="view-menu-row" title="Show the dashed strings derived from relations (resides at, member of, quest giver)">
+                  <input
+                    type="checkbox"
+                    checked={showDerived}
+                    onChange={(e) => setShowDerived(e.target.checked)}
+                  />
+                  Derived strings
+                </label>
+              </div>
+            </>
+          )}
+        </div>
+
         {canEdit && <button
-          className="btn"
+          className="btn btn-ghost"
           onClick={onTidy}
           disabled={tidying}
           title="Auto-arrange the board: connected cards cluster, same-kind cards group, starred cards stay put"
@@ -491,7 +530,7 @@ export function NoticeBoard({
         </button>}
 
         {canEdit && <button
-          className={`btn ${connectMode ? "btn-primary" : ""}`}
+          className={`btn ${connectMode ? "btn-primary" : "btn-ghost"}`}
           onClick={() => { setConnectMode((m) => !m); setConnectSource(null); }}
           title="Draw a connection between two cards"
         >

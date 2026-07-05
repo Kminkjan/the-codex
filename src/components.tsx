@@ -206,7 +206,7 @@ export function PosterCard({ person }: { person: any }) {
         {person.race
           ? <span><strong>Race</strong> · {person.race}</span>
           : <span />}
-        {sess && <span>Sess {sess.num}</span>}
+        {sess && <span>S{sess.num}</span>}
       </div>
     </div>
   );
@@ -335,6 +335,9 @@ export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, counts 
   const totalArchived = kinds.reduce((sum, k) => sum + (counts[k.key]?.archived ?? 0), 0);
   // View filter, not a write — available to read-only viewers too.
   const [arcFilter, setArcFilter] = useState<string>("all");
+  // Progressive disclosure: the list is recency-biased, so only the newest
+  // few sessions render until expanded.
+  const [showAllSessions, setShowAllSessions] = useState(false);
   const arcsById = new Map(campaign.arcs.map((a) => [a.id, a]));
   // Fall back to "all" if the selected arc was deleted (possibly live, from
   // another tab) so the list and the select never disagree.
@@ -444,15 +447,17 @@ export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, counts 
           value={effectiveArcFilter}
           onChange={(e) => setArcFilter(e.target.value)}
           title="Filter sessions by arc"
+          // View control, not an edit affordance — dashed borders mean
+          // "editable" everywhere else, so this stays borderless.
           style={{
             margin: "2px 16px 6px",
             background: "transparent",
-            border: "1px dashed var(--ink-faded)",
-            fontFamily: "var(--font-fell)",
-            fontStyle: "italic",
-            fontSize: 12,
+            border: "none",
+            fontFamily: "var(--font-fell-sc)",
+            letterSpacing: ".08em",
+            fontSize: 11,
             color: "var(--ink-secondary)",
-            padding: "2px 6px",
+            padding: "2px 4px 2px 0",
             cursor: "pointer",
           }}
         >
@@ -462,12 +467,32 @@ export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, counts 
           ))}
         </select>
       )}
-      {visibleSessions.slice().reverse().map((s) => (
-        <div key={s.id} className="session-chip" onClick={() => onOpenEntity(s.id)}>
-          <span className="num">SESS {String(s.num).padStart(2, "0")}</span>
-          <span style={{ flex: 1 }}>{s.title}</span>
-        </div>
-      ))}
+      {(() => {
+        const SESSION_CAP = 8;
+        const newestFirst = visibleSessions.slice().reverse();
+        const shown = showAllSessions ? newestFirst : newestFirst.slice(0, SESSION_CAP);
+        const hidden = newestFirst.length - shown.length;
+        return (
+          <>
+            {shown.map((s) => (
+              <div key={s.id} className="session-chip" onClick={() => onOpenEntity(s.id)} title={s.title}>
+                <span className="num">S{String(s.num).padStart(2, "0")}</span>
+                <span className="title">{s.title}</span>
+              </div>
+            ))}
+            {hidden > 0 && (
+              <div className="session-more" onClick={() => setShowAllSessions(true)}>
+                … {hidden} earlier {hidden === 1 ? "session" : "sessions"}
+              </div>
+            )}
+            {showAllSessions && newestFirst.length > SESSION_CAP && (
+              <div className="session-more" onClick={() => setShowAllSessions(false)}>
+                show fewer
+              </div>
+            )}
+          </>
+        );
+      })()}
 
       <div style={{
         padding: "16px", marginTop: 12, borderTop: "1px dashed var(--vellum-deep)",

@@ -643,22 +643,38 @@ button.session-pin { line-height: 1; }
 /* Session chip in sidebar */
 .session-chip {
   display: flex; align-items: center; gap: 8px;
-  padding: 6px 16px 6px 20px;
+  padding: 5px 16px 5px 20px;
   font-family: var(--font-fell);
   font-size: 14.5px;
   color: var(--ink-body);
   cursor: pointer;
 }
 .session-chip:hover { background: rgba(139,94,40,.06); }
+/* Plain-text number column — no chip chrome, fixed width so titles align. */
 .session-chip .num {
   font-family: var(--font-fell-sc);
   font-size: 11.5px;
-  background: var(--paper-cream);
-  border: 1px solid var(--vellum-deep);
-  padding: 2px 6px;
-  border-radius: 3px;
-  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-secondary);
+  flex: 0 0 36px;
 }
+.session-chip .title {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* "… N earlier sessions" expander under the capped list. */
+.session-more {
+  padding: 5px 16px 5px 64px;
+  font-family: var(--font-fell);
+  font-style: italic;
+  font-size: 12.5px;
+  color: var(--ink-faded);
+  cursor: pointer;
+}
+.session-more:hover { color: var(--ink-secondary); }
 
 /* ── Main content area ───────────────────── */
 .main {
@@ -710,17 +726,28 @@ button.session-pin { line-height: 1; }
   border: 1px solid var(--vellum-deep);
   border-radius: 5px;
 }
+/* Borderless variant: grouping comes from spacing, not chrome. Used for the
+   kind pills (their active states are grouping enough) and the session focus
+   at rest — the boxed look is reserved for a filter that's actually on. */
+.filter-group.bare {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
 .filter-pill {
   padding: 4px 10px;
   font-family: var(--font-fell);
   font-size: 12px;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
   border-radius: 3px;
   cursor: pointer;
   display: inline-flex; align-items: center; gap: 5px;
   border: 1px solid transparent;
 }
 .filter-pill:hover { color: var(--ink); }
+/* Toggled-off kind while the board is filtered: visibly muted. */
+.filter-pill.off { opacity: .45; }
+.filter-pill.off:hover { opacity: .8; }
 .filter-pill.active {
   background: var(--vellum-light);
   color: var(--ink);
@@ -753,6 +780,31 @@ button.session-pin { line-height: 1; }
   box-shadow: 0 1px 2px rgba(40,20,5,.12);
 }
 .filter-group.active .session-focus { color: var(--ink); }
+
+/* View-options popover (board toolbar) — rare toggles live behind one ghost
+   button instead of a permanent pill group. */
+.view-menu {
+  position: absolute;
+  top: 100%; right: 0;
+  margin-top: 6px;
+  min-width: 200px;
+  background: var(--vellum-light);
+  border: 1px solid var(--ink-faded);
+  box-shadow: 0 8px 24px rgba(40,20,5,.25);
+  z-index: 50;
+  padding: 6px 0;
+}
+.view-menu-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 14px;
+  font-family: var(--font-fell);
+  font-size: 13px;
+  color: var(--ink);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.view-menu-row:hover { background: rgba(139,94,40,.08); }
+.view-menu-row input[type="checkbox"] { accent-color: var(--bloodred); margin: 0; }
 
 /* ── Notice board canvas ─────────────────── */
 .board-canvas {

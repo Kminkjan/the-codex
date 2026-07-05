@@ -85,9 +85,9 @@ export function ArcsPage({ onOpenEntity }: { onOpenEntity: (id: string) => void 
               )}
               <div style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 10 }}>
                 {assigned.map((s) => (
-                  <div key={s.id} className="session-chip" onClick={() => onOpenEntity(s.id)}>
-                    <span className="num">SESS {String(s.num).padStart(2, "0")}</span>
-                    <span style={{ flex: 1 }}>{s.title}</span>
+                  <div key={s.id} className="session-chip" onClick={() => onOpenEntity(s.id)} title={s.title}>
+                    <span className="num">S{String(s.num).padStart(2, "0")}</span>
+                    <span className="title">{s.title}</span>
                   </div>
                 ))}
                 {assigned.length === 0 && (
@@ -113,9 +113,9 @@ export function ArcsPage({ onOpenEntity }: { onOpenEntity: (id: string) => void 
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 8 }}>
               {unassigned.map((s) => (
-                <div key={s.id} className="session-chip" onClick={() => onOpenEntity(s.id)}>
-                  <span className="num">SESS {String(s.num).padStart(2, "0")}</span>
-                  <span style={{ flex: 1 }}>{s.title}</span>
+                <div key={s.id} className="session-chip" onClick={() => onOpenEntity(s.id)} title={s.title}>
+                  <span className="num">S{String(s.num).padStart(2, "0")}</span>
+                  <span className="title">{s.title}</span>
                 </div>
               ))}
             </div>
