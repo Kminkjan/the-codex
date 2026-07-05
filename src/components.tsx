@@ -185,12 +185,15 @@ export function PosterCard({ person }: { person: any }) {
   // itself lives on the detail sheet.
   const seenLive = !!campaign.activeSessionId
     && (campaign.sessionParticipants[campaign.activeSessionId] ?? []).includes(person.id);
+  // Allies dominate the board, so their band is noise — a band's presence is
+  // the signal (Wanted / Of Note), plain allies go headerless. Headerless
+  // cards get top clearance so the portrait sits below the pin-head and the
+  // seen-live dot instead of flush under them.
+  const headerless = person.disposition === "ally";
   return (
-    <div className="card-poster">
+    <div className={`card-poster${headerless ? " headerless" : ""}`}>
       {seenLive && <span className="seen-live-dot" title="Seen this session" />}
-      {/* Allies dominate the board, so their band is noise — a band's presence
-          is the signal (Wanted / Of Note), plain allies go headerless. */}
-      {person.disposition !== "ally" && (
+      {!headerless && (
         <div className="wanted">
           {person.disposition === "hostile" ? "✦ Wanted ✦" : "✦ Of Note ✦"}
         </div>
