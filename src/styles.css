@@ -850,9 +850,6 @@ button.session-pin { line-height: 1; }
   opacity: .3;
   transition: opacity .18s ease;
 }
-/* Resting strings only need to hint that a connection exists — on the dark
-   board the hover-lit behavior carries the focus, so rest even quieter. */
-[data-theme="grimoire"] .yarn-layer .yarn { opacity: .22; }
 .yarn-layer .yarn.lit { opacity: 1; }
 .yarn-layer .yarn.faded { opacity: .12; }
 .yarn-path {
@@ -985,6 +982,9 @@ button.session-pin { line-height: 1; }
   position: relative;
   border: 1px solid var(--card-edge);
 }
+/* Headerless (ally) cards have no band to sit under the pin-head / seen dot,
+   so add the clearance the band used to provide before the portrait. */
+.card-poster.headerless { padding-top: 22px; }
 .card-poster::before {
   /* torn top edge */
   content: '';
@@ -1005,7 +1005,9 @@ button.session-pin { line-height: 1; }
 .card-poster .portrait {
   width: 100%; aspect-ratio: 1 / 1;
   /* Blended toward the card stock so portrait-less cards recede — cards with
-     real art should be the bright ones. */
+     real art should be the bright ones. Plain-gradient fallback first so
+     engines without color-mix() still get a placeholder (not a void). */
+  background: linear-gradient(135deg, var(--vellum-dark) 25%, var(--vellum) 50%, var(--vellum-dark) 75%);
   background: linear-gradient(135deg,
     color-mix(in srgb, var(--vellum-dark) 55%, var(--paper-scroll)) 25%,
     color-mix(in srgb, var(--vellum) 45%, var(--paper-scroll)) 50%,
@@ -1419,7 +1421,9 @@ button.session-pin { line-height: 1; }
   width: 70%; height: 80%;
   transform: translateX(-50%);
   background: var(--ink);
-  opacity: .5;
+  /* Kept fairly present — on the detail sheet the silhouette is the
+     "upload a portrait" affordance, not board clutter to recede. */
+  opacity: .65;
   -webkit-mask: radial-gradient(circle at 50% 22%, #000 17%, transparent 17.5%) no-repeat,
                 radial-gradient(ellipse 60% 80% at 50% 90%, #000 55%, transparent 56%) no-repeat;
           mask: radial-gradient(circle at 50% 22%, #000 17%, transparent 17.5%) no-repeat,
