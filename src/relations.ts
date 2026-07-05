@@ -27,7 +27,10 @@ export const LOCATION_WEIGHT = 2;
 export const MANUAL_WEIGHT = 2;
 export const GIVER_WEIGHT = 1;
 
-const pairKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
+// Order-independent key for an entity pair. Exported so consumers that
+// aggregate per-pair (boardLayout's weight collapse, the analysis scripts)
+// can't drift from the format used here.
+export const pairKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
 // A NUL char separates pair-key from label so no (id, label) combination can
 // collide with another. Built via fromCharCode so the source stays plain text
 // (a literal NUL byte would make git treat this file as binary).

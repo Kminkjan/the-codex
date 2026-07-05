@@ -10,7 +10,7 @@ import { packSiblings, packEnclose } from "d3-hierarchy";
 import Graph from "graphology";
 import louvain from "graphology-communities-louvain";
 import type { BoardPosition, KindKey } from "./data";
-import type { DerivedEdge } from "./relations";
+import { pairKey, type DerivedEdge } from "./relations";
 
 // Card footprints per kind — the single source of truth shared by the board
 // renderer (centerOf / findFreeSpot in board.tsx) and the tidy layout, so both
@@ -44,8 +44,9 @@ export type TidyTuning = {
 };
 
 // mulberry32 — a tiny seeded PRNG so Louvain's tie-breaking is reproducible
-// and "Tidy" stays deterministic run-to-run.
-function mulberry32(seed: number) {
+// and "Tidy" stays deterministic run-to-run. Exported for the analysis
+// scripts so their Louvain runs match the app's exactly.
+export function mulberry32(seed: number) {
   let a = seed >>> 0;
   return () => {
     a = (a + 0x6d2b79f5) >>> 0;
@@ -123,7 +124,7 @@ export function computeTidyLayout(input: {
   const pairWeight = new Map<string, number>();
   for (const e of edges) {
     if (e.a === e.b || !cardIds.has(e.a) || !cardIds.has(e.b)) continue;
-    const key = e.a < e.b ? `${e.a}|${e.b}` : `${e.b}|${e.a}`;
+    const key = pairKey(e.a, e.b);
     pairWeight.set(key, Math.max(pairWeight.get(key) ?? 0, e.weight));
   }
   for (const key of pairWeight.keys()) {

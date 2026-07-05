@@ -1,78 +1,34 @@
 // A/B harness: shipped weighted label-propagation vs weighted Louvain
-// (graphology-communities-louvain) over the REAL fist-of-ilmater board graph,
-// fed by the same deriveRelations() projection the app uses.
+// (graphology-communities-louvain) over a REAL campaign's board graph, fed by
+// the same deriveRelations() projection the app uses.
 //
 // Usage: npx tsx scripts/ab-clustering.ts [campaignId]
 //
-// Reads VITE_SUPABASE_URL / VITE_SUPABASE_PUBLISHABLE_KEY from .env (anon key —
-// reads are open to anon per RLS). Prints, per algorithm: community count/sizes,
-// members by name, weighted modularity, cut edges (edges spanning communities),
-// plus a synthetic "low-weight bridge" acceptance test: two dense w3 cliques
-// joined by ONE w2 manual string must NOT merge.
+// Prints, per algorithm: community count/sizes, members by name, weighted
+// modularity, cut edges (edges spanning communities), plus a synthetic
+// "low-weight bridge" acceptance test: two dense w3 cliques joined by ONE w2
+// manual string must NOT merge.
+//
+// Outcome (2026-07-05, campaigns fist-of-ilmater + fendwick): Louvain at
+// resolution 0.9 won — label propagation tore semantic groups apart (split the
+// party's guild from its own leader, orphaned members into 2-card islands) at
+// clearly lower modularity. boardLayout.ts ships Louvain accordingly; this
+// harness stays for re-evaluating on future data.
 
-import { readFileSync } from "node:fs";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
-import { createClient } from "@supabase/supabase-js";
 import Graph from "graphology";
 import louvain from "graphology-communities-louvain";
-import { deriveRelations, type DerivedEdge } from "../src/relations";
+import { pairKey, type DerivedEdge } from "../src/relations";
+import { mulberry32 } from "../src/boardLayout";
+import { loadCampaignGraph } from "./campaignGraph";
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CAMPAIGN = process.argv[2] ?? "fist-of-ilmater";
-
-// ---------------------------------------------------------------- env / client
-const env: Record<string, string> = {};
-for (const line of readFileSync(join(ROOT, ".env"), "utf8").split(/\r?\n/)) {
-  const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
-  if (m) env[m[1]] = m[2];
-}
-const supabase = createClient(env.VITE_SUPABASE_URL, env.VITE_SUPABASE_PUBLISHABLE_KEY);
-
-// ------------------------------------------------------------------ fetch data
-const tables = [
-  "people", "locations", "quests", "goals", "factions", "items", "lore",
-  "sessions", "events", "connections", "board_positions",
-] as const;
-const rows: Record<string, any[]> = {};
-await Promise.all(tables.map(async (t) => {
-  const { data, error } = await supabase.from(t).select("*").eq("campaign_id", CAMPAIGN);
-  if (error) throw new Error(`${t}: ${error.message}`);
-  rows[t] = data ?? [];
-}));
-
-// Minimal campaign shape — only the fields deriveRelations reads.
-const campaign = {
-  people: rows.people.map((r) => ({ id: r.id, faction: r.faction_id ?? undefined, location: r.location_id ?? undefined })),
-  quests: rows.quests.map((r) => ({ id: r.id, giver: r.giver_id ?? undefined })),
-  events: rows.events.map((r) => ({ id: r.id, location: r.location_id ?? undefined })),
-  connections: rows.connections.map((r) => [r.from_id, r.to_id, r.label ?? ""] as [string, string, string]),
-} as any;
-
-const name = new Map<string, string>();
-const archived = new Set<string>();
-for (const t of tables) {
-  if (t === "connections" || t === "board_positions") continue;
-  for (const r of rows[t]) {
-    name.set(r.id, r.name ?? r.title ?? r.text ?? r.id);
-    if (r.archived) archived.add(r.id);
-  }
-}
-
-// Board cards the way onTidy sees them: entities with a board position, not archived.
-const cards = rows.board_positions
-  .filter((r) => !archived.has(r.entity_id))
-  .map((r) => ({ id: r.entity_id as string, kind: r.kind as string }));
-const cardIds = new Set(cards.map((c) => c.id));
-
-const allEdges = deriveRelations(campaign);
-const edges = allEdges.filter((e) => cardIds.has(e.a) && cardIds.has(e.b));
+const { name, cards, edges } = await loadCampaignGraph(CAMPAIGN);
 
 // Collapse to one weight per unordered pair (MAX) — same as boardLayout.ts.
 const pairWeight = new Map<string, number>();
 for (const e of edges) {
   if (e.a === e.b) continue;
-  const key = e.a < e.b ? `${e.a}|${e.b}` : `${e.b}|${e.a}`;
+  const key = pairKey(e.a, e.b);
   pairWeight.set(key, Math.max(pairWeight.get(key) ?? 0, e.weight));
 }
 
@@ -92,7 +48,8 @@ function adjacency(ids: string[], pairs: Pairs) {
   return adj;
 }
 
-// Exact copy of the shipped weighted label propagation (boardLayout.ts).
+// Copy of the weighted label propagation that shipped before Louvain replaced
+// it (kept here as the A/B baseline).
 function labelProp(ids: string[], pairs: Pairs): Map<string, string> {
   const adjW = adjacency(ids, pairs);
   const sortedIds = [...ids].sort();
@@ -119,18 +76,6 @@ function labelProp(ids: string[], pairs: Pairs): Map<string, string> {
   return community;
 }
 
-// mulberry32 — deterministic rng for Louvain.
-function seededRng(seed: number) {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
 function runLouvain(ids: string[], pairs: Pairs, resolution: number): Map<string, string> {
   const g = new Graph({ type: "undirected" });
   for (const id of [...ids].sort()) g.addNode(id);
@@ -140,7 +85,7 @@ function runLouvain(ids: string[], pairs: Pairs, resolution: number): Map<string
   }
   const res = louvain(g, {
     resolution,
-    rng: seededRng(42),
+    rng: mulberry32(42),
     getEdgeWeight: "weight",
   });
   return new Map(Object.entries(res).map(([id, c]) => [id, String(c)]));
@@ -175,7 +120,8 @@ function report(tag: string, ids: string[], pairs: Pairs, community: Map<string,
   const groups = new Map<string, string[]>();
   for (const id of ids) {
     const c = community.get(id) ?? id;
-    (groups.get(c) ?? groups.set(c, []).get(c)!).push(id);
+    if (!groups.has(c)) groups.set(c, []);
+    groups.get(c)!.push(id);
   }
   const connected = new Set([...pairs.keys()].flatMap((k) => k.split("|")));
   const real = [...groups.values()].filter((g) => g.length > 1 || connected.has(g[0]));
@@ -197,17 +143,20 @@ function report(tag: string, ids: string[], pairs: Pairs, community: Map<string,
 
 // -------------------------------------------------------------- real-data A/B
 const ids = cards.map((c) => c.id);
-report("label propagation (shipped)", ids, pairWeight, labelProp(ids, pairWeight), edges);
+report("label propagation (baseline)", ids, pairWeight, labelProp(ids, pairWeight), edges);
 for (const r of [0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2]) {
   report(`louvain resolution=${r}`, ids, pairWeight, runLouvain(ids, pairWeight, r), edges);
 }
 
-// Determinism spot-check: run each twice, compare.
+// Determinism spot-check: run each twice, compare as partitions (labels may
+// differ; canonical signature makes the comparison label-agnostic).
 const same = (a: Map<string, string>, b: Map<string, string>) => {
-  // compare as partitions (labels may differ): canonical signature
   const sig = (m: Map<string, string>) => {
     const byC = new Map<string, string[]>();
-    for (const [id, c] of m) (byC.get(c) ?? byC.set(c, []).get(c)!).push(id);
+    for (const [id, c] of m) {
+      if (!byC.has(c)) byC.set(c, []);
+      byC.get(c)!.push(id);
+    }
     return [...byC.values()].map((g) => g.sort().join(",")).sort().join(";");
   };
   return sig(a) === sig(b);

@@ -4,54 +4,11 @@
 // bounding box / aspect, and layout time.
 //
 // Usage: npx tsx scripts/layout-check.ts [campaignId]
-import { readFileSync } from "node:fs";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
-import { createClient } from "@supabase/supabase-js";
 import { computeTidyLayout, cardDims } from "../src/boardLayout";
-import { deriveRelations } from "../src/relations";
-import type { BoardPosition, KindKey } from "../src/data";
+import { loadCampaignGraph } from "./campaignGraph";
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CAMPAIGN = process.argv[2] ?? "fist-of-ilmater";
-
-const env: Record<string, string> = {};
-for (const l of readFileSync(join(ROOT, ".env"), "utf8").split(/\r?\n/)) {
-  const m = l.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
-  if (m) env[m[1]] = m[2];
-}
-const sb = createClient(env.VITE_SUPABASE_URL, env.VITE_SUPABASE_PUBLISHABLE_KEY);
-
-const tables = ["people", "locations", "quests", "goals", "factions", "items", "lore", "sessions", "events", "connections", "board_positions"] as const;
-const rows: Record<string, any[]> = {};
-await Promise.all(tables.map(async (t) => {
-  const { data, error } = await sb.from(t).select("*").eq("campaign_id", CAMPAIGN);
-  if (error) throw new Error(`${t}: ${error.message}`);
-  rows[t] = data ?? [];
-}));
-
-// Minimal campaign shape — only the fields deriveRelations reads.
-const campaign = {
-  people: rows.people.map((r) => ({ id: r.id, faction: r.faction_id ?? undefined, location: r.location_id ?? undefined })),
-  quests: rows.quests.map((r) => ({ id: r.id, giver: r.giver_id ?? undefined })),
-  events: rows.events.map((r) => ({ id: r.id, location: r.location_id ?? undefined })),
-  connections: rows.connections.map((r) => [r.from_id, r.to_id, r.label ?? ""] as [string, string, string]),
-} as any;
-
-const archived = new Set<string>();
-for (const t of tables) {
-  if (t === "connections" || t === "board_positions") continue;
-  for (const r of rows[t]) if (r.archived) archived.add(r.id);
-}
-
-const positions: Record<string, BoardPosition> = {};
-for (const r of rows.board_positions) {
-  if (archived.has(r.entity_id)) continue;
-  positions[r.entity_id] = { x: r.x, y: r.y, rot: r.rot ?? 0, kind: r.kind as KindKey };
-}
-const cards = Object.keys(positions).map((id) => ({ id, kind: positions[id].kind, pinned: false }));
-const cardIds = new Set(cards.map((c) => c.id));
-const edges = deriveRelations(campaign).filter((e) => cardIds.has(e.a) && cardIds.has(e.b));
+const { cards, positions, edges } = await loadCampaignGraph(CAMPAIGN);
 
 const t0 = Date.now();
 const out = computeTidyLayout({ cards, positions, edges });
