@@ -1683,6 +1683,15 @@ button.session-pin { line-height: 1; }
   letter-spacing: .08em;
   color: var(--ink-secondary);
 }
+.rail-chip .rc-rel .rc-tag {
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 3px;
+  background: var(--paper-note);
+  border: 1px solid var(--ink-ghost);
+  color: var(--ink-secondary);
+  letter-spacing: .06em;
+}
 .rail-chip.people  { border-left-color: var(--bloodred); }
 .rail-chip.locations { border-left-color: var(--teal-deep); }
 .rail-chip.quests  { border-left-color: var(--mustard); }
