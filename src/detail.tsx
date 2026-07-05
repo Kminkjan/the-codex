@@ -290,7 +290,10 @@ function EventParticipantsEditor({ eventId, onOpen }: { eventId: string; onOpen:
           <div className="rc-icon"><Icon name="people" size={14} /></div>
           <div style={{ flex: 1 }}>
             <div className="rc-name">{p.name}</div>
-            <div className="rc-rel">was present</div>
+            <div className="rc-rel">
+              <Icon name="link" size={10} style={{ color: "var(--ink-faded)", marginRight: 4, verticalAlign: "middle" }} />
+              was present
+            </div>
           </div>
           {canEdit ? (
             <button
@@ -347,6 +350,9 @@ interface DetailSheetProps {
 interface Related {
   entity: any;
   rel: string;
+  // Structured (FK / junction) links get the link icon in the rail; hand-drawn
+  // manual strings from the connections table don't.
+  structured: boolean;
 }
 
 export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
@@ -384,7 +390,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
     // Dedupe by (entity, label): parallel manual strings between the same pair
     // with different labels ("ally of" AND "owes a debt to") must both survive.
     if (!related[k].find((r) => r.entity.id === ent.id && r.rel === e.label)) {
-      related[k].push({ entity: ent, rel: e.label });
+      related[k].push({ entity: ent, rel: e.label, structured: e.source === "fk" });
     }
   });
   if ((entity as any).session || (entity as any).lastSeen) {
@@ -394,6 +400,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
       related.sessions = related.sessions || [{
         entity: s,
         rel: kind === "events" ? "during" : (entity as any).session ? "introduced in" : "last seen in",
+        structured: true,
       }];
     }
   }
@@ -402,7 +409,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
     if (a) {
       related.arcs = related.arcs || [];
       if (!related.arcs.find((r) => r.entity.id === a.id)) {
-        related.arcs.push({ entity: a, rel: "part of arc" });
+        related.arcs.push({ entity: a, rel: "part of arc", structured: true });
       }
     }
   }
@@ -411,13 +418,13 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
     campaign.sessions.filter((s) => s.arc === entityId).forEach((s) => {
       related.sessions = related.sessions || [];
       if (!related.sessions.find((r) => r.entity.id === s.id)) {
-        related.sessions.push({ entity: findEntity(s.id), rel: "chapter of this arc" });
+        related.sessions.push({ entity: findEntity(s.id), rel: "chapter of this arc", structured: true });
       }
     });
     campaign.quests.filter((q) => q.arc === entityId).forEach((q) => {
       related.quests = related.quests || [];
       if (!related.quests.find((r) => r.entity.id === q.id)) {
-        related.quests.push({ entity: findEntity(q.id), rel: "woven into this arc" });
+        related.quests.push({ entity: findEntity(q.id), rel: "woven into this arc", structured: true });
       }
     });
   }
@@ -438,7 +445,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
         if (!rel) return;
         related.events = related.events || [];
         if (!related.events.find((r) => r.entity.id === ev.id)) {
-          related.events.push({ entity: findEntity(ev.id), rel });
+          related.events.push({ entity: findEntity(ev.id), rel, structured: true });
         }
       });
     }
@@ -456,6 +463,12 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
   const sessionOptions = campaign.sessions
     .map((s) => ({ id: s.id, label: `S${String(s.num).padStart(2, "0")} — ${s.title}` }));
   const locationOptions = campaign.locations.map((l) => ({ id: l.id, label: l.name }));
+  const factionOptions = campaign.factions.map((f) => ({ id: f.id, label: f.name }));
+  // Quest giver: people or factions, split into two <optgroup>s.
+  const giverOptions = [
+    ...campaign.people.map((p) => ({ id: p.id, label: p.name, group: "People" })),
+    ...campaign.factions.map((f) => ({ id: f.id, label: f.name, group: "Factions" })),
+  ];
 
   const onDelete = () => {
     if (!entity) return;
@@ -576,6 +589,8 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                     <Stat label="Role" empty={!(entity as any).role?.trim()} valueStyle={{ fontSize: 14 }}><EditableText value={(entity as any).role ?? ""} onSave={(v) => patch({ role: v })} placeholder="—" /></Stat>
                     <Stat label="Disposition" empty={!(entity as any).disposition} valueStyle={{ textTransform: "capitalize" }}><EnumSelect value={(entity as any).disposition} options={DISPOSITION_OPTIONS} allowClear onSave={(v) => patch({ disposition: v })} /></Stat>
                     <Stat label="Alignment" empty={!(entity as any).alignment?.trim()} valueStyle={{ fontSize: 13 }}><EditableText value={(entity as any).alignment ?? ""} onSave={(v) => patch({ alignment: v })} placeholder="—" /></Stat>
+                    <Stat label="Home" empty={!(entity as any).location} span={2} valueStyle={{ fontSize: 13 }}><EntitySelect value={(entity as any).location} options={locationOptions} allowClear onSave={(id) => patch({ location: id ?? "" })} /></Stat>
+                    <Stat label="Faction" empty={!(entity as any).faction} span={2} valueStyle={{ fontSize: 13 }}><EntitySelect value={(entity as any).faction} options={factionOptions} allowClear onSave={(id) => patch({ faction: id ?? "" })} /></Stat>
                   </>
                 )}
                 {kind === "locations" && (
@@ -593,6 +608,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                       const s = campaign.sessions.find((x) => x.id === (entity as any).session);
                       return s ? `Sess ${s.num}` : (entity as any).session?.toUpperCase();
                     })()}</Stat>
+                    <Stat label="Giver" empty={!(entity as any).giver} span={2} valueStyle={{ fontSize: 13 }}><EntitySelect value={(entity as any).giver} options={giverOptions} allowClear onSave={(id) => patch({ giver: id ?? "" })} /></Stat>
                     <Stat label="Arc" empty={!(entity as any).arc} span={2} valueStyle={{ fontSize: 13 }}><EntitySelect value={(entity as any).arc} options={arcOptions} allowClear onSave={(id) => patch({ arc: id ?? "" })} /></Stat>
                   </>
                 )}
@@ -815,7 +831,12 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                         <div className="rc-icon"><Icon name={kindIcon[k]} size={14} /></div>
                         <div style={{ flex: 1 }}>
                           <div className="rc-name">{entityLabel(r.entity)}</div>
-                          <div className="rc-rel">{r.rel}</div>
+                          <div className="rc-rel">
+                            {r.structured && (
+                              <Icon name="link" size={10} style={{ color: "var(--ink-faded)", marginRight: 4, verticalAlign: "middle" }} />
+                            )}
+                            {r.rel}
+                          </div>
                         </div>
                         <Icon name="chevron" size={12} />
                       </div>

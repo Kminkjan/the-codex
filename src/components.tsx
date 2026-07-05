@@ -1023,7 +1023,9 @@ export function EnumSelect<T extends string>({
 
 interface EntitySelectProps {
   value: string | undefined;
-  options: Array<{ id: string; label: string }>;
+  // Options may carry an optional `group`; when any do, they render as
+  // <optgroup> sections (e.g. a quest giver picker split into People/Factions).
+  options: Array<{ id: string; label: string; group?: string }>;
   onSave: (next: string | null) => void | Promise<void>;
   allowClear?: boolean;
   className?: string;
@@ -1049,6 +1051,19 @@ export function EntitySelect({
       </span>
     );
   }
+  // Group options into <optgroup>s only when at least one carries a `group`;
+  // otherwise keep the flat list (unchanged for existing callers). Groups
+  // render in first-seen order.
+  const grouped = options.some((o) => o.group);
+  const groupOrder: string[] = [];
+  const byGroup = new Map<string, typeof options>();
+  if (grouped) {
+    for (const o of options) {
+      const g = o.group ?? "";
+      if (!byGroup.has(g)) { byGroup.set(g, []); groupOrder.push(g); }
+      byGroup.get(g)!.push(o);
+    }
+  }
   return (
     <select
       className={className}
@@ -1072,9 +1087,17 @@ export function EntitySelect({
       }}
     >
       {(allowClear || !current) && <option value="">—</option>}
-      {options.map((o) => (
-        <option key={o.id} value={o.id}>{o.label}</option>
-      ))}
+      {grouped
+        ? groupOrder.map((g) => (
+            <optgroup key={g} label={g}>
+              {byGroup.get(g)!.map((o) => (
+                <option key={o.id} value={o.id}>{o.label}</option>
+              ))}
+            </optgroup>
+          ))
+        : options.map((o) => (
+            <option key={o.id} value={o.id}>{o.label}</option>
+          ))}
     </select>
   );
 }
