@@ -11,6 +11,7 @@ import {
 import { Icon } from "./icons";
 import { bulkArchive } from "./mutations";
 import { useAuth } from "./auth";
+import { deriveRelations } from "./relations";
 
 interface Suggestion {
   kind: KindKey;
@@ -32,8 +33,11 @@ function computeSuggestions(campaign: Campaign, n: number): Suggestion[] {
     if (q.session && recentSessionIds.has(q.session)) touchedByRecent.add(q.id);
   }
 
+  // Neighbours from the unified edge set (manual strings + FK relations), so an
+  // entity kept alive only by an FK link (e.g. a location a recently-seen person
+  // resides at) also gets "kept alive by association" protection.
   const connectionNeighbours = new Map<string, Set<string>>();
-  for (const [a, b] of campaign.connections) {
+  for (const { a, b } of deriveRelations(campaign)) {
     if (!connectionNeighbours.has(a)) connectionNeighbours.set(a, new Set());
     if (!connectionNeighbours.has(b)) connectionNeighbours.set(b, new Set());
     connectionNeighbours.get(a)!.add(b);

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   type KindKey,
+  type BoardPosition,
   sortForDisplay,
   isArchivableKind,
 } from "./data";
@@ -9,8 +10,11 @@ import { useCampaign, useFindEntity, useKinds } from "./hooks";
 import { useAuth } from "./auth";
 import { CardBody, PinnedCard } from "./components";
 import { entityLabel } from "./data";
+import { computeTidyLayout, cardDims } from "./boardLayout";
+import { deriveRelations } from "./relations";
 import {
   upsertBoardPosition,
+  bulkUpsertBoardPositions,
   insertConnection,
   deleteConnection,
   createEntity,
@@ -56,7 +60,14 @@ export function NoticeBoard({
   const { canEdit } = useAuth();
 
   const positions = campaign.board;
-  const connections = campaign.connections;
+  // Unified relationship edges: hand-drawn strings (connections table) + the
+  // FK-derived relations (resides at / member of / quest giver / happened at),
+  // the same projection the detail sheet and cleanup panel read, so the board
+  // can't drift from them. deriveRelations reads only these arrays.
+  const edges = useMemo(
+    () => deriveRelations(campaign),
+    [campaign.connections, campaign.people, campaign.quests, campaign.events],
+  );
 
   // The board sizes itself to its content: the cork/frame and the yarn SVG
   // grow to enclose the furthest-flung card so nothing lands off-canvas and
@@ -82,6 +93,9 @@ export function NoticeBoard({
     return f;
   });
   const [showArchived, setShowArchived] = useState(false);
+  // FK-derived strings (dashed) can be hidden when the board gets busy; manual
+  // strings always show. This also scopes Tidy to what's visible (see onTidy).
+  const [showDerived, setShowDerived] = useState(true);
   const [scale, setScale] = useState(0.9);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [panning, setPanning] = useState(false);
@@ -97,8 +111,15 @@ export function NoticeBoard({
   const [flash, setFlash] = useState<{ id: string; n: number } | null>(null);
   const [gliding, setGliding] = useState(false);
   const flashId = flash?.id ?? null;
+  const [tidyAnim, setTidyAnim] = useState<Record<string, { x: number; y: number }> | null>(null);
+  const [tidying, setTidying] = useState(false);
   const canvasRef = useRef<HTMLDivElement>(null);
   const lastLocateSeq = useRef(-1);
+  const rafRef = useRef<number | null>(null);
+  // The final rounded target of an in-flight tidy; kept until campaign.board
+  // reflects it so cards don't flash back to their old spots between the write
+  // and realtime landing.
+  const pendingTargetRef = useRef<Record<string, { x: number; y: number }> | null>(null);
 
   const visible = (id: string) => {
     const pos = positions[id];
@@ -110,7 +131,9 @@ export function NoticeBoard({
     return true;
   };
 
-  const visibleConnections = connections.filter(([a, b]) => visible(a) && visible(b));
+  const visibleEdges = edges.filter(
+    (e) => visible(e.a) && visible(e.b) && (showDerived || e.source === "manual"),
+  );
 
   // The entities tied to the focused session: quests logged in it and people
   // last seen there (sessions link to nothing else in the model). null means
@@ -130,8 +153,8 @@ export function NoticeBoard({
   // outside the focused session collapse to headline-only (.pinned.receded)
   // but stay fully legible — a live session shouldn't ghost the whole board.
   const hoverSpot = hoverCard
-    ? new Set([hoverCard, ...visibleConnections.flatMap(([a, b]) =>
-        a === hoverCard ? [b] : b === hoverCard ? [a] : [])])
+    ? new Set([hoverCard, ...visibleEdges.flatMap((e) =>
+        e.a === hoverCard ? [e.b] : e.b === hoverCard ? [e.a] : [])])
     : null;
 
   const toggleKind = (k: KindKey) => setFilters((f) => ({ ...f, [k]: !(f as any)[k] }));
@@ -204,19 +227,20 @@ export function NoticeBoard({
     window.addEventListener("mouseup", onUp);
   };
 
-  const cardSize: Record<string, { w: number; h: number }> = {
-    people: { w: 220, h: 300 },
-    quests: { w: 240, h: 160 },
-    locations: { w: 210, h: 200 },
-    goals: { w: 200, h: 140 },
-    factions: { w: 180, h: 80 },
-    items: { w: 170, h: 90 },
-    lore: { w: 190, h: 90 },
+  // During a "Tidy" glide, tidyAnim holds the interpolated {x,y} per card; it
+  // overrides the persisted position for rendering only (same transient
+  // view-state pattern as drag/pan), then clears once realtime brings the
+  // written positions back through campaign.board.
+  const posOf = (id: string): BoardPosition | undefined => {
+    const base = positions[id];
+    if (!base) return undefined;
+    const anim = tidyAnim?.[id];
+    return anim ? { ...base, x: anim.x, y: anim.y } : base;
   };
   const centerOf = (id: string) => {
-    const p = positions[id];
+    const p = posOf(id);
     if (!p) return null;
-    const s = cardSize[p.kind] || { w: 200, h: 140 };
+    const s = cardDims(p.kind);
     return { x: p.x + s.w / 2, y: p.y + s.h / 2 };
   };
 
@@ -272,10 +296,10 @@ export function NoticeBoard({
   // returns the first slot whose rect clears every existing card; falls back to
   // a randomized drop if the board is packed.
   const findFreeSpot = (kind: string) => {
-    const s = cardSize[kind] || { w: 200, h: 140 };
+    const s = cardDims(kind);
     const pad = 24;
     const occupied = Object.values(positions).map((p) => {
-      const os = cardSize[p.kind] || { w: 200, h: 140 };
+      const os = cardDims(p.kind);
       return { x: p.x, y: p.y, w: os.w, h: os.h };
     });
     const overlaps = (x: number, y: number) =>
@@ -314,6 +338,90 @@ export function NoticeBoard({
     }
   };
 
+  // "Tidy board": force-directed re-layout of the *visible* cards into spheres
+  // of influence (see boardLayout.ts). Computes target spots, glides cards (and
+  // their yarn) there over ~0.9s, then persists the final positions in one bulk
+  // upsert. The layout normalizes to the top-left margin so the whole board
+  // reflows on-canvas as a unit.
+  const onTidy = () => {
+    if (!canEdit || tidying) return;
+    const cards = Object.keys(positions)
+      .filter((id) => visible(id))
+      .map((id) => ({
+        id,
+        kind: positions[id].kind,
+        pinned: !!(findEntity(id) as any)?.pinned,
+      }));
+    if (cards.length < 2) return;
+
+    // Cluster on what's visible: hiding derived strings scopes Tidy to manual
+    // edges (deliberate — mirrors the visible-cards-only footprint above).
+    const target = computeTidyLayout({ cards, positions, edges: visibleEdges });
+    const ids = Object.keys(target);
+    if (ids.length === 0) return;
+    const start: Record<string, { x: number; y: number }> = {};
+    ids.forEach((id) => { start[id] = { x: positions[id].x, y: positions[id].y }; });
+
+    setTidying(true);
+    const DURATION = 900;
+    const ease = (t: number) => 1 - Math.pow(1 - t, 3); // ease-out cubic
+    const t0 = performance.now();
+    const step = (now: number) => {
+      const e = ease(Math.min(1, (now - t0) / DURATION));
+      const frame: Record<string, { x: number; y: number }> = {};
+      ids.forEach((id) => {
+        frame[id] = {
+          x: start[id].x + (target[id].x - start[id].x) * e,
+          y: start[id].y + (target[id].y - start[id].y) * e,
+        };
+      });
+      setTidyAnim(frame);
+      if (e < 1) {
+        rafRef.current = requestAnimationFrame(step);
+        return;
+      }
+      rafRef.current = null;
+      // Snap to the rounded target (matches what the DB will store) and hold it
+      // via pendingTargetRef until realtime confirms; then persist once.
+      const rounded: Record<string, { x: number; y: number }> = {};
+      ids.forEach((id) => { rounded[id] = { x: Math.round(target[id].x), y: Math.round(target[id].y) }; });
+      setTidyAnim(rounded);
+      pendingTargetRef.current = rounded;
+      setTidying(false);
+      bulkUpsertBoardPositions(
+        ids.map((id) => ({
+          entityId: id,
+          pos: { ...rounded[id], rot: positions[id].rot, kind: positions[id].kind },
+        })),
+      ).catch((err) => {
+        console.error("bulkUpsertBoardPositions failed", err);
+        pendingTargetRef.current = null;
+        setTidyAnim(null);
+      });
+    };
+    rafRef.current = requestAnimationFrame(step);
+  };
+
+  // Clear the tidy override once campaign.board catches up to the written
+  // positions, so realtime state takes back over without a flash.
+  useEffect(() => {
+    const pending = pendingTargetRef.current;
+    if (!pending) return;
+    const settled = Object.keys(pending).every((id) => {
+      const p = positions[id];
+      return p && p.x === pending[id].x && p.y === pending[id].y;
+    });
+    if (settled) {
+      pendingTargetRef.current = null;
+      setTidyAnim(null);
+    }
+  }, [positions]);
+
+  // Cancel any in-flight glide if the board unmounts (e.g. campaign switch).
+  useEffect(() => () => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+  }, []);
+
   return (
     <>
       <div className="board-toolbar">
@@ -341,6 +449,13 @@ export function NoticeBoard({
           >
             {showArchived ? "✓ Archived" : "Show archived"}
           </span>
+          <span
+            className={`filter-pill ${showDerived ? "active" : ""}`}
+            onClick={() => setShowDerived((v) => !v)}
+            title="Show the dashed strings derived from relations (resides at, member of, quest giver)"
+          >
+            {showDerived ? "✓ Derived strings" : "Derived strings"}
+          </span>
         </div>
 
         <div className={`filter-group ${filters.sessions !== "all" ? "active" : ""}`}>
@@ -361,6 +476,15 @@ export function NoticeBoard({
               ))}
           </select>
         </div>
+
+        {canEdit && <button
+          className="btn"
+          onClick={onTidy}
+          disabled={tidying}
+          title="Auto-arrange the board: connected cards cluster, same-kind cards group, starred cards stay put"
+        >
+          <Icon name="sparkle" size={14} /> {tidying ? "Tidying…" : "Tidy board"}
+        </button>}
 
         {canEdit && <button
           className={`btn ${connectMode ? "btn-primary" : ""}`}
@@ -454,19 +578,22 @@ export function NoticeBoard({
                 <feGaussianBlur stdDeviation="0.6" />
               </filter>
             </defs>
-            {visibleConnections.map((conn, i) => {
-              const [a, b, label] = conn;
+            {visibleEdges.map((e, i) => {
+              const { a, b, label, source } = e;
               const A = centerOf(a), B = centerOf(b);
               if (!A || !B) return null;
               const faded = sessionFocus && !(sessionFocus.has(a) || sessionFocus.has(b));
               const isHover = hoverConn === i;
               const lit = isHover || (hoverCard !== null && (a === hoverCard || b === hoverCard));
+              // FK-derived edges render dashed and are read-only — they have no
+              // connections row, so no hover-delete affordance.
+              const derived = source === "fk";
               const pathD = yarnPath(A, B);
               const midX = (A.x + B.x) / 2;
               const midY = (A.y + B.y) / 2 + Math.max(20, Math.hypot(B.x - A.x, B.y - A.y) * 0.08) * 0.5;
               return (
                 <g key={i}
-                   className={`yarn ${lit ? "lit" : faded ? "faded" : ""}`}
+                   className={`yarn ${derived ? "derived" : ""} ${lit ? "lit" : faded ? "faded" : ""}`}
                    onMouseEnter={() => setHoverConn(i)}
                    onMouseLeave={() => setHoverConn(null)}
                    style={{ pointerEvents: "stroke" }}
@@ -481,11 +608,11 @@ export function NoticeBoard({
                     </text>
                   )}
                   <path id={`yp${i}`} d={pathD} fill="none" stroke="none" />
-                  {isHover && canEdit && (
+                  {isHover && canEdit && !derived && (
                     <g
                       transform={`translate(${midX} ${midY})`}
                       style={{ cursor: "pointer", pointerEvents: "all" }}
-                      onClick={(e) => { e.stopPropagation(); removeConnection(a, b, label); }}
+                      onClick={(ev) => { ev.stopPropagation(); removeConnection(a, b, label); }}
                     >
                       <circle r="11" fill="var(--bloodred)" stroke="var(--vellum-light)" strokeWidth="1.5" />
                       <path d="M -4 -4 L 4 4 M -4 4 L 4 -4" stroke="var(--vellum-light)" strokeWidth="2" strokeLinecap="round" />
@@ -501,11 +628,13 @@ export function NoticeBoard({
             const entity = findEntity(id);
             if (!entity) return null;
             if (!showArchived && (entity as any).archived) return null;
+            const anim = tidyAnim?.[id];
+            const dpos = anim ? { ...pos, x: anim.x, y: anim.y } : pos;
             return (
               <PinnedCard
                 key={id}
                 entity={entity}
-                pos={pos}
+                pos={dpos}
                 scale={scale}
                 onOpen={onOpenEntity}
                 onDragEnd={onDragEnd}
@@ -523,21 +652,6 @@ export function NoticeBoard({
               />
             );
           })}
-
-          <div className="pinned" style={{ left: 1050, top: 500, transform: "rotate(-6deg)", cursor: "default" }}>
-            <span className="pin-head" />
-            <div className="card-note">
-              <div className="n-text">Don't break the black seal. Vareth read it once — he can't remember his own sister now.</div>
-              <div className="n-author">— Nym</div>
-            </div>
-          </div>
-          <div className="pinned" style={{ left: 1750, top: 1100, transform: "rotate(4deg)", cursor: "default" }}>
-            <span className="pin-head iron" />
-            <div className="card-note" style={{ background: "#f0e4b8" }}>
-              <div className="n-text">The bells at Blackmere rang TWICE last tide. Once for Oriane. Once for someone we haven't met yet.</div>
-              <div className="n-author">— Sera</div>
-            </div>
-          </div>
 
           <div className="wax-seal" style={{ top: 120, left: 60 }}>EC</div>
           <div className="wax-seal" style={{ top: 1820, left: 2200, background: "radial-gradient(circle at 35% 30%, #c5a04a 0%, #8a6820 60%, #5a430f 100%)" }}>✦</div>

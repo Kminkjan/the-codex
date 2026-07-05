@@ -98,6 +98,29 @@ export async function upsertBoardPosition(entityId: string, pos: BoardPosition) 
   if (error) throw error;
 }
 
+// Batch upsert used by "Tidy board" — one round-trip instead of N. Same row
+// shape, rounding, and conflict key as upsertBoardPosition. (Realtime still
+// emits one event per row, so the whole-table refetch handler in
+// campaignContext runs N times; each refetch is idempotent and converges.)
+export async function bulkUpsertBoardPositions(
+  updates: { entityId: string; pos: BoardPosition }[],
+) {
+  if (updates.length === 0) return;
+  const cid = getActiveCampaignId();
+  const rows = updates.map(({ entityId, pos }) => ({
+    campaign_id: cid,
+    entity_id: entityId,
+    x: Math.round(pos.x),
+    y: Math.round(pos.y),
+    rot: Math.round(pos.rot ?? 0),
+    kind: pos.kind,
+  }));
+  const { error } = await supabase
+    .from("board_positions")
+    .upsert(rows, { onConflict: "campaign_id,entity_id" });
+  if (error) throw error;
+}
+
 export async function deleteBoardPosition(entityId: string) {
   const { error } = await supabase
     .from("board_positions")
