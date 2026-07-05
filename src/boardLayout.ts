@@ -216,9 +216,14 @@ export function computeTidyLayout(input: {
     blobs.push({ r: enc.r + TUNE.clusterGap, local: recentered });
   }
 
-  // ---- Phase 2: circle-pack the real (multi-card) spheres; grid the loners. ---
-  const clusterBlobs = blobs.filter((b) => b.local.length >= 2);
-  const singletonBlobs = blobs.filter((b) => b.local.length === 1);
+  // ---- Phase 2: circle-pack the real spheres; grid only the true loners. -----
+  // A "loner" is a card with NO edges (degree 0). A 1-member community that
+  // still has edges — label propagation can orphan a connected leaf — is packed
+  // among the spheres, not exiled to the grid, so its yarn doesn't stretch
+  // across the inter-sphere whitespace the grid exists to keep clear.
+  const isLoner = (b: Blob) => b.local.length === 1 && (degree.get(b.local[0].id) ?? 0) === 0;
+  const clusterBlobs = blobs.filter((b) => !isLoner(b));
+  const singletonBlobs = blobs.filter(isLoner);
 
   const out: Record<string, { x: number; y: number }> = {};
 
