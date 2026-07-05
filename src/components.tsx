@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from "react-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { type KindKey, type PresenceUser } from "./data";
+import { sessionLabel, type KindKey, type PresenceUser } from "./data";
 import { Icon, MapScribble, kindIcon } from "./icons";
 import { rankIndex, KIND_LABEL, type Indexed } from "./entitySearch";
 import { useCampaign, useCampaignSwitcher, useKinds } from "./hooks";
@@ -206,7 +206,7 @@ export function PosterCard({ person }: { person: any }) {
         {person.race
           ? <span><strong>Race</strong> · {person.race}</span>
           : <span />}
-        {sess && <span>S{sess.num}</span>}
+        {sess && <span>{sessionLabel(sess.num)}</span>}
       </div>
     </div>
   );
@@ -328,6 +328,9 @@ interface SidebarProps {
   counts: Record<string, { active: number; archived: number }>;
 }
 
+// Sessions rendered before the "… N earlier sessions" fold.
+const SESSION_CAP = 8;
+
 export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, counts }: SidebarProps) {
   const campaign = useCampaign();
   const kinds = useKinds();
@@ -347,6 +350,19 @@ export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, counts 
     : campaign.sessions.filter((s) => s.arc === effectiveArcFilter);
   // Roster of people marked seen in the currently-live session.
   const liveSession = campaign.sessions.find((s) => s.id === campaign.activeSessionId);
+  // Newest first by num, not array order — realtime INSERTs append, so
+  // campaign.sessions isn't reliably sorted (same guard as arcs.tsx).
+  const newestFirst = visibleSessions.slice().sort((a, b) => b.num - a.num);
+  let shownSessions = newestFirst;
+  if (!showAllSessions) {
+    shownSessions = newestFirst.slice(0, SESSION_CAP);
+    // The live session stays one click away even when the cap would hide it
+    // (unless the arc filter excludes it — respect that).
+    if (liveSession && newestFirst.includes(liveSession) && !shownSessions.includes(liveSession)) {
+      shownSessions = [...shownSessions, liveSession];
+    }
+  }
+  const hiddenSessions = newestFirst.length - shownSessions.length;
   const seenThisSession = liveSession
     ? (campaign.sessionParticipants[liveSession.id] ?? [])
         .map((pid) => campaign.people.find((p) => p.id === pid))
@@ -467,32 +483,19 @@ export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, counts 
           ))}
         </select>
       )}
-      {(() => {
-        const SESSION_CAP = 8;
-        const newestFirst = visibleSessions.slice().reverse();
-        const shown = showAllSessions ? newestFirst : newestFirst.slice(0, SESSION_CAP);
-        const hidden = newestFirst.length - shown.length;
-        return (
-          <>
-            {shown.map((s) => (
-              <div key={s.id} className="session-chip" onClick={() => onOpenEntity(s.id)} title={s.title}>
-                <span className="num">S{String(s.num).padStart(2, "0")}</span>
-                <span className="title">{s.title}</span>
-              </div>
-            ))}
-            {hidden > 0 && (
-              <div className="session-more" onClick={() => setShowAllSessions(true)}>
-                … {hidden} earlier {hidden === 1 ? "session" : "sessions"}
-              </div>
-            )}
-            {showAllSessions && newestFirst.length > SESSION_CAP && (
-              <div className="session-more" onClick={() => setShowAllSessions(false)}>
-                show fewer
-              </div>
-            )}
-          </>
-        );
-      })()}
+      {shownSessions.map((s) => (
+        <div key={s.id} className="session-chip" onClick={() => onOpenEntity(s.id)} title={s.title}>
+          <span className="num">{sessionLabel(s.num)}</span>
+          <span className="title">{s.title}</span>
+        </div>
+      ))}
+      {(showAllSessions ? newestFirst.length > SESSION_CAP : hiddenSessions > 0) && (
+        <div className="session-more" onClick={() => setShowAllSessions((v) => !v)}>
+          {showAllSessions
+            ? "show fewer"
+            : `… ${hiddenSessions} earlier ${hiddenSessions === 1 ? "session" : "sessions"}`}
+        </div>
+      )}
 
       <div style={{
         padding: "16px", marginTop: 12, borderTop: "1px dashed var(--vellum-deep)",

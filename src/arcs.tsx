@@ -1,4 +1,4 @@
-import { type Arc, type Session } from "./data";
+import { sessionLabel, type Arc, type Session } from "./data";
 import { useCampaign } from "./hooks";
 import { useAuth } from "./auth";
 import { createEntity } from "./mutations";
@@ -86,7 +86,7 @@ export function ArcsPage({ onOpenEntity }: { onOpenEntity: (id: string) => void 
               <div style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 10 }}>
                 {assigned.map((s) => (
                   <div key={s.id} className="session-chip" onClick={() => onOpenEntity(s.id)} title={s.title}>
-                    <span className="num">S{String(s.num).padStart(2, "0")}</span>
+                    <span className="num">{sessionLabel(s.num)}</span>
                     <span className="title">{s.title}</span>
                   </div>
                 ))}
@@ -114,7 +114,7 @@ export function ArcsPage({ onOpenEntity }: { onOpenEntity: (id: string) => void 
             <div style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 8 }}>
               {unassigned.map((s) => (
                 <div key={s.id} className="session-chip" onClick={() => onOpenEntity(s.id)} title={s.title}>
-                  <span className="num">S{String(s.num).padStart(2, "0")}</span>
+                  <span className="num">{sessionLabel(s.num)}</span>
                   <span className="title">{s.title}</span>
                 </div>
               ))}

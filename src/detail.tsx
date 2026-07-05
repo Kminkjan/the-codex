@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { type KindKey, entityLabel, isArchivableKind, isArchived, isPinned } from "./data";
+import { type KindKey, entityLabel, isArchivableKind, isArchived, isPinned, sessionLabel } from "./data";
 import { Icon, kindIcon } from "./icons";
 import { StatusChip, EditableText, EditableMarkdown, EnumSelect, EntitySelect, EntityCombobox } from "./components";
 import { useCampaign, useFindEntity } from "./hooks";
@@ -450,7 +450,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
   );
   const sessionOptions = useMemo(
     () => campaign.sessions
-      .map((s) => ({ id: s.id, label: `S${String(s.num).padStart(2, "0")} — ${s.title}`, kind: "sessions" as const })),
+      .map((s) => ({ id: s.id, label: `${sessionLabel(s.num)} — ${s.title}`, kind: "sessions" as const })),
     [campaign.sessions],
   );
   const locationOptions = useMemo(
@@ -592,7 +592,11 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                     <Stat label="Reward" empty={!(entity as any).reward?.trim()} span={2} valueStyle={{ fontSize: 13 }}><EditableText value={(entity as any).reward ?? ""} onSave={(v) => patch({ reward: v })} placeholder="—" /></Stat>
                     <Stat label="Session" empty={!(entity as any).session}>{(() => {
                       const s = campaign.sessions.find((x) => x.id === (entity as any).session);
-                      return s ? `S${s.num}` : (entity as any).session?.toUpperCase();
+                      // Short legacy codes ("s3") still display; a dangling
+                      // UUID FK (session deleted elsewhere) shows as absent
+                      // instead of 36 uppercase characters.
+                      const raw = (entity as any).session as string | undefined;
+                      return s ? sessionLabel(s.num) : raw && raw.length <= 8 ? raw.toUpperCase() : "—";
                     })()}</Stat>
                     <Stat label="Arc" empty={!(entity as any).arc} span={2} valueStyle={{ fontSize: 13 }}><EntitySelect value={(entity as any).arc} options={arcOptions} allowClear onSave={(id) => patch({ arc: id ?? "" })} /></Stat>
                   </>

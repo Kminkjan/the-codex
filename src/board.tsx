@@ -6,10 +6,10 @@ import {
   isArchivableKind,
 } from "./data";
 import { CompassRose, Icon, kindIcon } from "./icons";
-import { useCampaign, useFindEntity, useKinds } from "./hooks";
+import { useCampaign, useDismiss, useFindEntity, useKinds } from "./hooks";
 import { useAuth } from "./auth";
 import { CardBody, PinnedCard } from "./components";
-import { entityLabel } from "./data";
+import { entityLabel, sessionLabel } from "./data";
 import { computeTidyLayout, cardDims } from "./boardLayout";
 import { deriveRelations } from "./relations";
 import {
@@ -199,6 +199,10 @@ export function NoticeBoard({
 
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [viewMenuOpen, setViewMenuOpen] = useState(false);
+  const addMenuRef = useRef<HTMLDivElement>(null);
+  const viewMenuRef = useRef<HTMLDivElement>(null);
+  useDismiss(addMenuRef, addMenuOpen, () => setAddMenuOpen(false));
+  useDismiss(viewMenuRef, viewMenuOpen, () => setViewMenuOpen(false));
 
   const onCreate = async (k: Exclude<KindKey, "sessions" | "arcs" | "events">) => {
     setAddMenuOpen(false);
@@ -436,36 +440,38 @@ export function NoticeBoard({
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
   }, []);
 
+  // With every kind on (the rest state) the lit style carries no information —
+  // pills render quiet, and only light/dim once the set is actually filtered.
+  const allKindsOn = kinds.every((k) => (filters as any)[k.key]);
+  // Non-default view toggles get a dot on the View button so a filtered board
+  // is never silent about it.
+  const viewNonDefault = showArchived || !showDerived;
+
   return (
     <>
       <div className="board-toolbar">
         <h1>The Notice Board</h1>
         <div style={{ flex: 1 }} />
 
-        <div className="filter-group bare">
-          {(() => {
-            // With every kind on (the rest state) the lit style carries no
-            // information — render all pills quiet, and only light/dim them
-            // once the set is actually filtered.
-            const allOn = kinds.every((k) => (filters as any)[k.key]);
-            return kinds.map((k) => {
-              const on = (filters as any)[k.key];
-              return (
-                <span
-                  key={k.key}
-                  className={`filter-pill ${on && !allOn ? "active" : ""} ${on ? "" : "off"}`}
-                  onClick={(e) => (e.altKey ? soloKind(k.key) : toggleKind(k.key))}
-                  title={`Toggle ${k.label.toLowerCase()} — ⌥-click to solo`}
-                >
-                  <span className="swatch" style={{ background: k.color }} />
-                  {k.label}
-                </span>
-              );
-            });
-          })()}
+        <div className="filter-group">
+          {kinds.map((k) => {
+            const on = (filters as any)[k.key];
+            const cls = on ? (allKindsOn ? "" : " active") : " off";
+            return (
+              <span
+                key={k.key}
+                className={`filter-pill${cls}`}
+                onClick={(e) => (e.altKey ? soloKind(k.key) : toggleKind(k.key))}
+                title={`Toggle ${k.label.toLowerCase()} — Alt-click to solo`}
+              >
+                <span className="swatch" style={{ background: k.color }} />
+                {k.label}
+              </span>
+            );
+          })}
         </div>
 
-        <div className={`filter-group ${filters.sessions !== "all" ? "active" : "bare"}`}>
+        <div className={`filter-group${filters.sessions !== "all" ? " active" : ""}`}>
           <select
             className="session-focus"
             value={filters.sessions}
@@ -478,45 +484,40 @@ export function NoticeBoard({
               .sort((a, b) => b.num - a.num)
               .map((s) => (
                 <option key={s.id} value={s.id}>
-                  S{String(s.num).padStart(2, "0")} — {s.title}
+                  {sessionLabel(s.num)} — {s.title}
                 </option>
               ))}
           </select>
         </div>
 
-        <div style={{ position: "relative" }}>
+        <div style={{ position: "relative" }} ref={viewMenuRef}>
           <button
             className="btn btn-ghost"
             onClick={() => setViewMenuOpen((o) => !o)}
             title="View options: archived cards, derived strings"
           >
             <Icon name="eye" size={14} /> View
+            {viewNonDefault && <span className="view-dot" title="View options changed from default" />}
           </button>
           {viewMenuOpen && (
-            <>
-              <div
-                onClick={() => setViewMenuOpen(false)}
-                style={{ position: "fixed", inset: 0, zIndex: 40 }}
-              />
-              <div className="view-menu">
-                <label className="view-menu-row" title="Include archived cards on the board">
-                  <input
-                    type="checkbox"
-                    checked={showArchived}
-                    onChange={(e) => setShowArchived(e.target.checked)}
-                  />
-                  Show archived cards
-                </label>
-                <label className="view-menu-row" title="Show the dashed strings derived from relations (resides at, member of, quest giver)">
-                  <input
-                    type="checkbox"
-                    checked={showDerived}
-                    onChange={(e) => setShowDerived(e.target.checked)}
-                  />
-                  Derived strings
-                </label>
-              </div>
-            </>
+            <div className="view-menu">
+              <label className="view-menu-row" title="Include archived cards on the board">
+                <input
+                  type="checkbox"
+                  checked={showArchived}
+                  onChange={(e) => setShowArchived(e.target.checked)}
+                />
+                Show archived cards
+              </label>
+              <label className="view-menu-row" title="Show the dashed strings derived from relations (resides at, member of, quest giver)">
+                <input
+                  type="checkbox"
+                  checked={showDerived}
+                  onChange={(e) => setShowDerived(e.target.checked)}
+                />
+                Derived strings
+              </label>
+            </div>
           )}
         </div>
 
@@ -537,7 +538,7 @@ export function NoticeBoard({
           <Icon name="link" size={14} /> {connectMode ? "Cancel string" : "Draw string"}
         </button>}
 
-        {canEdit && <div style={{ position: "relative" }}>
+        {canEdit && <div style={{ position: "relative" }} ref={addMenuRef}>
           <button
             className="btn btn-primary"
             onClick={() => setAddMenuOpen((o) => !o)}
@@ -546,40 +547,19 @@ export function NoticeBoard({
             <Icon name="plus" size={14} /> Pin new
           </button>
           {addMenuOpen && (
-            <>
-              <div
-                onClick={() => setAddMenuOpen(false)}
-                style={{ position: "fixed", inset: 0, zIndex: 40 }}
-              />
-              <div
-                style={{
-                  position: "absolute", top: "100%", right: 0, marginTop: 6,
-                  background: "var(--vellum-light)", minWidth: 180,
-                  boxShadow: "0 8px 24px rgba(40,20,5,.25)",
-                  border: "1px solid var(--ink-faded)",
-                  fontFamily: "var(--font-fell)", fontSize: 13,
-                  zIndex: 50,
-                }}
-              >
-                {kinds.map((k) => (
-                  <div
-                    key={k.key}
-                    onClick={() => onCreate(k.key as Exclude<KindKey, "sessions" | "arcs" | "events">)}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 10,
-                      padding: "8px 12px", cursor: "pointer",
-                      borderBottom: "1px solid rgba(40,20,5,.08)",
-                    }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = "rgba(40,20,5,.04)"; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = "transparent"; }}
-                  >
-                    <span className="swatch" style={{ background: k.color, width: 10, height: 10, display: "inline-block", borderRadius: 2 }} />
-                    <Icon name={kindIcon[k.key]} size={14} />
-                    New {k.label.toLowerCase()}
-                  </div>
-                ))}
-              </div>
-            </>
+            <div className="view-menu" style={{ minWidth: 180 }}>
+              {kinds.map((k) => (
+                <div
+                  key={k.key}
+                  className="view-menu-row"
+                  onClick={() => onCreate(k.key as Exclude<KindKey, "sessions" | "arcs" | "events">)}
+                >
+                  <span className="swatch" style={{ background: k.color, width: 10, height: 10, display: "inline-block", borderRadius: 2 }} />
+                  <Icon name={kindIcon[k.key]} size={14} />
+                  New {k.label.toLowerCase()}
+                </div>
+              ))}
+            </div>
           )}
         </div>}
       </div>

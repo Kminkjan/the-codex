@@ -656,7 +656,8 @@ button.session-pin { line-height: 1; }
   font-size: 11.5px;
   font-variant-numeric: tabular-nums;
   color: var(--ink-secondary);
-  flex: 0 0 36px;
+  /* Wide enough for 4-glyph codes (S191) so titles keep one left edge. */
+  flex: 0 0 42px;
 }
 .session-chip .title {
   flex: 1;
@@ -665,16 +666,17 @@ button.session-pin { line-height: 1; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* "… N earlier sessions" expander under the capped list. */
+/* "… N earlier sessions" expander under the capped list. Content text at
+   12.5px, so --ink-secondary is the floor (ink-tier rule in :root). */
 .session-more {
-  padding: 5px 16px 5px 64px;
+  padding: 5px 16px 5px 70px;
   font-family: var(--font-fell);
   font-style: italic;
   font-size: 12.5px;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
   cursor: pointer;
 }
-.session-more:hover { color: var(--ink-secondary); }
+.session-more:hover { color: var(--ink); }
 
 /* ── Main content area ───────────────────── */
 .main {
@@ -708,31 +710,14 @@ button.session-pin { line-height: 1; }
   white-space: nowrap;
   flex-shrink: 0;
 }
-.board-toolbar h1 em {
-  font-family: var(--font-fell);
-  font-style: italic;
-  font-weight: 400;
-  font-size: 14px;
-  color: var(--ink-secondary);
-  margin-left: 8px;
-  white-space: nowrap;
-}
-.filter-group { flex-wrap: wrap; }
-
+/* Borderless at rest: grouping comes from spacing, not chrome. The boxed look
+   is reserved for .active — a filter that's actually on. */
 .filter-group {
   display: flex; gap: 4px;
   padding: 3px;
-  background: var(--paper-cream);
-  border: 1px solid var(--vellum-deep);
+  border: 1px solid transparent;
   border-radius: 5px;
-}
-/* Borderless variant: grouping comes from spacing, not chrome. Used for the
-   kind pills (their active states are grouping enough) and the session focus
-   at rest — the boxed look is reserved for a filter that's actually on. */
-.filter-group.bare {
-  background: transparent;
-  border-color: transparent;
-  box-shadow: none;
+  flex-wrap: wrap;
 }
 .filter-pill {
   padding: 4px 10px;
@@ -749,7 +734,9 @@ button.session-pin { line-height: 1; }
 .filter-pill.off { opacity: .45; }
 .filter-pill.off:hover { opacity: .8; }
 .filter-pill.active {
-  background: var(--vellum-light);
+  /* paper-cream, not vellum-light — the pill sits directly on the
+     vellum-light toolbar now that the group box is gone. */
+  background: var(--paper-cream);
   color: var(--ink);
   border-color: var(--vellum-deep);
   box-shadow: 0 1px 2px rgba(40,20,5,.12);
@@ -775,7 +762,7 @@ button.session-pin { line-height: 1; }
 }
 .session-focus:hover { color: var(--ink); }
 .filter-group.active {
-  background: var(--vellum-light);
+  background: var(--paper-cream);
   border-color: var(--vellum-deep);
   box-shadow: 0 1px 2px rgba(40,20,5,.12);
 }
@@ -805,6 +792,12 @@ button.session-pin { line-height: 1; }
 }
 .view-menu-row:hover { background: rgba(139,94,40,.08); }
 .view-menu-row input[type="checkbox"] { accent-color: var(--bloodred); margin: 0; }
+/* Non-default view state marker on the View button. */
+.view-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--bloodred);
+  flex-shrink: 0;
+}
 
 /* ── Notice board canvas ─────────────────── */
 .board-canvas {
