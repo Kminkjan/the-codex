@@ -1,4 +1,4 @@
-import { type CampaignEvent } from "./data";
+import { sessionLabel, type CampaignEvent } from "./data";
 import { useCampaign } from "./hooks";
 import { useAuth } from "./auth";
 import { createEntity } from "./mutations";
@@ -82,7 +82,7 @@ export function EventsPage({ onOpenEntity }: { onOpenEntity: (id: string) => voi
                         {ev.title}
                       </h3>
                       <span style={{ fontFamily: "var(--font-fell-sc)", letterSpacing: ".1em", fontSize: 10.5, color: "var(--ink-secondary)" }}>
-                        {session && `S${String(session.num).padStart(2, "0")}`}
+                        {session && sessionLabel(session.num)}
                         {location && `${session ? " · " : ""}${location.name}`}
                         {participants > 0 && ` · ${participants} present`}
                       </span>

@@ -5,7 +5,7 @@ type IconName =
   | "people" | "location" | "quest" | "goal" | "faction" | "item" | "lore"
   | "session" | "board" | "share" | "link" | "plus" | "search" | "filter"
   | "close" | "compass" | "sparkle" | "sword" | "scroll" | "layers"
-  | "check" | "chevron" | "trash";
+  | "check" | "chevron" | "trash" | "eye";
 
 interface IconProps extends Omit<SVGProps<SVGSVGElement>, "name"> {
   name: IconName;
@@ -48,6 +48,7 @@ export const Icon = ({ name, size = 16, ...p }: IconProps) => {
     case "check":     return <svg {...common}><path d="M5 12l4 4L19 6"/></svg>;
     case "chevron":   return <svg {...common}><path d="M9 6l6 6-6 6"/></svg>;
     case "trash":     return <svg {...common}><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>;
+    case "eye":       return <svg {...common}><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="2.5"/></svg>;
     default: return null;
   }
 };

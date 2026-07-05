@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from "react-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { type KindKey, type PresenceUser } from "./data";
+import { sessionLabel, type KindKey, type PresenceUser } from "./data";
 import { Icon, MapScribble, kindIcon } from "./icons";
 import { rankIndex, KIND_LABEL, type Indexed } from "./entitySearch";
 import { useCampaign, useCampaignSwitcher, useKinds } from "./hooks";
@@ -206,7 +206,7 @@ export function PosterCard({ person }: { person: any }) {
         {person.race
           ? <span><strong>Race</strong> · {person.race}</span>
           : <span />}
-        {sess && <span>Sess {sess.num}</span>}
+        {sess && <span>{sessionLabel(sess.num)}</span>}
       </div>
     </div>
   );
@@ -328,6 +328,9 @@ interface SidebarProps {
   counts: Record<string, { active: number; archived: number }>;
 }
 
+// Sessions rendered before the "… N earlier sessions" fold.
+const SESSION_CAP = 8;
+
 export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, counts }: SidebarProps) {
   const campaign = useCampaign();
   const kinds = useKinds();
@@ -335,6 +338,9 @@ export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, counts 
   const totalArchived = kinds.reduce((sum, k) => sum + (counts[k.key]?.archived ?? 0), 0);
   // View filter, not a write — available to read-only viewers too.
   const [arcFilter, setArcFilter] = useState<string>("all");
+  // Progressive disclosure: the list is recency-biased, so only the newest
+  // few sessions render until expanded.
+  const [showAllSessions, setShowAllSessions] = useState(false);
   const arcsById = new Map(campaign.arcs.map((a) => [a.id, a]));
   // Fall back to "all" if the selected arc was deleted (possibly live, from
   // another tab) so the list and the select never disagree.
@@ -344,6 +350,19 @@ export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, counts 
     : campaign.sessions.filter((s) => s.arc === effectiveArcFilter);
   // Roster of people marked seen in the currently-live session.
   const liveSession = campaign.sessions.find((s) => s.id === campaign.activeSessionId);
+  // Newest first by num, not array order — realtime INSERTs append, so
+  // campaign.sessions isn't reliably sorted (same guard as arcs.tsx).
+  const newestFirst = visibleSessions.slice().sort((a, b) => b.num - a.num);
+  let shownSessions = newestFirst;
+  if (!showAllSessions) {
+    shownSessions = newestFirst.slice(0, SESSION_CAP);
+    // The live session stays one click away even when the cap would hide it
+    // (unless the arc filter excludes it — respect that).
+    if (liveSession && newestFirst.includes(liveSession) && !shownSessions.includes(liveSession)) {
+      shownSessions = [...shownSessions, liveSession];
+    }
+  }
+  const hiddenSessions = newestFirst.length - shownSessions.length;
   const seenThisSession = liveSession
     ? (campaign.sessionParticipants[liveSession.id] ?? [])
         .map((pid) => campaign.people.find((p) => p.id === pid))
@@ -444,15 +463,17 @@ export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, counts 
           value={effectiveArcFilter}
           onChange={(e) => setArcFilter(e.target.value)}
           title="Filter sessions by arc"
+          // View control, not an edit affordance — dashed borders mean
+          // "editable" everywhere else, so this stays borderless.
           style={{
             margin: "2px 16px 6px",
             background: "transparent",
-            border: "1px dashed var(--ink-faded)",
-            fontFamily: "var(--font-fell)",
-            fontStyle: "italic",
-            fontSize: 12,
+            border: "none",
+            fontFamily: "var(--font-fell-sc)",
+            letterSpacing: ".08em",
+            fontSize: 11,
             color: "var(--ink-secondary)",
-            padding: "2px 6px",
+            padding: "2px 4px 2px 0",
             cursor: "pointer",
           }}
         >
@@ -462,12 +483,19 @@ export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, counts 
           ))}
         </select>
       )}
-      {visibleSessions.slice().reverse().map((s) => (
-        <div key={s.id} className="session-chip" onClick={() => onOpenEntity(s.id)}>
-          <span className="num">SESS {String(s.num).padStart(2, "0")}</span>
-          <span style={{ flex: 1 }}>{s.title}</span>
+      {shownSessions.map((s) => (
+        <div key={s.id} className="session-chip" onClick={() => onOpenEntity(s.id)} title={s.title}>
+          <span className="num">{sessionLabel(s.num)}</span>
+          <span className="title">{s.title}</span>
         </div>
       ))}
+      {(showAllSessions ? newestFirst.length > SESSION_CAP : hiddenSessions > 0) && (
+        <div className="session-more" onClick={() => setShowAllSessions((v) => !v)}>
+          {showAllSessions
+            ? "show fewer"
+            : `… ${hiddenSessions} earlier ${hiddenSessions === 1 ? "session" : "sessions"}`}
+        </div>
+      )}
 
       <div style={{
         padding: "16px", marginTop: 12, borderTop: "1px dashed var(--vellum-deep)",

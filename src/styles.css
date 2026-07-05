@@ -643,22 +643,40 @@ button.session-pin { line-height: 1; }
 /* Session chip in sidebar */
 .session-chip {
   display: flex; align-items: center; gap: 8px;
-  padding: 6px 16px 6px 20px;
+  padding: 5px 16px 5px 20px;
   font-family: var(--font-fell);
   font-size: 14.5px;
   color: var(--ink-body);
   cursor: pointer;
 }
 .session-chip:hover { background: rgba(139,94,40,.06); }
+/* Plain-text number column — no chip chrome, fixed width so titles align. */
 .session-chip .num {
   font-family: var(--font-fell-sc);
   font-size: 11.5px;
-  background: var(--paper-cream);
-  border: 1px solid var(--vellum-deep);
-  padding: 2px 6px;
-  border-radius: 3px;
-  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-secondary);
+  /* Wide enough for 4-glyph codes (S191) so titles keep one left edge. */
+  flex: 0 0 42px;
 }
+.session-chip .title {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* "… N earlier sessions" expander under the capped list. Content text at
+   12.5px, so --ink-secondary is the floor (ink-tier rule in :root). */
+.session-more {
+  padding: 5px 16px 5px 70px;
+  font-family: var(--font-fell);
+  font-style: italic;
+  font-size: 12.5px;
+  color: var(--ink-secondary);
+  cursor: pointer;
+}
+.session-more:hover { color: var(--ink); }
 
 /* ── Main content area ───────────────────── */
 .main {
@@ -692,37 +710,33 @@ button.session-pin { line-height: 1; }
   white-space: nowrap;
   flex-shrink: 0;
 }
-.board-toolbar h1 em {
-  font-family: var(--font-fell);
-  font-style: italic;
-  font-weight: 400;
-  font-size: 14px;
-  color: var(--ink-secondary);
-  margin-left: 8px;
-  white-space: nowrap;
-}
-.filter-group { flex-wrap: wrap; }
-
+/* Borderless at rest: grouping comes from spacing, not chrome. The boxed look
+   is reserved for .active — a filter that's actually on. */
 .filter-group {
   display: flex; gap: 4px;
   padding: 3px;
-  background: var(--paper-cream);
-  border: 1px solid var(--vellum-deep);
+  border: 1px solid transparent;
   border-radius: 5px;
+  flex-wrap: wrap;
 }
 .filter-pill {
   padding: 4px 10px;
   font-family: var(--font-fell);
   font-size: 12px;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
   border-radius: 3px;
   cursor: pointer;
   display: inline-flex; align-items: center; gap: 5px;
   border: 1px solid transparent;
 }
 .filter-pill:hover { color: var(--ink); }
+/* Toggled-off kind while the board is filtered: visibly muted. */
+.filter-pill.off { opacity: .45; }
+.filter-pill.off:hover { opacity: .8; }
 .filter-pill.active {
-  background: var(--vellum-light);
+  /* paper-cream, not vellum-light — the pill sits directly on the
+     vellum-light toolbar now that the group box is gone. */
+  background: var(--paper-cream);
   color: var(--ink);
   border-color: var(--vellum-deep);
   box-shadow: 0 1px 2px rgba(40,20,5,.12);
@@ -748,11 +762,42 @@ button.session-pin { line-height: 1; }
 }
 .session-focus:hover { color: var(--ink); }
 .filter-group.active {
-  background: var(--vellum-light);
+  background: var(--paper-cream);
   border-color: var(--vellum-deep);
   box-shadow: 0 1px 2px rgba(40,20,5,.12);
 }
 .filter-group.active .session-focus { color: var(--ink); }
+
+/* View-options popover (board toolbar) — rare toggles live behind one ghost
+   button instead of a permanent pill group. */
+.view-menu {
+  position: absolute;
+  top: 100%; right: 0;
+  margin-top: 6px;
+  min-width: 200px;
+  background: var(--vellum-light);
+  border: 1px solid var(--ink-faded);
+  box-shadow: 0 8px 24px rgba(40,20,5,.25);
+  z-index: 50;
+  padding: 6px 0;
+}
+.view-menu-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 14px;
+  font-family: var(--font-fell);
+  font-size: 13px;
+  color: var(--ink);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.view-menu-row:hover { background: rgba(139,94,40,.08); }
+.view-menu-row input[type="checkbox"] { accent-color: var(--bloodred); margin: 0; }
+/* Non-default view state marker on the View button. */
+.view-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--bloodred);
+  flex-shrink: 0;
+}
 
 /* ── Notice board canvas ─────────────────── */
 .board-canvas {

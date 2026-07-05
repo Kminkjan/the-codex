@@ -228,6 +228,12 @@ export function entityLabel(e: any): string {
   return e?.name || e?.title || e?.text || "—";
 }
 
+// The one place the "S07" session code is spelled — every surface (sidebar,
+// arcs page, board select, cards, detail stats) must agree on the format.
+export function sessionLabel(num: number): string {
+  return `S${String(num).padStart(2, "0")}`;
+}
+
 export function isArchived(e: any): boolean {
   return !!(e && e.archived);
 }
