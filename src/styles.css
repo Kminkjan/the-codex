@@ -88,8 +88,10 @@
   --paper-grey:    #23243c;
   --paper-scroll:  #2e2a48;
   --paper-note:    #363052;
-  --cork:          #3a2a40;
-  --cork-deep:     #241828;
+  /* A step darker than the card papers (#262847…#363052) so cards separate
+     from the board by luminance instead of chrome. */
+  --cork:          #332438;
+  --cork-deep:     #1f1522;
   --board-bg:      #1a1120;
   --teal-oxidized: #6bb5a5;
   /* These read as text/borders on dark card stock — the light-theme values
@@ -178,6 +180,18 @@ body {
   opacity: .45;
   mix-blend-mode: multiply;
   pointer-events: none;
+}
+
+/* Grimoire: the dot layers above are browns tuned for light cork — on the dark
+   board they read as high-frequency speckle that competes with the cards. Keep
+   only the low-frequency vignette and a whisper of noise; content, not the
+   background, should carry the contrast. */
+[data-theme="grimoire"] .tex-cork {
+  background-image: radial-gradient(ellipse at center, var(--cork) 0%, var(--cork-deep) 100%);
+  background-size: 100% 100%;
+}
+[data-theme="grimoire"] .tex-cork::after {
+  opacity: .18;
 }
 
 /* Paper stock: torn edges via clip-path */
@@ -475,7 +489,7 @@ button.session-pin { line-height: 1; }
   cursor: pointer;
   clip-path: polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%);
 }
-.seen-toggle:hover { border-color: var(--bloodred); color: var(--bloodred); }
+.seen-toggle:hover { border-color: var(--mustard); color: var(--mustard-deep); }
 .seen-toggle.seen {
   background: var(--bloodred);
   border-color: var(--bloodred);
@@ -507,7 +521,9 @@ button.session-pin { line-height: 1; }
   cursor: pointer;
   white-space: nowrap;
 }
-.roster-chip:hover { border-color: var(--bloodred); color: var(--bloodred); }
+/* Hover is emphasis, not selection — mustard, so bloodred keeps meaning
+   "current/live/selected". */
+.roster-chip:hover { border-color: var(--mustard); color: var(--mustard-deep); }
 .session-roster-empty {
   padding: 0 16px 4px;
   font-family: var(--font-fell);
@@ -595,11 +611,6 @@ button.session-pin { line-height: 1; }
   padding: 8px 16px 4px;
   display: flex; align-items: center; justify-content: space-between;
 }
-.sidebar-label::before {
-  content: ''; flex: 0 0 14px; height: 1px;
-  background: var(--ink-faded);
-  margin-right: 8px; opacity: .4;
-}
 .sidebar-label span { flex: 1; }
 .sidebar-label::after {
   content: ''; flex: 1; height: 1px;
@@ -623,15 +634,13 @@ button.session-pin { line-height: 1; }
   border-left-color: var(--bloodred);
   color: var(--ink);
 }
+/* Plain text, no pill chrome — counts are reference info, not buttons. */
 .nav-item .count {
   margin-left: auto;
   font-family: var(--font-ui);
+  font-variant-numeric: tabular-nums;
   font-size: 11px;
   color: var(--ink-secondary);
-  background: var(--vellum-dark);
-  padding: 1px 7px;
-  border-radius: 10px;
-  border: 1px solid var(--vellum-deep);
 }
 .nav-item .icon {
   width: 16px; height: 16px;
@@ -841,6 +850,9 @@ button.session-pin { line-height: 1; }
   opacity: .3;
   transition: opacity .18s ease;
 }
+/* Resting strings only need to hint that a connection exists — on the dark
+   board the hover-lit behavior carries the focus, so rest even quieter. */
+[data-theme="grimoire"] .yarn-layer .yarn { opacity: .22; }
 .yarn-layer .yarn.lit { opacity: 1; }
 .yarn-layer .yarn.faded { opacity: .12; }
 .yarn-path {
@@ -992,7 +1004,12 @@ button.session-pin { line-height: 1; }
 }
 .card-poster .portrait {
   width: 100%; aspect-ratio: 1 / 1;
-  background: linear-gradient(135deg, var(--vellum-dark) 25%, var(--vellum) 50%, var(--vellum-dark) 75%);
+  /* Blended toward the card stock so portrait-less cards recede — cards with
+     real art should be the bright ones. */
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--vellum-dark) 55%, var(--paper-scroll)) 25%,
+    color-mix(in srgb, var(--vellum) 45%, var(--paper-scroll)) 50%,
+    color-mix(in srgb, var(--vellum-dark) 55%, var(--paper-scroll)) 75%);
   background-size: 6px 6px;
   border: 1px solid var(--ink-faded);
   display: grid; place-items: center;
@@ -1006,7 +1023,7 @@ button.session-pin { line-height: 1; }
   position: absolute; bottom: 0; left: 50%;
   transform: translateX(-50%);
   background: var(--ink);
-  opacity: .8;
+  opacity: .45;
   -webkit-mask: radial-gradient(circle at 50% 22%, #000 17%, transparent 17.5%) no-repeat,
                 radial-gradient(ellipse 60% 80% at 50% 90%, #000 55%, transparent 56%) no-repeat;
           mask: radial-gradient(circle at 50% 22%, #000 17%, transparent 17.5%) no-repeat,
@@ -1402,7 +1419,7 @@ button.session-pin { line-height: 1; }
   width: 70%; height: 80%;
   transform: translateX(-50%);
   background: var(--ink);
-  opacity: .75;
+  opacity: .5;
   -webkit-mask: radial-gradient(circle at 50% 22%, #000 17%, transparent 17.5%) no-repeat,
                 radial-gradient(ellipse 60% 80% at 50% 90%, #000 55%, transparent 56%) no-repeat;
           mask: radial-gradient(circle at 50% 22%, #000 17%, transparent 17.5%) no-repeat,
@@ -1799,6 +1816,7 @@ button.session-pin { line-height: 1; }
 .board-zoom button:hover { background: var(--vellum-light); }
 .board-zoom .zoom-val {
   font-family: var(--font-ui);
+  font-variant-numeric: tabular-nums;
   font-size: 11px;
   text-align: center;
   padding: 4px 0;
