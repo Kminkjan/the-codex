@@ -1,8 +1,10 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { type KindKey, type PresenceUser } from "./data";
 import { Icon, MapScribble, kindIcon } from "./icons";
+import { rankIndex, KIND_LABEL, type Indexed } from "./entitySearch";
 import { useCampaign, useCampaignSwitcher, useKinds } from "./hooks";
 import { createEntity, setActiveSession } from "./mutations";
 import { SignInDialog, useAuth } from "./auth";
@@ -1021,17 +1023,260 @@ export function EnumSelect<T extends string>({
   );
 }
 
+export interface EntityOption {
+  id: string;
+  label: string;
+  kind: KindKey;
+  archived?: boolean;
+}
+
+interface EntityComboboxProps {
+  value?: string;
+  options: EntityOption[];
+  onSelect: (id: string | null) => void | Promise<void>;
+  allowClear?: boolean;
+  placeholder?: string;
+  className?: string;
+  style?: React.CSSProperties;
+}
+
+// Searchable entity picker: a dashed-border trigger that opens a type-to-filter
+// popover ranked through the shared entity search (entitySearch.ts). Used for
+// cross-kind relation targets and single-kind FK fields alike. Read-only
+// viewers see the current label as plain text, matching EnumSelect/EntitySelect.
+//
+// The popover is portalled to <body> so it escapes the detail sheet's
+// overflow:auto scroll container and the overlay's backdrop-filter (which would
+// otherwise clip or re-anchor a fixed child); it's positioned against the
+// trigger's rect and flips above the trigger when there's no room below.
+export function EntityCombobox({
+  value,
+  options,
+  onSelect,
+  allowClear = false,
+  placeholder = "Search…",
+  className,
+  style,
+}: EntityComboboxProps) {
+  const { canEdit } = useAuth();
+  const current = options.find((o) => o.id === value);
+
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const popRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState(0);
+  const [rect, setRect] = useState<{ left: number; top: number; width: number; flip: boolean; maxHeight: number } | null>(null);
+
+  const index = useMemo<Indexed[]>(
+    () => options.map((o) => ({ id: o.id, kind: o.kind, label: o.label, primary: o.label, secondary: "", archived: o.archived })),
+    [options],
+  );
+  const results = useMemo(() => rankIndex(index, query), [index, query]);
+
+  // A "clear" pseudo-row sits at index 0 when clearable and unfiltered, so the
+  // row indices below are offset by it. Shown whenever clearing is allowed —
+  // including when the current value is dangling (references a deleted
+  // entity, so `current` doesn't resolve) — matching the old <select>, which
+  // always exposed an empty option in that case regardless of allowClear.
+  const showClear = allowClear && query.trim() === "";
+  const offset = showClear ? 1 : 0;
+  const rowCount = results.length + offset;
+
+  // Clamp the active row whenever the list shrinks for any reason (a new
+  // search query, or the options themselves changing e.g. via a realtime
+  // update) so Enter never targets a row past the end of a stale index.
+  useEffect(() => {
+    setSelected((s) => Math.min(s, Math.max(rowCount - 1, 0)));
+  }, [rowCount]);
+
+  const reposition = useCallback(() => {
+    const el = triggerRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const margin = 10;
+    const spaceBelow = window.innerHeight - r.bottom - margin;
+    const spaceAbove = r.top - margin;
+    // Prefer dropping down; flip up only when below can't fit a useful list and
+    // above has more room. Either way cap the height to the side we chose so the
+    // popover never runs past the viewport edge.
+    const flip = spaceBelow < 300 && spaceAbove > spaceBelow;
+    const maxHeight = Math.min(320, Math.max(140, flip ? spaceAbove : spaceBelow));
+    const width = Math.max(r.width, 240);
+    // Clamp left so the popover's right edge never runs past the viewport —
+    // it defaults to the trigger's left edge but slides left if that would
+    // overflow (e.g. a narrow FK field near the right edge of a resized window).
+    const left = Math.min(r.left, window.innerWidth - width - margin);
+    setRect({ left: Math.max(left, margin), top: flip ? r.top : r.bottom, width: r.width, flip, maxHeight });
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    reposition();
+    setQuery("");
+    setSelected(0);
+    const t = window.setTimeout(() => inputRef.current?.focus(), 0);
+    const onDown = (e: MouseEvent) => {
+      const n = e.target as Node;
+      if (popRef.current?.contains(n) || triggerRef.current?.contains(n)) return;
+      setOpen(false);
+    };
+    const onScroll = () => reposition();
+    document.addEventListener("mousedown", onDown);
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.clearTimeout(t);
+      document.removeEventListener("mousedown", onDown);
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, [open, reposition]);
+
+  useEffect(() => { setSelected(0); }, [query]);
+
+  useEffect(() => {
+    if (!open || !listRef.current) return;
+    const active = listRef.current.querySelector<HTMLElement>(`[data-idx="${selected}"]`);
+    active?.scrollIntoView({ block: "nearest" });
+  }, [selected, open, rowCount]);
+
+  const close = () => {
+    setOpen(false);
+    setQuery("");
+    triggerRef.current?.focus();
+  };
+  const choose = (id: string | null) => {
+    void onSelect(id);
+    close();
+  };
+
+  const onInputKey: React.KeyboardEventHandler<HTMLInputElement> = (e) => {
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+    if (e.key === "Escape") { e.preventDefault(); close(); return; }
+    if (e.key === "ArrowDown") { e.preventDefault(); if (rowCount) setSelected((i) => (i + 1) % rowCount); return; }
+    if (e.key === "ArrowUp") { e.preventDefault(); if (rowCount) setSelected((i) => (i - 1 + rowCount) % rowCount); return; }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (rowCount === 0) return;
+      if (showClear && selected === 0) { choose(null); return; }
+      const hit = results[selected - offset];
+      if (hit) choose(hit.id);
+    }
+  };
+
+  if (!canEdit) {
+    return (
+      <span className={className} style={{ fontFamily: "var(--font-fell)", ...style }}>
+        {current?.label ?? "—"}
+      </span>
+    );
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        ref={triggerRef}
+        className={`entity-combobox-trigger${className ? ` ${className}` : ""}`}
+        style={style}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        {current && <Icon name={kindIcon[current.kind]} size={13} />}
+        <span className={`entity-combobox-value${current ? "" : " placeholder"}`}>
+          {current?.label ?? placeholder}
+        </span>
+        <Icon name="chevron" size={12} className="entity-combobox-caret" />
+      </button>
+      {open && rect && createPortal(
+        <div
+          ref={popRef}
+          className="entity-combobox-pop"
+          style={{
+            position: "fixed",
+            left: rect.left,
+            width: Math.max(rect.width, 240),
+            maxHeight: rect.maxHeight,
+            ...(rect.flip
+              ? { bottom: window.innerHeight - rect.top + 4 }
+              : { top: rect.top + 4 }),
+          }}
+        >
+          <div className="entity-combobox-input-row">
+            <Icon name="search" size={14} />
+            <input
+              ref={inputRef}
+              className="entity-combobox-input"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={onInputKey}
+              placeholder={placeholder}
+              spellCheck={false}
+              autoComplete="off"
+              role="combobox"
+              aria-expanded={rowCount > 0}
+              aria-controls="entity-combobox-listbox"
+              aria-activedescendant={rowCount > 0 ? `entity-combobox-opt-${selected}` : undefined}
+            />
+          </div>
+          <div className="entity-combobox-list" ref={listRef} role="listbox" id="entity-combobox-listbox">
+            {rowCount === 0 && <div className="entity-combobox-empty">Nothing matches.</div>}
+            {showClear && (
+              <div
+                data-idx={0}
+                id="entity-combobox-opt-0"
+                role="option"
+                aria-selected={selected === 0}
+                className={`entity-combobox-row clear${selected === 0 ? " active" : ""}`}
+                onMouseEnter={() => setSelected(0)}
+                onClick={() => choose(null)}
+              >
+                <span className="entity-combobox-row-label">— clear —</span>
+              </div>
+            )}
+            {results.map((hit, i) => {
+              const idx = i + offset;
+              return (
+                <div
+                  key={hit.id}
+                  data-idx={idx}
+                  id={`entity-combobox-opt-${idx}`}
+                  role="option"
+                  aria-selected={idx === selected}
+                  className={`entity-combobox-row${idx === selected ? " active" : ""}`}
+                  onMouseEnter={() => setSelected(idx)}
+                  onClick={() => choose(hit.id)}
+                >
+                  <Icon name={kindIcon[hit.kind]} size={14} />
+                  <span className={`entity-combobox-row-label${hit.archived ? " archived" : ""}`}>{hit.label}</span>
+                  <span className="entity-combobox-kind">{KIND_LABEL[hit.kind]}</span>
+                  {hit.archived && <span className="entity-combobox-archived">archived</span>}
+                </div>
+              );
+            })}
+          </div>
+        </div>,
+        document.body,
+      )}
+    </>
+  );
+}
+
 interface EntitySelectProps {
   value: string | undefined;
-  options: Array<{ id: string; label: string }>;
+  options: EntityOption[];
   onSave: (next: string | null) => void | Promise<void>;
   allowClear?: boolean;
   className?: string;
   style?: React.CSSProperties;
 }
 
-// EnumSelect's sibling for FK fields: options carry an id + display label and
-// onSave receives the id (or null when cleared).
+// EnumSelect's sibling for FK fields, now a thin wrapper over EntityCombobox so
+// single-kind FK pickers get the same type-to-filter UI as the relation picker.
 export function EntitySelect({
   value,
   options,
@@ -1040,41 +1285,15 @@ export function EntitySelect({
   className,
   style,
 }: EntitySelectProps) {
-  const { canEdit } = useAuth();
-  const current = options.find((o) => o.id === value);
-  if (!canEdit) {
-    return (
-      <span className={className} style={{ fontFamily: "var(--font-fell)", ...style }}>
-        {current?.label ?? "—"}
-      </span>
-    );
-  }
   return (
-    <select
+    <EntityCombobox
+      value={value}
+      options={options}
+      onSelect={onSave}
+      allowClear={allowClear}
+      placeholder="—"
       className={className}
-      // A dangling FK (option not in the list) renders as the empty choice
-      // rather than silently selecting the first option.
-      value={current ? value : ""}
-      onChange={(e) => {
-        const v = e.target.value;
-        void onSave(v === "" ? null : v);
-      }}
-      style={{
-        background: "transparent",
-        border: "1px dashed var(--ink-faded)",
-        fontFamily: "var(--font-fell)",
-        fontSize: "inherit",
-        color: "var(--ink)",
-        padding: "2px 6px",
-        cursor: "pointer",
-        maxWidth: "100%",
-        ...style,
-      }}
-    >
-      {(allowClear || !current) && <option value="">—</option>}
-      {options.map((o) => (
-        <option key={o.id} value={o.id}>{o.label}</option>
-      ))}
-    </select>
+      style={style}
+    />
   );
 }
