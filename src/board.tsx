@@ -11,6 +11,7 @@ import { useAuth } from "./auth";
 import { CardBody, PinnedCard } from "./components";
 import { entityLabel } from "./data";
 import { computeTidyLayout, cardDims } from "./boardLayout";
+import { deriveRelations } from "./relations";
 import {
   upsertBoardPosition,
   bulkUpsertBoardPositions,
@@ -59,7 +60,14 @@ export function NoticeBoard({
   const { canEdit } = useAuth();
 
   const positions = campaign.board;
-  const connections = campaign.connections;
+  // Unified relationship edges: hand-drawn strings (connections table) + the
+  // FK-derived relations (resides at / member of / quest giver / happened at),
+  // the same projection the detail sheet and cleanup panel read, so the board
+  // can't drift from them. deriveRelations reads only these arrays.
+  const edges = useMemo(
+    () => deriveRelations(campaign),
+    [campaign.connections, campaign.people, campaign.quests, campaign.events],
+  );
 
   // The board sizes itself to its content: the cork/frame and the yarn SVG
   // grow to enclose the furthest-flung card so nothing lands off-canvas and
@@ -85,6 +93,9 @@ export function NoticeBoard({
     return f;
   });
   const [showArchived, setShowArchived] = useState(false);
+  // FK-derived strings (dashed) can be hidden when the board gets busy; manual
+  // strings always show. This also scopes Tidy to what's visible (see onTidy).
+  const [showDerived, setShowDerived] = useState(true);
   const [scale, setScale] = useState(0.9);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [panning, setPanning] = useState(false);
@@ -120,7 +131,9 @@ export function NoticeBoard({
     return true;
   };
 
-  const visibleConnections = connections.filter(([a, b]) => visible(a) && visible(b));
+  const visibleEdges = edges.filter(
+    (e) => visible(e.a) && visible(e.b) && (showDerived || e.source === "manual"),
+  );
 
   // The entities tied to the focused session: quests logged in it and people
   // last seen there (sessions link to nothing else in the model). null means
@@ -140,8 +153,8 @@ export function NoticeBoard({
   // outside the focused session collapse to headline-only (.pinned.receded)
   // but stay fully legible — a live session shouldn't ghost the whole board.
   const hoverSpot = hoverCard
-    ? new Set([hoverCard, ...visibleConnections.flatMap(([a, b]) =>
-        a === hoverCard ? [b] : b === hoverCard ? [a] : [])])
+    ? new Set([hoverCard, ...visibleEdges.flatMap((e) =>
+        e.a === hoverCard ? [e.b] : e.b === hoverCard ? [e.a] : [])])
     : null;
 
   const toggleKind = (k: KindKey) => setFilters((f) => ({ ...f, [k]: !(f as any)[k] }));
@@ -341,7 +354,9 @@ export function NoticeBoard({
       }));
     if (cards.length < 2) return;
 
-    const target = computeTidyLayout({ cards, positions, connections });
+    // Cluster on what's visible: hiding derived strings scopes Tidy to manual
+    // edges (deliberate — mirrors the visible-cards-only footprint above).
+    const target = computeTidyLayout({ cards, positions, edges: visibleEdges });
     const ids = Object.keys(target);
     if (ids.length === 0) return;
     const start: Record<string, { x: number; y: number }> = {};
@@ -433,6 +448,13 @@ export function NoticeBoard({
             title="Include archived cards on the board"
           >
             {showArchived ? "✓ Archived" : "Show archived"}
+          </span>
+          <span
+            className={`filter-pill ${showDerived ? "active" : ""}`}
+            onClick={() => setShowDerived((v) => !v)}
+            title="Show the dashed strings derived from relations (resides at, member of, quest giver)"
+          >
+            {showDerived ? "✓ Derived strings" : "Derived strings"}
           </span>
         </div>
 
@@ -556,19 +578,22 @@ export function NoticeBoard({
                 <feGaussianBlur stdDeviation="0.6" />
               </filter>
             </defs>
-            {visibleConnections.map((conn, i) => {
-              const [a, b, label] = conn;
+            {visibleEdges.map((e, i) => {
+              const { a, b, label, source } = e;
               const A = centerOf(a), B = centerOf(b);
               if (!A || !B) return null;
               const faded = sessionFocus && !(sessionFocus.has(a) || sessionFocus.has(b));
               const isHover = hoverConn === i;
               const lit = isHover || (hoverCard !== null && (a === hoverCard || b === hoverCard));
+              // FK-derived edges render dashed and are read-only — they have no
+              // connections row, so no hover-delete affordance.
+              const derived = source === "fk";
               const pathD = yarnPath(A, B);
               const midX = (A.x + B.x) / 2;
               const midY = (A.y + B.y) / 2 + Math.max(20, Math.hypot(B.x - A.x, B.y - A.y) * 0.08) * 0.5;
               return (
                 <g key={i}
-                   className={`yarn ${lit ? "lit" : faded ? "faded" : ""}`}
+                   className={`yarn ${derived ? "derived" : ""} ${lit ? "lit" : faded ? "faded" : ""}`}
                    onMouseEnter={() => setHoverConn(i)}
                    onMouseLeave={() => setHoverConn(null)}
                    style={{ pointerEvents: "stroke" }}
@@ -583,11 +608,11 @@ export function NoticeBoard({
                     </text>
                   )}
                   <path id={`yp${i}`} d={pathD} fill="none" stroke="none" />
-                  {isHover && canEdit && (
+                  {isHover && canEdit && !derived && (
                     <g
                       transform={`translate(${midX} ${midY})`}
                       style={{ cursor: "pointer", pointerEvents: "all" }}
-                      onClick={(e) => { e.stopPropagation(); removeConnection(a, b, label); }}
+                      onClick={(ev) => { ev.stopPropagation(); removeConnection(a, b, label); }}
                     >
                       <circle r="11" fill="var(--bloodred)" stroke="var(--vellum-light)" strokeWidth="1.5" />
                       <path d="M -4 -4 L 4 4 M -4 4 L 4 -4" stroke="var(--vellum-light)" strokeWidth="2" strokeLinecap="round" />

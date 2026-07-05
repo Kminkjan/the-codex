@@ -15,6 +15,7 @@ import {
   unmarkSeen,
 } from "./mutations";
 import { uploadEntityImage, type UploadableKind } from "./upload";
+import { deriveRelations } from "./relations";
 
 const UPLOADABLE_KINDS = ["people", "locations", "factions", "items", "sessions"] as const;
 const isUploadable = (k: KindKey): k is UploadableKind =>
@@ -360,50 +361,30 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
   const [saving, setSaving] = useState(false);
   const draftRef = useRef<HTMLDivElement>(null);
 
+  // Manual strings + FK relations (resides at / member of / quest giver /
+  // happened at), unioned by the same selector the board reads — so the sheet
+  // and the board can't drift. Session/arc/event/chapter links below aren't
+  // board edges, so they stay derived inline here.
+  const relations = useMemo(
+    () => deriveRelations(campaign),
+    [campaign.connections, campaign.people, campaign.quests, campaign.events],
+  );
+
   if (!entity) return null;
   const kind = entity._kind as KindKey;
 
   const related: Record<string, Related[]> = {};
-  campaign.connections.forEach(([a, b, label]) => {
-    let other: string | null = null;
-    const rel = label;
-    if (a === entityId) other = b;
-    else if (b === entityId) other = a;
+  relations.forEach((e) => {
+    const other = e.a === entityId ? e.b : e.b === entityId ? e.a : null;
     if (!other) return;
-    const e = findEntity(other);
-    if (!e) return;
-    const k = e._kind as string;
+    const ent = findEntity(other);
+    if (!ent) return;
+    const k = ent._kind as string;
     related[k] = related[k] || [];
-    related[k].push({ entity: e, rel });
+    if (!related[k].find((r) => r.entity.id === ent.id)) {
+      related[k].push({ entity: ent, rel: e.label });
+    }
   });
-
-  if ((entity as any).location) {
-    const loc = findEntity((entity as any).location);
-    if (loc) {
-      related.locations = related.locations || [];
-      if (!related.locations.find((r) => r.entity.id === loc.id)) {
-        related.locations.push({ entity: loc, rel: kind === "events" ? "happened at" : "resides at" });
-      }
-    }
-  }
-  if ((entity as any).faction) {
-    const f = findEntity((entity as any).faction);
-    if (f) {
-      related.factions = related.factions || [];
-      if (!related.factions.find((r) => r.entity.id === f.id)) {
-        related.factions.push({ entity: f, rel: "member of" });
-      }
-    }
-  }
-  if ((entity as any).giver) {
-    const g = findEntity((entity as any).giver);
-    if (g) {
-      related.people = related.people || [];
-      if (!related.people.find((r) => r.entity.id === g.id)) {
-        related.people.push({ entity: g, rel: "quest giver" });
-      }
-    }
-  }
   if ((entity as any).session || (entity as any).lastSeen) {
     const sid = (entity as any).session || (entity as any).lastSeen;
     const s = findEntity(sid);

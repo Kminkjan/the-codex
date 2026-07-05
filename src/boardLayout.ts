@@ -7,7 +7,8 @@ import {
   type SimulationLinkDatum,
 } from "d3-force";
 import { packSiblings, packEnclose } from "d3-hierarchy";
-import type { BoardPosition, Connection, KindKey } from "./data";
+import type { BoardPosition, KindKey } from "./data";
+import type { DerivedEdge } from "./relations";
 
 // Card footprints per kind — the single source of truth shared by the board
 // renderer (centerOf / findFreeSpot in board.tsx) and the tidy layout, so both
@@ -31,29 +32,38 @@ const MARGIN_Y = 260;
 const TICKS_PER_CLUSTER = 260;
 
 export type TidyTuning = {
-  linkDistance: number;  // rest length of intra-cluster edges
-  linkStrength: number;
-  charge: number;        // intra-cluster repulsion (spreads a sphere's cards)
-  hubPull: number;       // pull members toward their hub (tightness of a sphere)
-  collidePad: number;    // breathing room around each card
-  clusterGap: number;    // empty space added around each sphere before packing
+  linkDistance: number;      // rest length of intra-cluster edges
+  linkStrengthPerWeight: number; // forceLink strength = this × edge weight (capped)
+  charge: number;            // intra-cluster repulsion (spreads a sphere's cards)
+  hubPull: number;           // pull members toward their hub (tightness of a sphere)
+  collidePad: number;        // breathing room around each card
+  clusterGap: number;        // empty space added around each sphere before packing
 };
+
+// forceLink strength scales with edge weight so a shared faction (w3) draws
+// cards tighter than a shared location/manual string (w2) than a quest-giver
+// link (w1); capped so a heavily-linked pair can't collapse to zero distance.
+const MAX_LINK_STRENGTH = 0.6;
 
 interface MiniNode extends SimulationNodeDatum {
   id: string;
   w: number;
   h: number;
 }
-type MiniLink = SimulationLinkDatum<MiniNode>;
+interface MiniLink extends SimulationLinkDatum<MiniNode> {
+  weight: number;
+}
 
 /**
  * Two-phase "tidy" that arranges the board into **spheres of influence**:
  *
- *  1. Connections partition the cards into connected components; each component's
- *     most-connected entity is its hub. Each component is laid out **internally**
- *     with its own small force sim (links + repulsion + collision + a pull toward
- *     the hub), producing a tight sphere centred on its hub. Isolated cards are
- *     parked in a separate grid so they don't blur the gaps between spheres.
+ *  1. Weighted **label propagation** partitions the cards into communities
+ *     (denser than connected components, so an FK-enriched graph splits into
+ *     sub-spheres instead of merging into one blob); each community's
+ *     most-connected entity is its hub. Each community is laid out **internally**
+ *     with its own small force sim (weighted links + repulsion + collision + a
+ *     pull toward the hub), producing a tight sphere centred on its hub. Isolated
+ *     cards are parked in a separate grid so they don't blur the gaps between spheres.
  *  2. The spheres are then **circle-packed** (`d3-hierarchy`), so clusters sit
  *     adjacent and clearly separated with no overlap — deterministic and
  *     compact, without the chaotic tug-of-war of competing global forces.
@@ -66,21 +76,21 @@ type MiniLink = SimulationLinkDatum<MiniNode>;
 export function computeTidyLayout(input: {
   cards: { id: string; kind: KindKey; pinned: boolean }[]; // visible cards only
   positions: Record<string, BoardPosition>;                // current (unused here; kept for API stability)
-  connections: Connection[];                               // visible edges only
+  edges: DerivedEdge[];                                    // visible unified edges (manual + FK)
 }, tuneOverride?: Partial<TidyTuning>): Record<string, { x: number; y: number }> {
-  const { cards, connections } = input;
+  const { cards, edges } = input;
   if (cards.length === 0) return {};
 
   const TUNE: TidyTuning = {
     linkDistance: 55,
-    linkStrength: 0.3,
+    linkStrengthPerWeight: 0.15, // w1→.15, w2→.30 (== old constant), w3→.45
     charge: -200,
     hubPull: 0.42,
     collidePad: 24,
     clusterGap: 170, // generous whitespace between spheres so they read as distinct
     ...tuneOverride,
   };
-  // Isolated cards (no connections) are parked in a tidy grid below the clusters
+  // Isolated cards (no edges) are parked in a tidy grid below the clusters
   // instead of being packed into the gaps between spheres — otherwise they fill
   // exactly the whitespace that separates the clusters and blur them together.
   const SINGLETON_CELL = { w: 250, h: 340 };
@@ -89,46 +99,62 @@ export function computeTidyLayout(input: {
   const dims = new Map(cards.map((c) => [c.id, cardDims(c.kind)]));
   const cardIds = new Set(cards.map((c) => c.id));
 
-  // Dedup edges, count degree, build the community graph.
+  // Collapse the unified edges to one weight per unordered card pair (MAX, so a
+  // pair's strength stays in the designed w1..w3 band even with parallel manual
+  // strings), and build a weighted adjacency map + degree count.
   const degree = new Map<string, number>(cards.map((c) => [c.id, 0]));
-  const edgeKeys = new Set<string>();
-  for (const [a, b] of connections) {
-    if (a === b || !cardIds.has(a) || !cardIds.has(b)) continue;
-    const key = a < b ? `${a}|${b}` : `${b}|${a}`;
-    if (edgeKeys.has(key)) continue;
-    edgeKeys.add(key);
+  const adjW = new Map<string, Map<string, number>>(cards.map((c) => [c.id, new Map()]));
+  const pairWeight = new Map<string, number>();
+  for (const e of edges) {
+    if (e.a === e.b || !cardIds.has(e.a) || !cardIds.has(e.b)) continue;
+    const key = e.a < e.b ? `${e.a}|${e.b}` : `${e.b}|${e.a}`;
+    pairWeight.set(key, Math.max(pairWeight.get(key) ?? 0, e.weight));
+  }
+  for (const [key, w] of pairWeight) {
+    const [a, b] = key.split("|");
     degree.set(a, (degree.get(a) ?? 0) + 1);
     degree.set(b, (degree.get(b) ?? 0) + 1);
+    adjW.get(a)!.set(b, w);
+    adjW.get(b)!.set(a, w);
   }
 
   const radiusOf = (d: { id: string; w: number; h: number }) =>
     Math.hypot(d.w / 2, d.h / 2) + TUNE.collidePad + Math.min(degree.get(d.id) ?? 0, 10) * 6;
 
-  // Group by connected component: each connected group of cards becomes one
-  // sphere. Connected components give the clearest visually-distinct spheres for
-  // sparse campaign graphs — a densely-linked group stays a single sphere rather
-  // than being split into tangled, yarn-crossed sub-clusters. Isolated cards each
-  // form their own singleton "component" (parked on a grid later).
-  const adj = new Map<string, string[]>(cards.map((c) => [c.id, []]));
-  edgeKeys.forEach((key) => { const [a, b] = key.split("|"); adj.get(a)!.push(b); adj.get(b)!.push(a); });
-  const community: Record<string, number> = {};
-  let comp = 0;
-  for (const c of cards) {
-    if (community[c.id] !== undefined) continue;
-    comp++;
-    const stack = [c.id];
-    community[c.id] = comp;
-    while (stack.length) {
-      const u = stack.pop()!;
-      for (const v of adj.get(u)!) if (community[v] === undefined) { community[v] = comp; stack.push(v); }
+  // Community detection via **weighted label propagation**. Each node adopts the
+  // neighbour label with the greatest summed edge weight; ties break to the
+  // lexicographically smallest label. Deterministic (fixed sorted node order,
+  // order-independent tie-break, capped rounds) so "Tidy" is reproducible. This
+  // is denser than connected components — a hub linked to many entities splits
+  // into sub-communities rather than absorbing the whole board into one blob.
+  const sortedIds = cards.map((c) => c.id).sort();
+  const community = new Map<string, string>(sortedIds.map((id) => [id, id]));
+  for (let round = 0; round < 20; round++) {
+    let changed = false;
+    for (const id of sortedIds) {
+      const nbrs = adjW.get(id)!;
+      if (nbrs.size === 0) continue;
+      const score = new Map<string, number>();
+      for (const [nb, w] of nbrs) {
+        const lb = community.get(nb)!;
+        score.set(lb, (score.get(lb) ?? 0) + w);
+      }
+      let best: string | null = null;
+      let bestScore = -Infinity;
+      for (const [lb, s] of score) {
+        if (s > bestScore || (s === bestScore && (best === null || lb < best))) { best = lb; bestScore = s; }
+      }
+      if (best !== null && best !== community.get(id)) { community.set(id, best); changed = true; }
     }
+    if (!changed) break;
   }
 
-  // Group cards by community; find each community's hub (highest degree).
-  const members = new Map<number, string[]>();
-  const hub = new Map<number, string>();
+  // Group cards by community label; find each community's hub (highest degree,
+  // tie-break smallest id).
+  const members = new Map<string, string[]>();
+  const hub = new Map<string, string>();
   for (const c of cards) {
-    const cm = community[c.id];
+    const cm = community.get(c.id)!;
     let arr = members.get(cm);
     if (!arr) { arr = []; members.set(cm, arr); }
     arr.push(c.id);
@@ -157,9 +183,9 @@ export function computeTidyLayout(input: {
       });
       const inSub = new Set(ids);
       const subLinks: MiniLink[] = [];
-      edgeKeys.forEach((key) => {
+      pairWeight.forEach((w, key) => {
         const [a, b] = key.split("|");
-        if (inSub.has(a) && inSub.has(b)) subLinks.push({ source: a, target: b });
+        if (inSub.has(a) && inSub.has(b)) subLinks.push({ source: a, target: b, weight: w });
       });
       const hubId = hub.get(cm)!;
       const byId = new Map(sub.map((n) => [n.id, n]));
@@ -174,7 +200,7 @@ export function computeTidyLayout(input: {
         }
       };
       const sim = forceSimulation<MiniNode>(sub)
-        .force("link", forceLink<MiniNode, MiniLink>(subLinks).id((d) => d.id).distance(TUNE.linkDistance).strength(TUNE.linkStrength))
+        .force("link", forceLink<MiniNode, MiniLink>(subLinks).id((d) => d.id).distance(TUNE.linkDistance).strength((l) => Math.min(MAX_LINK_STRENGTH, TUNE.linkStrengthPerWeight * l.weight)))
         .force("charge", forceManyBody<MiniNode>().strength(TUNE.charge))
         .force("collide", forceCollide<MiniNode>((d) => radiusOf(d)).strength(1).iterations(4))
         .force("hub", hubPull)

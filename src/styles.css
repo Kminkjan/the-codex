@@ -721,6 +721,13 @@ button.session-pin { line-height: 1; }
 }
 .yarn .yarn-shadow { display: none; }
 .yarn.lit .yarn-shadow { display: block; }
+/* FK-derived strings render dashed, so they read as inferred rather than
+   hand-pinned. Dash BOTH stroked paths — the shadow shows when lit, and a solid
+   shadow under a dashed line would look like a rendering glitch. */
+.yarn.derived .yarn-path,
+.yarn.derived .yarn-shadow {
+  stroke-dasharray: 7 6;
+}
 .yarn-label {
   font-family: var(--font-hand);
   font-size: 14px;
