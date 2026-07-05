@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { type KindKey, entityLabel, isArchivableKind, isArchived, isPinned } from "./data";
 import { Icon, kindIcon } from "./icons";
-import { StatusChip, EditableText, EditableMarkdown, EnumSelect, EntitySelect } from "./components";
+import { StatusChip, EditableText, EditableMarkdown, EnumSelect, EntitySelect, EntityCombobox } from "./components";
 import { useCampaign, useFindEntity } from "./hooks";
 import { useAuth } from "./auth";
 import {
@@ -182,16 +182,16 @@ function AddRelationForm({ fromId }: { fromId: string }) {
 
   const allOptions = useMemo(
     () => [
-      ...campaign.people.map((p) => ({ id: p.id, label: p.name, kind: "people" })),
-      ...campaign.locations.map((l) => ({ id: l.id, label: l.name, kind: "locations" })),
-      ...campaign.quests.map((q) => ({ id: q.id, label: q.title, kind: "quests" })),
-      ...campaign.goals.map((g) => ({ id: g.id, label: g.text, kind: "goals" })),
-      ...campaign.factions.map((f) => ({ id: f.id, label: f.name, kind: "factions" })),
-      ...campaign.items.map((i) => ({ id: i.id, label: i.name, kind: "items" })),
-      ...campaign.lore.map((l) => ({ id: l.id, label: l.title, kind: "lore" })),
-      ...campaign.sessions.map((s) => ({ id: s.id, label: s.title, kind: "sessions" })),
-      ...campaign.arcs.map((a) => ({ id: a.id, label: a.title, kind: "arcs" })),
-      ...campaign.events.map((e) => ({ id: e.id, label: e.title, kind: "events" })),
+      ...campaign.people.map((p) => ({ id: p.id, label: p.name, kind: "people" as const })),
+      ...campaign.locations.map((l) => ({ id: l.id, label: l.name, kind: "locations" as const })),
+      ...campaign.quests.map((q) => ({ id: q.id, label: q.title, kind: "quests" as const })),
+      ...campaign.goals.map((g) => ({ id: g.id, label: g.text, kind: "goals" as const })),
+      ...campaign.factions.map((f) => ({ id: f.id, label: f.name, kind: "factions" as const })),
+      ...campaign.items.map((i) => ({ id: i.id, label: i.name, kind: "items" as const })),
+      ...campaign.lore.map((l) => ({ id: l.id, label: l.title, kind: "lore" as const })),
+      ...campaign.sessions.map((s) => ({ id: s.id, label: s.title, kind: "sessions" as const })),
+      ...campaign.arcs.map((a) => ({ id: a.id, label: a.title, kind: "arcs" as const })),
+      ...campaign.events.map((e) => ({ id: e.id, label: e.title, kind: "events" as const })),
     ].filter((o) => o.id !== fromId),
     [campaign, fromId],
   );
@@ -212,21 +212,13 @@ function AddRelationForm({ fromId }: { fromId: string }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <select
-        value={targetId}
-        onChange={(e) => setTargetId(e.target.value)}
-        style={{
-          background: "transparent",
-          border: "1px dashed var(--ink-ghost)",
-          fontFamily: "var(--font-fell)", fontSize: 12, color: "var(--ink)",
-          padding: "6px 8px", cursor: "pointer",
-        }}
-      >
-        <option value="">— pick an entity —</option>
-        {allOptions.map((o) => (
-          <option key={o.id} value={o.id}>{o.kind}: {o.label}</option>
-        ))}
-      </select>
+      <EntityCombobox
+        value={targetId || undefined}
+        options={allOptions}
+        onSelect={(id) => setTargetId(id ?? "")}
+        placeholder="Search entities…"
+        style={{ fontSize: 12, padding: "6px 8px" }}
+      />
       <input
         value={label}
         onChange={(e) => setLabel(e.target.value)}
@@ -452,10 +444,10 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
   const arcOptions = campaign.arcs
     .slice()
     .sort((a, b) => a.orderNum - b.orderNum)
-    .map((a) => ({ id: a.id, label: a.title }));
+    .map((a) => ({ id: a.id, label: a.title, kind: "arcs" as const }));
   const sessionOptions = campaign.sessions
-    .map((s) => ({ id: s.id, label: `S${String(s.num).padStart(2, "0")} — ${s.title}` }));
-  const locationOptions = campaign.locations.map((l) => ({ id: l.id, label: l.name }));
+    .map((s) => ({ id: s.id, label: `S${String(s.num).padStart(2, "0")} — ${s.title}`, kind: "sessions" as const }));
+  const locationOptions = campaign.locations.map((l) => ({ id: l.id, label: l.name, kind: "locations" as const }));
 
   const onDelete = () => {
     if (!entity) return;

@@ -1,206 +1,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCampaign } from "./hooks";
-import { entityLabel, type Campaign, type KindKey } from "./data";
-import { Icon } from "./icons";
+import { type Campaign } from "./data";
+import { Icon, kindIcon } from "./icons";
+import {
+  buildIndex,
+  keepBest,
+  makeSnippet,
+  rankEntities,
+  sortHits,
+  KIND_LABEL,
+  type Indexed,
+  type RankedHit,
+} from "./entitySearch";
 
-type MatchSource = "primary" | "secondary" | "note";
-
-interface PaletteHit {
-  id: string;
-  kind: KindKey;
-  label: string;
-  snippet?: string;
-  matchSource: MatchSource;
-  rank: 0 | 1 | 2 | 3;
-  archived?: boolean;
-}
-
-const KIND_ICON: Record<KindKey, "people" | "location" | "quest" | "goal" | "faction" | "item" | "lore" | "session" | "layers" | "sparkle"> = {
-  people: "people",
-  locations: "location",
-  quests: "quest",
-  goals: "goal",
-  factions: "faction",
-  items: "item",
-  lore: "lore",
-  sessions: "session",
-  arcs: "layers",
-  events: "sparkle",
-};
-
-const KIND_LABEL: Record<KindKey, string> = {
-  people: "Person",
-  locations: "Location",
-  quests: "Quest",
-  goals: "Goal",
-  factions: "Faction",
-  items: "Item",
-  lore: "Lore",
-  sessions: "Session",
-  arcs: "Arc",
-  events: "Event",
-};
-
-interface Indexed {
-  id: string;
-  kind: KindKey;
-  label: string;
-  primary: string;
-  secondary: string;
-  archived?: boolean;
-}
-
-function joinFields(...parts: Array<string | number | null | undefined>): string {
-  return parts.filter((p) => p !== undefined && p !== null && p !== "").join(" · ");
-}
-
-function buildIndex(campaign: Campaign): Indexed[] {
-  const out: Indexed[] = [];
-  for (const p of campaign.people) {
-    out.push({
-      id: p.id,
-      kind: "people",
-      label: entityLabel(p),
-      primary: p.name ?? "",
-      secondary: joinFields(p.epithet, p.race, p.role, p.disposition, p.alignment, p.notes),
-      archived: p.archived,
-    });
-  }
-  for (const l of campaign.locations) {
-    out.push({
-      id: l.id,
-      kind: "locations",
-      label: entityLabel(l),
-      primary: l.name ?? "",
-      secondary: joinFields(l.kind, l.region, l.ruler, l.desc, l.notes),
-      archived: l.archived,
-    });
-  }
-  for (const q of campaign.quests) {
-    out.push({
-      id: q.id,
-      kind: "quests",
-      label: entityLabel(q),
-      primary: q.title ?? "",
-      secondary: joinFields(q.status, q.reward, q.desc, q.hooks),
-      archived: q.archived,
-    });
-  }
-  for (const g of campaign.goals) {
-    out.push({
-      id: g.id,
-      kind: "goals",
-      label: entityLabel(g),
-      primary: g.text ?? "",
-      secondary: joinFields(g.owner, g.kind, g.status),
-      archived: g.archived,
-    });
-  }
-  for (const f of campaign.factions) {
-    out.push({
-      id: f.id,
-      kind: "factions",
-      label: entityLabel(f),
-      primary: f.name ?? "",
-      secondary: joinFields(f.sigil, f.desc, f.allegiance),
-      archived: f.archived,
-    });
-  }
-  for (const i of campaign.items) {
-    out.push({
-      id: i.id,
-      kind: "items",
-      label: entityLabel(i),
-      primary: i.name ?? "",
-      secondary: joinFields(i.kind, i.desc),
-      archived: i.archived,
-    });
-  }
-  for (const lo of campaign.lore) {
-    out.push({
-      id: lo.id,
-      kind: "lore",
-      label: entityLabel(lo),
-      primary: lo.title ?? "",
-      secondary: lo.text ?? "",
-      archived: lo.archived,
-    });
-  }
-  for (const s of campaign.sessions) {
-    out.push({
-      id: s.id,
-      kind: "sessions",
-      label: entityLabel(s),
-      primary: s.title ?? "",
-      secondary: joinFields(s.date, s.inGameDate, `Session ${s.num}`, s.summary),
-    });
-  }
-  for (const a of campaign.arcs) {
-    out.push({
-      id: a.id,
-      kind: "arcs",
-      label: entityLabel(a),
-      primary: a.title ?? "",
-      secondary: a.summary ?? "",
-    });
-  }
-  for (const ev of campaign.events) {
-    out.push({
-      id: ev.id,
-      kind: "events",
-      label: entityLabel(ev),
-      primary: ev.title ?? "",
-      secondary: joinFields(ev.inGameDate, ev.summary),
-    });
-  }
-  return out;
-}
-
-function makeSnippet(source: string, queryLower: string): string {
-  const idx = source.toLowerCase().indexOf(queryLower);
-  if (idx < 0) return source.slice(0, 90);
-  const start = Math.max(0, idx - 30);
-  const end = Math.min(source.length, idx + queryLower.length + 40);
-  const prefix = start > 0 ? "…" : "";
-  const suffix = end < source.length ? "…" : "";
-  const core = source.slice(start, end);
-  const snippet = `${prefix}${core}${suffix}`;
-  return snippet.length > 100 ? `${snippet.slice(0, 97)}…` : snippet;
-}
-
-function searchHits(index: Indexed[], campaign: Campaign, query: string): PaletteHit[] {
+function searchHits(index: Indexed[], campaign: Campaign, query: string): RankedHit[] {
   const q = query.trim().toLowerCase();
   if (!q) return [];
 
-  const best = new Map<string, PaletteHit>();
-  const keepBest = (hit: PaletteHit) => {
-    const prev = best.get(hit.id);
-    if (!prev || hit.rank < prev.rank) best.set(hit.id, hit);
-  };
-
-  for (const e of index) {
-    const primary = e.primary.toLowerCase();
-    if (primary.startsWith(q)) {
-      keepBest({ id: e.id, kind: e.kind, label: e.label, matchSource: "primary", rank: 0, archived: e.archived });
-      continue;
-    }
-    if (primary.includes(q)) {
-      keepBest({ id: e.id, kind: e.kind, label: e.label, matchSource: "primary", rank: 1, archived: e.archived });
-      continue;
-    }
-    const secondary = e.secondary.toLowerCase();
-    if (secondary.includes(q)) {
-      keepBest({
-        id: e.id,
-        kind: e.kind,
-        label: e.label,
-        snippet: makeSnippet(e.secondary, q),
-        matchSource: "secondary",
-        rank: 2,
-        archived: e.archived,
-      });
-    }
-  }
+  const best = new Map<string, RankedHit>();
+  rankEntities(index, q, best);
 
   const indexById = new Map(index.map((e) => [e.id, e] as const));
   for (const [entityId, notes] of Object.entries(campaign.notes)) {
@@ -208,7 +26,7 @@ function searchHits(index: Indexed[], campaign: Campaign, query: string): Palett
     if (!parent) continue;
     for (const note of notes) {
       if (note.text.toLowerCase().includes(q)) {
-        keepBest({
+        keepBest(best, {
           id: entityId,
           kind: parent.kind,
           label: parent.label,
@@ -222,9 +40,7 @@ function searchHits(index: Indexed[], campaign: Campaign, query: string): Palett
     }
   }
 
-  return Array.from(best.values())
-    .sort((a, b) => a.rank - b.rank || a.label.localeCompare(b.label))
-    .slice(0, 30);
+  return sortHits(best, 30);
 }
 
 export function useCommandPaletteHotkey(onToggle: () => void) {
@@ -264,7 +80,7 @@ export function CommandPalette({ open, onClose, onOpenEntity, onLocate }: Comman
   // Single source of truth for "can this hit be located on the board" — keeps
   // the ⌥↵ handler and the row's "On board" button in lockstep.
   const canLocate = useCallback(
-    (hit: PaletteHit | undefined): boolean => !!onLocate && !!hit && boardIds.has(hit.id),
+    (hit: RankedHit | undefined): boolean => !!onLocate && !!hit && boardIds.has(hit.id),
     [onLocate, boardIds],
   );
 
@@ -291,12 +107,12 @@ export function CommandPalette({ open, onClose, onOpenEntity, onLocate }: Comman
     active?.scrollIntoView({ block: "nearest" });
   }, [selected, open, results.length]);
 
-  const choose = useCallback((hit: PaletteHit | undefined) => {
+  const choose = useCallback((hit: RankedHit | undefined) => {
     if (!hit) return;
     onOpenEntity(hit.id);
   }, [onOpenEntity]);
 
-  const locate = useCallback((hit: PaletteHit | undefined) => {
+  const locate = useCallback((hit: RankedHit | undefined) => {
     if (!hit) return;
     // Alt+Enter on a card without a board pin has nowhere to jump — fall back
     // to opening its detail sheet so the shortcut is never a dead key.
@@ -370,7 +186,7 @@ export function CommandPalette({ open, onClose, onOpenEntity, onLocate }: Comman
               onMouseEnter={() => setSelected(i)}
               onClick={() => choose(hit)}
             >
-              <Icon name={KIND_ICON[hit.kind]} size={16} />
+              <Icon name={kindIcon[hit.kind]} size={16} />
               <div className="cmdk-row-text">
                 <div className={`cmdk-row-label ${hit.archived ? "archived" : ""}`}>{hit.label}</div>
                 {hit.snippet && (
