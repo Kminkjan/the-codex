@@ -1051,17 +1051,19 @@ export function EntitySelect({
       </span>
     );
   }
-  // Group options into <optgroup>s only when at least one carries a `group`;
-  // otherwise keep the flat list (unchanged for existing callers). Groups
-  // render in first-seen order.
+  // Options with a `group` render inside a <optgroup> (first-seen order);
+  // options without one stay in the flat list rather than being bucketed into
+  // a blank-label optgroup, so a caller can mix grouped and ungrouped entries
+  // (or pass no groups at all, unchanged for existing callers).
   const grouped = options.some((o) => o.group);
+  const flat = grouped ? options.filter((o) => !o.group) : options;
   const groupOrder: string[] = [];
   const byGroup = new Map<string, typeof options>();
   if (grouped) {
     for (const o of options) {
-      const g = o.group ?? "";
-      if (!byGroup.has(g)) { byGroup.set(g, []); groupOrder.push(g); }
-      byGroup.get(g)!.push(o);
+      if (!o.group) continue;
+      if (!byGroup.has(o.group)) { byGroup.set(o.group, []); groupOrder.push(o.group); }
+      byGroup.get(o.group)!.push(o);
     }
   }
   return (
@@ -1087,17 +1089,16 @@ export function EntitySelect({
       }}
     >
       {(allowClear || !current) && <option value="">—</option>}
-      {grouped
-        ? groupOrder.map((g) => (
-            <optgroup key={g} label={g}>
-              {byGroup.get(g)!.map((o) => (
-                <option key={o.id} value={o.id}>{o.label}</option>
-              ))}
-            </optgroup>
-          ))
-        : options.map((o) => (
+      {flat.map((o) => (
+        <option key={o.id} value={o.id}>{o.label}</option>
+      ))}
+      {groupOrder.map((g) => (
+        <optgroup key={g} label={g}>
+          {byGroup.get(g)!.map((o) => (
             <option key={o.id} value={o.id}>{o.label}</option>
           ))}
+        </optgroup>
+      ))}
     </select>
   );
 }

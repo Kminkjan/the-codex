@@ -157,6 +157,12 @@ function EntityPortrait({
 const STATUS_OPTIONS = ["whispered", "pursuing", "resolved", "lost"] as const;
 const DISPOSITION_OPTIONS = ["ally", "neutral", "wary", "hostile"] as const;
 
+// Marks a Relations-rail label as backed by a structured (FK/junction)
+// relation rather than a hand-drawn connections-table string.
+function StructuredMark() {
+  return <Icon name="link" size={10} style={{ color: "var(--ink-faded)", marginRight: 4, verticalAlign: "middle" }} />;
+}
+
 // Integer-only EditableText: non-numeric input is rejected (no write, the
 // display reverts on blur), matching sessions.num being NOT NULL integer.
 function EditableNumber({ value, onSave }: { value: number; onSave: (n: number) => void }) {
@@ -291,7 +297,7 @@ function EventParticipantsEditor({ eventId, onOpen }: { eventId: string; onOpen:
           <div style={{ flex: 1 }}>
             <div className="rc-name">{p.name}</div>
             <div className="rc-rel">
-              <Icon name="link" size={10} style={{ color: "var(--ink-faded)", marginRight: 4, verticalAlign: "middle" }} />
+              <StructuredMark />
               was present
             </div>
           </div>
@@ -464,11 +470,15 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
     .map((s) => ({ id: s.id, label: `S${String(s.num).padStart(2, "0")} — ${s.title}` }));
   const locationOptions = campaign.locations.map((l) => ({ id: l.id, label: l.name }));
   const factionOptions = campaign.factions.map((f) => ({ id: f.id, label: f.name }));
-  // Quest giver: people or factions, split into two <optgroup>s.
-  const giverOptions = [
-    ...campaign.people.map((p) => ({ id: p.id, label: p.name, group: "People" })),
-    ...campaign.factions.map((f) => ({ id: f.id, label: f.name, group: "Factions" })),
-  ];
+  // Quest giver: people or factions, split into two <optgroup>s. Only built
+  // for quests — unlike the single-table options above, this maps two tables
+  // and is the costliest of the bunch.
+  const giverOptions = kind === "quests"
+    ? [
+        ...campaign.people.map((p) => ({ id: p.id, label: p.name, group: "People" })),
+        ...campaign.factions.map((f) => ({ id: f.id, label: f.name, group: "Factions" })),
+      ]
+    : [];
 
   const onDelete = () => {
     if (!entity) return;
@@ -832,9 +842,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                         <div style={{ flex: 1 }}>
                           <div className="rc-name">{entityLabel(r.entity)}</div>
                           <div className="rc-rel">
-                            {r.structured && (
-                              <Icon name="link" size={10} style={{ color: "var(--ink-faded)", marginRight: 4, verticalAlign: "middle" }} />
-                            )}
+                            {r.structured && <StructuredMark />}
                             {r.rel}
                           </div>
                         </div>

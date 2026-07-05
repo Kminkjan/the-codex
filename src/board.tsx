@@ -136,7 +136,11 @@ export function NoticeBoard({
   };
 
   const visibleEdges = edges.filter(
-    (e) => visible(e.a) && visible(e.b) && (showDerived || e.source === "manual"),
+    // Suppressed FK edges (a manual string already covers the pair) never draw
+    // on the board regardless of the derived-strings toggle — the hand-drawn
+    // string wins the board line — but they still exist in `edges` for other
+    // consumers (the detail sheet's Relations rail) to read.
+    (e) => visible(e.a) && visible(e.b) && !e.suppressed && (showDerived || e.source === "manual"),
   );
 
   // The entities tied to the focused session: quests logged in it and people
