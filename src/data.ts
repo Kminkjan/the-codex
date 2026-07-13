@@ -2,7 +2,7 @@ export type Status = "whispered" | "pursuing" | "resolved" | "lost";
 
 // People-only enums (Status above belongs to quests/goals). Tier is the
 // information-overload valve: background folk stay searchable and connectable
-// but are hidden behind a reveal in the list and get no board card by default.
+// while the list reveal and board-card gating (follow-up PRs) tuck them away.
 export type PersonTier = "major" | "supporting" | "background";
 export type PersonStatus = "alive" | "dead" | "missing" | "unknown";
 export const PERSON_TIER_OPTIONS = ["major", "supporting", "background"] as const;
