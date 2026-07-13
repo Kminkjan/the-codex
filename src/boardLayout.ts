@@ -13,8 +13,8 @@ import type { BoardPosition, KindKey } from "./data";
 import { pairKey, type DerivedEdge } from "./relations";
 
 // Card footprints per kind — the single source of truth shared by the board
-// renderer (centerOf / findFreeSpot in board.tsx) and the tidy layout, so both
-// agree on how much room a card occupies.
+// renderer (centerOf in board.tsx, findFreeSpot below) and the tidy layout, so
+// all agree on how much room a card occupies.
 export const CARD_SIZE: Record<string, { w: number; h: number }> = {
   people: { w: 220, h: 300 },
   quests: { w: 240, h: 160 },
