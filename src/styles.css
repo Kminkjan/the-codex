@@ -2350,7 +2350,7 @@ button.session-pin { line-height: 1; }
   border-bottom: 1px solid var(--ink-ghost);
   width: 150px;
 }
-.facet-input::placeholder { color: var(--ink-faded); font-style: italic; }
+.facet-input::placeholder { color: var(--ink-ghost); font-style: italic; }
 .facet-input:focus { outline: none; border-bottom-color: var(--ink-secondary); }
 
 .cmdk-hint {
