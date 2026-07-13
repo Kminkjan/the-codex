@@ -46,6 +46,8 @@ const mapPerson = (r: any) => ({
   role: r.role ?? undefined,
   disposition: r.disposition ?? undefined,
   alignment: r.alignment ?? undefined,
+  tier: r.tier ?? undefined,
+  status: r.status ?? undefined,
   location: r.location_id ?? undefined,
   faction: r.faction_id ?? undefined,
   lastSeen: r.last_seen_session_id ?? undefined,

@@ -1046,6 +1046,18 @@ button.session-pin { line-height: 1; }
   margin-top: 10px;
   color: var(--ink);
 }
+.card-poster .name.is-dead {
+  text-decoration: line-through;
+  text-decoration-color: var(--bloodred);
+}
+/* Colors follow .status-chip.lost so the mark stays legible on grimoire. */
+.card-poster .deceased-tag {
+  font-family: var(--font-fell-sc);
+  font-size: 10px;
+  letter-spacing: .18em;
+  text-align: center;
+  color: var(--bloodred-deep);
+}
 .card-poster .desc {
   font-family: var(--font-fell);
   font-style: italic; /* epithet — attribution voice, italic on purpose */

@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { type KindKey, entityLabel, isArchivableKind, isArchived, isPinned, sessionLabel } from "./data";
+import { type KindKey, PERSON_STATUS_OPTIONS, PERSON_TIER_OPTIONS, entityLabel, isArchivableKind, isArchived, isPinned, sessionLabel } from "./data";
 import { Icon, kindIcon } from "./icons";
 import { StatusChip, EditableText, EditableMarkdown, EnumSelect, EntitySelect, EntityCombobox } from "./components";
 import { useCampaign, useFindEntity } from "./hooks";
@@ -464,6 +464,10 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
     () => campaign.locations.map((l) => ({ id: l.id, label: l.name, kind: "locations" as const, archived: l.archived })),
     [campaign.locations],
   );
+  const factionOptions = useMemo(
+    () => campaign.factions.map((f) => ({ id: f.id, label: f.name, kind: "factions" as const, archived: f.archived })),
+    [campaign.factions],
+  );
 
   const onDelete = () => {
     if (!entity) return;
@@ -584,6 +588,11 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                     <Stat label="Role" empty={!(entity as any).role?.trim()} valueStyle={{ fontSize: 14 }}><EditableText value={(entity as any).role ?? ""} onSave={(v) => patch({ role: v })} placeholder="—" /></Stat>
                     <Stat label="Disposition" empty={!(entity as any).disposition} valueStyle={{ textTransform: "capitalize" }}><EnumSelect value={(entity as any).disposition} options={DISPOSITION_OPTIONS} allowClear onSave={(v) => patch({ disposition: v })} /></Stat>
                     <Stat label="Alignment" empty={!(entity as any).alignment?.trim()} valueStyle={{ fontSize: 13 }}><EditableText value={(entity as any).alignment ?? ""} onSave={(v) => patch({ alignment: v })} placeholder="—" /></Stat>
+                    {/* No allowClear on tier: null already reads as major (personTier), so a clear would be indistinguishable. */}
+                    <Stat label="Tier" empty={!(entity as any).tier} valueStyle={{ textTransform: "capitalize" }}><EnumSelect value={(entity as any).tier ?? "major"} options={PERSON_TIER_OPTIONS} onSave={(v) => patch({ tier: v })} /></Stat>
+                    <Stat label="Status" empty={!(entity as any).status} valueStyle={{ textTransform: "capitalize" }}><EnumSelect value={(entity as any).status} options={PERSON_STATUS_OPTIONS} allowClear onSave={(v) => patch({ status: v })} /></Stat>
+                    <Stat label="Faction" empty={!(entity as any).faction} valueStyle={{ fontSize: 13 }}><EntitySelect value={(entity as any).faction} options={factionOptions} allowClear onSave={(id) => patch({ faction: id ?? "" })} /></Stat>
+                    <Stat label="Location" empty={!(entity as any).location} valueStyle={{ fontSize: 13 }}><EntitySelect value={(entity as any).location} options={locationOptions} allowClear onSave={(id) => patch({ location: id ?? "" })} /></Stat>
                   </>
                 )}
                 {kind === "locations" && (

@@ -1,4 +1,12 @@
 export type Status = "whispered" | "pursuing" | "resolved" | "lost";
+
+// People-only enums (Status above belongs to quests/goals). Tier is the
+// information-overload valve: background folk stay searchable and connectable
+// but are hidden behind a reveal in the list and get no board card by default.
+export type PersonTier = "major" | "supporting" | "background";
+export type PersonStatus = "alive" | "dead" | "missing" | "unknown";
+export const PERSON_TIER_OPTIONS = ["major", "supporting", "background"] as const;
+export const PERSON_STATUS_OPTIONS = ["alive", "dead", "missing", "unknown"] as const;
 export type KindKey =
   | "people"
   | "locations"
@@ -60,6 +68,8 @@ export interface Person extends ArchivableFields {
   role?: string;
   disposition?: string;
   alignment?: string;
+  tier?: PersonTier;
+  status?: PersonStatus;
   location?: string;
   faction?: string;
   lastSeen?: string;
@@ -240,6 +250,13 @@ export function isArchived(e: any): boolean {
 
 export function isPinned(e: any): boolean {
   return !!(e && e.pinned);
+}
+
+// Null tier reads as major: existing rows predate the column and every curated
+// person should count as major without a backfill. Always read tier through
+// this helper, never `p.tier` directly.
+export function personTier(p: { tier?: PersonTier }): PersonTier {
+  return p.tier ?? "major";
 }
 
 // Quest/goal status ordering: active work floats up, abandoned sinks. Unknown
