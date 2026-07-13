@@ -2,8 +2,9 @@ import { entityLabel, personTier, type Campaign, type KindKey } from "./data";
 
 // Shared entity search: the command palette and the entity combobox both index
 // the campaign and rank substring matches through this one implementation so
-// their behavior can't drift. The palette layers a party-notes pass on top of
-// the primary/secondary tiering here (see searchHits in commandPalette.tsx).
+// their behavior can't drift. The palette layers two things on top of the
+// primary/secondary tiering here: a party-notes pass and the facet-operator
+// pre-filter (see searchHits in commandPalette.tsx) — the combobox gets neither.
 
 export type MatchSource = "primary" | "secondary" | "note";
 
@@ -56,8 +57,15 @@ export function buildIndex(campaign: Campaign): Indexed[] {
       label: entityLabel(p),
       primary: p.name ?? "",
       // tier/status join the plain-text index too (quests already index
-      // q.status), so free-typed "dead" matches without operator syntax.
-      secondary: joinFields(p.epithet, p.race, p.role, p.disposition, p.alignment, p.tier, p.status, p.notes),
+      // q.status), so free-typed "dead" matches without operator syntax. The
+      // default tier stays out of the text: indexing "major" on every person
+      // would make that word match the whole roster, and explicit-major must
+      // behave like unset-major everywhere (personTier equates them).
+      secondary: joinFields(
+        p.epithet, p.race, p.role, p.disposition, p.alignment,
+        personTier(p) === "major" ? undefined : personTier(p),
+        p.status, p.notes,
+      ),
       archived: p.archived,
       facets: {
         tier: personTier(p),
@@ -219,16 +227,23 @@ export type FacetOp = { field: "tier" | "status" | "race" | "faction"; value: st
 
 const OP_RE = /^(tier|status|race|faction):(.*)$/i;
 
-// Split a raw query into facet operators and the remaining free text. An
-// operator with an empty value ("tier:", mid-typing) still narrows to people.
+// Split a raw query into facet operators and the remaining free text. A bare
+// "tier:" (empty value) only counts as an operator while it's the final token
+// — that's mid-typing, and narrowing to people early feels responsive. Bare
+// anywhere else means the colon was literal text ("status: unknown" typed
+// with a space must keep searching every kind, not silently filter to people).
 export function parseOperators(query: string): { ops: FacetOp[]; rest: string } {
   const ops: FacetOp[] = [];
   const rest: string[] = [];
-  for (const token of query.trim().split(/\s+/)) {
+  const tokens = query.trim().split(/\s+/);
+  tokens.forEach((token, i) => {
     const m = token.match(OP_RE);
-    if (m) ops.push({ field: m[1].toLowerCase() as FacetOp["field"], value: m[2].toLowerCase() });
-    else rest.push(token);
-  }
+    if (m && (m[2] !== "" || i === tokens.length - 1)) {
+      ops.push({ field: m[1].toLowerCase() as FacetOp["field"], value: m[2].toLowerCase() });
+    } else {
+      rest.push(token);
+    }
+  });
   return { ops, rest: rest.join(" ") };
 }
 
@@ -248,16 +263,22 @@ export function matchesOps(e: Indexed, ops: FacetOp[]): boolean {
   });
 }
 
+// The whole index as rank-0 hits, alphabetically — the "no query" listing
+// shared by the combobox dropdown and the palette's pure-operator results.
+export function listAlphabetical(index: Indexed[], limit: number): RankedHit[] {
+  return index
+    .map((e): RankedHit => ({ id: e.id, kind: e.kind, label: e.label, matchSource: "primary", rank: 0, archived: e.archived }))
+    .sort((a, b) => a.label.localeCompare(b.label))
+    .slice(0, limit);
+}
+
 // Combobox ranker: substring tiering over an index, no notes pass. An empty
 // query returns the whole list alphabetically so the popover reads like a
 // normal dropdown before the user types.
 export function rankIndex(index: Indexed[], query: string, limit = 50): RankedHit[] {
   const q = query.trim().toLowerCase();
   if (!q) {
-    return index
-      .map((e): RankedHit => ({ id: e.id, kind: e.kind, label: e.label, matchSource: "primary", rank: 0, archived: e.archived }))
-      .sort((a, b) => a.label.localeCompare(b.label))
-      .slice(0, limit);
+    return listAlphabetical(index, limit);
   }
   const best = new Map<string, RankedHit>();
   rankEntities(index, q, best);

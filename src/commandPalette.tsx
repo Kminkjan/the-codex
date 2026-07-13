@@ -5,6 +5,7 @@ import { Icon, kindIcon } from "./icons";
 import {
   buildIndex,
   keepBest,
+  listAlphabetical,
   makeSnippet,
   matchesOps,
   parseOperators,
@@ -25,11 +26,8 @@ function searchHits(fullIndex: Indexed[], campaign: Campaign, query: string): Ra
   if (!q && !ops.length) return [];
   if (!q) {
     // Pure operator query ("tier:background") — the whole filtered set,
-    // alphabetically, mirroring rankIndex's empty-query dropdown behavior.
-    return index
-      .map((e): RankedHit => ({ id: e.id, kind: e.kind, label: e.label, matchSource: "primary", rank: 0, archived: e.archived }))
-      .sort((a, b) => a.label.localeCompare(b.label))
-      .slice(0, 30);
+    // alphabetically, same listing the combobox shows before typing.
+    return listAlphabetical(index, 30);
   }
 
   const best = new Map<string, RankedHit>();
