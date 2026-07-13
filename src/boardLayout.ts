@@ -27,8 +27,39 @@ export const CARD_SIZE: Record<string, { w: number; h: number }> = {
 const DEFAULT_SIZE = { w: 200, h: 140 };
 export const cardDims = (kind: string) => CARD_SIZE[kind] || DEFAULT_SIZE;
 
-// Top-left margins the layout keeps clear (mirrors findFreeSpot's startX/startY)
-// so no card lands under the title banner or off the top-left of the canvas.
+// Probe outward for an open spot so a new card doesn't stack on others (or
+// land under the title banner). Sweeps a grid below the banner strip and
+// returns the first slot whose rect clears every existing card; falls back to
+// a randomized drop if the board is packed. Pure over `positions` so both the
+// board's "Pin new" and the detail sheet's "place on board" share it.
+export function findFreeSpot(kind: string, positions: Record<string, BoardPosition>): { x: number; y: number } {
+  const s = cardDims(kind);
+  const pad = 24;
+  const occupied = Object.values(positions).map((p) => {
+    const os = cardDims(p.kind);
+    return { x: p.x, y: p.y, w: os.w, h: os.h };
+  });
+  const overlaps = (x: number, y: number) =>
+    occupied.some(
+      (o) =>
+        x < o.x + o.w + pad &&
+        x + s.w + pad > o.x &&
+        y < o.y + o.h + pad &&
+        y + s.h + pad > o.y,
+    );
+  const startX = MARGIN_X, startY = MARGIN_Y, stepX = 120, stepY = 90, cols = 12, rows = 14;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const x = startX + c * stepX;
+      const y = startY + r * stepY;
+      if (!overlaps(x, y)) return { x, y };
+    }
+  }
+  return { x: 400 + Math.floor(Math.random() * 600), y: 300 + Math.floor(Math.random() * 400) };
+}
+
+// Top-left margins the layout keeps clear (findFreeSpot's grid origin) so no
+// card lands under the title banner or off the top-left of the canvas.
 const MARGIN_X = 220;
 const MARGIN_Y = 260;
 const TICKS_PER_CLUSTER = 260;

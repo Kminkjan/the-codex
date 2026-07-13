@@ -13,7 +13,10 @@ import {
   removeEventParticipant,
   markSeen,
   unmarkSeen,
+  upsertBoardPosition,
+  deleteBoardPosition,
 } from "./mutations";
+import { findFreeSpot } from "./boardLayout";
 import { uploadEntityImage, type UploadableKind } from "./upload";
 import { deriveRelations } from "./relations";
 
@@ -526,6 +529,29 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                 style={isArchived(entity) ? { borderColor: "var(--ink)", color: "var(--ink)" } : undefined}
               >
                 {isArchived(entity) ? "⤴ UNARCHIVE" : "⤵ ARCHIVE"}
+              </button>
+              {/* Board membership is a positions row, independent of tier/archive.
+                  Not worded "PIN" — that already means pinned-to-top above. */}
+              <button
+                onClick={() => {
+                  if (campaign.board[entityId]) {
+                    deleteBoardPosition(entityId).catch(console.error);
+                  } else {
+                    const spot = findFreeSpot(kind, campaign.board);
+                    upsertBoardPosition(entityId, {
+                      x: spot.x,
+                      y: spot.y,
+                      rot: Math.floor(Math.random() * 7) - 3,
+                      kind,
+                    }).catch(console.error);
+                  }
+                }}
+                title={campaign.board[entityId]
+                  ? "Take this card off the notice board (notes and relations keep)"
+                  : "Pin this card to the notice board"}
+                className="detail-action-btn"
+              >
+                {campaign.board[entityId] ? "⊟ OFF BOARD" : "⊞ ON BOARD"}
               </button>
             </>
           )}

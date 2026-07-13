@@ -13,7 +13,7 @@ import { useCampaign, useDismiss, useFindEntity, useKinds } from "./hooks";
 import { useAuth } from "./auth";
 import { CardBody, PinnedCard } from "./components";
 import { entityLabel, sessionLabel } from "./data";
-import { computeTidyLayout, cardDims } from "./boardLayout";
+import { computeTidyLayout, cardDims, findFreeSpot } from "./boardLayout";
 import { deriveRelations } from "./relations";
 import {
   upsertBoardPosition,
@@ -219,7 +219,7 @@ export function NoticeBoard({
         markSeen(id).catch(console.error);
       }
       // Drop the new card into the first open spot so cards don't pile up.
-      const spot = findFreeSpot(k);
+      const spot = findFreeSpot(k, positions);
       await upsertBoardPosition(id, {
         x: spot.x,
         y: spot.y,
@@ -311,36 +311,6 @@ export function NoticeBoard({
     const t2 = window.setTimeout(() => setFlash(null), 2000);
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [flash]);
-
-  // Probe outward for an open spot so a new card doesn't stack on others (or
-  // land under the title banner). Sweeps a grid below the banner strip and
-  // returns the first slot whose rect clears every existing card; falls back to
-  // a randomized drop if the board is packed.
-  const findFreeSpot = (kind: string) => {
-    const s = cardDims(kind);
-    const pad = 24;
-    const occupied = Object.values(positions).map((p) => {
-      const os = cardDims(p.kind);
-      return { x: p.x, y: p.y, w: os.w, h: os.h };
-    });
-    const overlaps = (x: number, y: number) =>
-      occupied.some(
-        (o) =>
-          x < o.x + o.w + pad &&
-          x + s.w + pad > o.x &&
-          y < o.y + o.h + pad &&
-          y + s.h + pad > o.y,
-      );
-    const startX = 220, startY = 260, stepX = 120, stepY = 90, cols = 12, rows = 14;
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        const x = startX + c * stepX;
-        const y = startY + r * stepY;
-        if (!overlaps(x, y)) return { x, y };
-      }
-    }
-    return { x: 400 + Math.floor(Math.random() * 600), y: 300 + Math.floor(Math.random() * 400) };
-  };
 
   const yarnPath = (a: { x: number; y: number }, b: { x: number; y: number }) => {
     const dx = b.x - a.x, dy = b.y - a.y;
@@ -710,6 +680,7 @@ const NO_FACETS = { tier: "all", status: "all", faction: "all", race: "all" };
 export function KindList({ kind, onOpenEntity }: { kind: string; onOpenEntity: (id: string) => void }) {
   const kinds = useKinds();
   const campaign = useCampaign();
+  const { canEdit } = useAuth();
   const [showArchived, setShowArchived] = useState(false);
   // People facets: view filters, not writes — open to read-only viewers, like
   // the sidebar arc filter. Background folk hide behind a reveal by default so
@@ -774,6 +745,23 @@ export function KindList({ kind, onOpenEntity }: { kind: string; onOpenEntity: (
           <span style={{ fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 16, color: "var(--ink-faded)" }}>
             {sorted.length} {k.plural} of note
           </span>
+          {/* Roster entry without a board card — unlike the board's "Pin new",
+              this seeds no position and no markSeen: being in the codex is not
+              the same as having shown up on screen this session. */}
+          {canEdit && isPeople && (
+            <button
+              className="btn btn-ghost"
+              title="Add a person to the codex without pinning them to the board"
+              onClick={() => {
+                const id = crypto.randomUUID();
+                createEntity("people", id, NEW_ENTITY_DEFAULTS.people)
+                  .then(() => onOpenEntity(id))
+                  .catch(console.error);
+              }}
+            >
+              <Icon name="plus" size={13} /> New person
+            </button>
+          )}
           <span style={{ marginLeft: "auto", display: "flex", gap: 14 }}>
             {isPeople && backgroundCount > 0 && facets.tier === "all" && (
               <button onClick={() => setShowBackground((v) => !v)} className="cleanup-link-btn">
