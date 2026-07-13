@@ -1,4 +1,4 @@
-import { entityLabel, type Campaign, type KindKey } from "./data";
+import { entityLabel, personTier, type Campaign, type KindKey } from "./data";
 
 // Shared entity search: the command palette and the entity combobox both index
 // the campaign and rank substring matches through this one implementation so
@@ -37,6 +37,9 @@ export interface Indexed {
   primary: string;
   secondary: string;
   archived?: boolean;
+  // Structured facet values for palette operators (people only, all
+  // lowercased). Entries without facets never match an operator query.
+  facets?: { tier: string; status?: string; race?: string; factionName?: string };
 }
 
 export function joinFields(...parts: Array<string | number | null | undefined>): string {
@@ -45,14 +48,23 @@ export function joinFields(...parts: Array<string | number | null | undefined>):
 
 export function buildIndex(campaign: Campaign): Indexed[] {
   const out: Indexed[] = [];
+  const factionNameById = new Map(campaign.factions.map((f) => [f.id, f.name.toLowerCase()]));
   for (const p of campaign.people) {
     out.push({
       id: p.id,
       kind: "people",
       label: entityLabel(p),
       primary: p.name ?? "",
-      secondary: joinFields(p.epithet, p.race, p.role, p.disposition, p.alignment, p.notes),
+      // tier/status join the plain-text index too (quests already index
+      // q.status), so free-typed "dead" matches without operator syntax.
+      secondary: joinFields(p.epithet, p.race, p.role, p.disposition, p.alignment, p.tier, p.status, p.notes),
       archived: p.archived,
+      facets: {
+        tier: personTier(p),
+        status: p.status,
+        race: p.race?.trim().toLowerCase(),
+        factionName: p.faction ? factionNameById.get(p.faction) : undefined,
+      },
     });
   }
   for (const l of campaign.locations) {
@@ -196,6 +208,44 @@ export function sortHits(best: Map<string, RankedHit>, limit: number): RankedHit
   return Array.from(best.values())
     .sort((a, b) => a.rank - b.rank || a.label.localeCompare(b.label))
     .slice(0, limit);
+}
+
+// ===== Palette operators (`tier:background race:halfling gob`) ==============
+// Parsed only by the command palette's searchHits — rankIndex (the entity
+// combobox) must never see operators, so a relation search for a lore entry
+// literally titled "status: unknown" keeps working there.
+
+export type FacetOp = { field: "tier" | "status" | "race" | "faction"; value: string };
+
+const OP_RE = /^(tier|status|race|faction):(.*)$/i;
+
+// Split a raw query into facet operators and the remaining free text. An
+// operator with an empty value ("tier:", mid-typing) still narrows to people.
+export function parseOperators(query: string): { ops: FacetOp[]; rest: string } {
+  const ops: FacetOp[] = [];
+  const rest: string[] = [];
+  for (const token of query.trim().split(/\s+/)) {
+    const m = token.match(OP_RE);
+    if (m) ops.push({ field: m[1].toLowerCase() as FacetOp["field"], value: m[2].toLowerCase() });
+    else rest.push(token);
+  }
+  return { ops, rest: rest.join(" ") };
+}
+
+// Exact match for the enum facets, substring for the free-text ones
+// (faction:zhent). Entries without facets (everything but people) never
+// match an operator query.
+export function matchesOps(e: Indexed, ops: FacetOp[]): boolean {
+  if (ops.length === 0) return true;
+  const f = e.facets;
+  if (!f) return false;
+  return ops.every(({ field, value }) => {
+    if (!value) return true; // bare "tier:" — narrow to people, match all
+    if (field === "tier") return f.tier === value;
+    if (field === "status") return f.status === value;
+    if (field === "race") return !!f.race?.includes(value);
+    return !!f.factionName?.includes(value);
+  });
 }
 
 // Combobox ranker: substring tiering over an index, no notes pass. An empty
