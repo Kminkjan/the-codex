@@ -2,6 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   type KindKey,
   type BoardPosition,
+  PERSON_STATUS_OPTIONS,
+  PERSON_TIER_OPTIONS,
+  personTier,
   sortForDisplay,
   isArchivableKind,
 } from "./data";
@@ -702,23 +705,66 @@ export function NoticeBoard({
   );
 }
 
+const NO_FACETS = { tier: "all", status: "all", faction: "all", race: "all" };
+
 export function KindList({ kind, onOpenEntity }: { kind: string; onOpenEntity: (id: string) => void }) {
   const kinds = useKinds();
   const campaign = useCampaign();
   const [showArchived, setShowArchived] = useState(false);
+  // People facets: view filters, not writes — open to read-only viewers, like
+  // the sidebar arc filter. Background folk hide behind a reveal by default so
+  // a bulk-imported roster doesn't drown the curated cast; picking the tier
+  // facet explicitly bypasses the hide.
+  const isPeople = kind === "people";
+  const [nameQuery, setNameQuery] = useState("");
+  const [facets, setFacets] = useState({ ...NO_FACETS });
+  const [showBackground, setShowBackground] = useState(false);
+  const factionChoices = useMemo(
+    () => campaign.factions.slice().sort((a, b) => a.name.localeCompare(b.name)),
+    [campaign.factions],
+  );
+  // Distinct races from the data itself: dedupe case-insensitively, keep the
+  // first-seen casing as the label and the lowercased key as the match value.
+  const raceChoices = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const p of campaign.people) {
+      const r = p.race?.trim();
+      if (r && !seen.has(r.toLowerCase())) seen.set(r.toLowerCase(), r);
+    }
+    return Array.from(seen, ([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [campaign.people]);
   const k = kinds.find((x) => x.key === kind);
   if (!k) return null;
 
   const archivable = isArchivableKind(k.key);
   const all = k.list() as any[];
-  const { archivedCount, sorted } = useMemo(() => {
-    if (!archivable) return { archivedCount: 0, sorted: all };
+  const facetsActive = nameQuery.trim() !== "" || Object.values(facets).some((v) => v !== "all");
+  const { archivedCount, backgroundCount, sorted } = useMemo(() => {
+    if (!archivable) return { archivedCount: 0, backgroundCount: 0, sorted: all };
     const numById = new Map(campaign.sessions.map((s) => [s.id, s.num]));
     const sessionNum = (id: string) => numById.get(id) ?? 0;
     const archived = all.filter((e) => e.archived).length;
-    const visible = showArchived ? all : all.filter((e) => !e.archived);
-    return { archivedCount: archived, sorted: sortForDisplay(visible, { kind: k.key as KindKey, sessionNum }) };
-  }, [all, archivable, showArchived, k.key, campaign.sessions]);
+    let visible = showArchived ? all : all.filter((e) => !e.archived);
+    let background = 0;
+    if (isPeople) {
+      const q = nameQuery.trim().toLowerCase();
+      if (q) visible = visible.filter((e) => `${e.name ?? ""} ${e.epithet ?? ""}`.toLowerCase().includes(q));
+      if (facets.tier !== "all") visible = visible.filter((e) => personTier(e) === facets.tier);
+      if (facets.status !== "all") visible = visible.filter((e) => e.status === facets.status);
+      if (facets.faction !== "all") visible = visible.filter((e) => e.faction === facets.faction);
+      if (facets.race !== "all") visible = visible.filter((e) => e.race?.trim().toLowerCase() === facets.race);
+      if (facets.tier === "all") {
+        background = visible.filter((e) => personTier(e) === "background").length;
+        if (!showBackground) visible = visible.filter((e) => personTier(e) !== "background");
+      }
+    }
+    return {
+      archivedCount: archived,
+      backgroundCount: background,
+      sorted: sortForDisplay(visible, { kind: k.key as KindKey, sessionNum }),
+    };
+  }, [all, archivable, showArchived, k.key, campaign.sessions, isPeople, nameQuery, facets, showBackground]);
 
   return (
     <div style={{ flex: 1, overflow: "auto", padding: "28px 40px 60px", background: "var(--vellum)", position: "relative" }} className="tex-vellum">
@@ -728,16 +774,55 @@ export function KindList({ kind, onOpenEntity }: { kind: string; onOpenEntity: (
           <span style={{ fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 16, color: "var(--ink-faded)" }}>
             {sorted.length} {k.plural} of note
           </span>
-          {archivable && archivedCount > 0 && (
-            <button
-              onClick={() => setShowArchived((v) => !v)}
-              className="cleanup-link-btn"
-              style={{ marginLeft: "auto" }}
-            >
-              {showArchived ? `hide ${archivedCount} archived` : `show ${archivedCount} archived`}
-            </button>
-          )}
+          <span style={{ marginLeft: "auto", display: "flex", gap: 14 }}>
+            {isPeople && backgroundCount > 0 && facets.tier === "all" && (
+              <button onClick={() => setShowBackground((v) => !v)} className="cleanup-link-btn">
+                {showBackground ? `hide ${backgroundCount} background` : `show ${backgroundCount} background folk`}
+              </button>
+            )}
+            {archivable && archivedCount > 0 && (
+              <button onClick={() => setShowArchived((v) => !v)} className="cleanup-link-btn">
+                {showArchived ? `hide ${archivedCount} archived` : `show ${archivedCount} archived`}
+              </button>
+            )}
+          </span>
         </div>
+        {isPeople && (
+          <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", marginBottom: 8 }}>
+            <input
+              className="facet-input"
+              value={nameQuery}
+              onChange={(e) => setNameQuery(e.target.value)}
+              placeholder="filter by name…"
+              title="Filter people by name or epithet"
+            />
+            <select className="facet-select" value={facets.tier} onChange={(e) => setFacets((f) => ({ ...f, tier: e.target.value }))} title="Filter by tier">
+              <option value="all">every tier</option>
+              {PERSON_TIER_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+            <select className="facet-select" value={facets.status} onChange={(e) => setFacets((f) => ({ ...f, status: e.target.value }))} title="Filter by status">
+              <option value="all">any status</option>
+              {PERSON_STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+            {factionChoices.length > 0 && (
+              <select className="facet-select" value={facets.faction} onChange={(e) => setFacets((f) => ({ ...f, faction: e.target.value }))} title="Filter by faction">
+                <option value="all">all factions</option>
+                {factionChoices.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+              </select>
+            )}
+            {raceChoices.length > 0 && (
+              <select className="facet-select" value={facets.race} onChange={(e) => setFacets((f) => ({ ...f, race: e.target.value }))} title="Filter by race">
+                <option value="all">any race</option>
+                {raceChoices.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+              </select>
+            )}
+            {facetsActive && (
+              <button className="cleanup-link-btn" onClick={() => { setFacets({ ...NO_FACETS }); setNameQuery(""); }}>
+                clear filters
+              </button>
+            )}
+          </div>
+        )}
         <div className="scratch-divider"><em>✦ ✦ ✦</em></div>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 20, marginTop: 24 }}>
