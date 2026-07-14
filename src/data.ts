@@ -285,8 +285,9 @@ export function projectCampaignForViewers(c: Campaign): Campaign {
   const factions = keep(c.factions);
   const items = keep(c.items);
   const lore = keep(c.lore);
-  // Identity fast path: campaigns that never use the flag pay nothing and
-  // downstream memos keep their referential equality.
+  // Identity fast path: when nothing is hidden, return the original object so
+  // downstream memos keep their referential equality. (The seven filter passes
+  // above still run — what's saved is the memo invalidation, not the scan.)
   if (hiddenIds.size === 0) return c;
   const dropHiddenValues = (rec: Record<string, string[]>): Record<string, string[]> =>
     Object.fromEntries(
