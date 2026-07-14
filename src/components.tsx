@@ -203,7 +203,8 @@ export function PosterCard({ person }: { person: any }) {
           ? <img src={person.imageUrl} alt={person.name} className="portrait-img" />
           : <span className="silhouette" />}
       </div>
-      <div className="name">{person.name}</div>
+      <div className={`name${person.status === "dead" ? " is-dead" : ""}`}>{person.name}</div>
+      {person.status === "dead" && <div className="deceased-tag">† deceased</div>}
       {!!person.epithet?.trim() && <div className="desc">— {person.epithet}</div>}
       <div className="reward">
         {person.race
