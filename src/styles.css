@@ -17,10 +17,10 @@
        --ink-faded      de-emphasis only: off-states, hints, decoration —
                         never on sub-15px content text
        --ink-ghost      placeholders and whispers */
-  --ink:           #2a1f14;        /* deepest ink */
-  --ink-body:      #3b2c1c;
-  --ink-secondary: #5a4530;
-  --ink-faded:     #6b533a;
+  --ink:           #1f160e;        /* deepest ink */
+  --ink-body:      #2f2315;
+  --ink-secondary: #4b3926;
+  --ink-faded:     #5c472f;
   --ink-ghost:     #8a7551;
 
   /* Map colors */
@@ -35,6 +35,7 @@
   --mustard:       #b08228;        /* gold leaf */
   --mustard-pale:  #d9b870;
   --mustard-deep:  #6e5018;        /* pursuing-status ink on light paper */
+  --gold-antique:  #8a6a28;        /* items kind — darker gold than quests' mustard */
   --forest:        #3d5536;
   --forest-pale:   #7a8f6c;
   --slate:         #465061;
@@ -67,6 +68,7 @@
   /* Card chrome — themed so dark mode can carry a lighter rim that separates
      card stock from the cork behind it. */
   --card-edge:     rgba(139,94,40,.4);
+  --hairline:      rgba(139,94,40,.15); /* row separators on themed panels */
 }
 
 /* ── Theme variants ───────────────────────── */
@@ -75,12 +77,13 @@
   --vellum-light:  #24253a;
   --vellum-dark:   #13131f;
   --vellum-deep:   #0d0d16;
-  --ink:           #e8dcb5;
-  --ink-body:      #d4c79a;
-  /* Lifted from #9d8f64 / #6a5f3f: secondary text on dark card stock was
-     hovering at ~4.6:1 — too low for 12px serif. These clear ~7:1. */
-  --ink-secondary: #c7b98c;
-  --ink-faded:     #b3a578;
+  --ink:           #f3ecca;
+  --ink-body:      #e2d7ae;
+  /* Lifted twice (from #9d8f64 / #6a5f3f, then again): IM Fell's hairline
+     strokes render lighter than the nominal color, so secondary text on the
+     dark card stock needs ~8:1 to read the way 5:1 would in a sturdier face. */
+  --ink-secondary: #d6c99e;
+  --ink-faded:     #c2b489;
   --ink-ghost:     #7d7050;
   /* Papers lightened a step so cards separate from the cork behind them. */
   --paper-cream:   #262847;
@@ -104,8 +107,10 @@
   --bloodred-deep: #ee7d68;
   --mustard:       #d4a728;
   --mustard-deep:  #d9b870;        /* dark stock flips this to a pale ink */
+  --gold-antique:  #b6923e;        /* lifted so the items swatch doesn't sink into the dark topbar */
   /* Light rim + deeper drop shadow: card-to-board separation in the dark. */
   --card-edge:     rgba(220,205,160,.32);
+  --hairline:      rgba(220,205,160,.14);
   --shadow-card:   0 0 0 1px rgba(232,220,181,.05), 0 1px 0 rgba(255,255,255,.06) inset, 0 10px 22px rgba(0,0,0,.6), 0 2px 3px rgba(0,0,0,.55);
 }
 [data-theme="modern"] {
@@ -113,10 +118,10 @@
   --vellum-light:  #fafaf5;
   --vellum-dark:   #ebe5d8;
   --vellum-deep:   #d6cdb9;
-  --ink:           #1a1a1a;
-  --ink-body:      #2e2e2e;
-  --ink-secondary: #4a4a4a;
-  --ink-faded:     #5e5e5e;
+  --ink:           #101010;
+  --ink-body:      #232323;
+  --ink-secondary: #3c3c3c;
+  --ink-faded:     #505050;
   --ink-ghost:     #9a9a9a;
   --paper-cream:   #ffffff;
   --paper-tan:     #f0ece3;
@@ -1609,7 +1614,7 @@ button.session-pin { line-height: 1; }
   position: relative;
   padding: 14px 18px 16px;
   background: var(--paper-note);
-  border: 1px solid rgba(139,94,40,.3);
+  border: 1px solid var(--card-edge);
   box-shadow: 0 1px 0 rgba(255,255,255,.3) inset, 0 3px 6px rgba(40,20,5,.15);
   font-family: var(--font-hand);
   font-size: 17px;
@@ -2294,7 +2299,7 @@ button.session-pin { line-height: 1; }
 .cleanup-row {
   display: flex; align-items: center; gap: 12px;
   padding: 7px 6px;
-  border-bottom: 1px solid rgba(139,94,40,.15);
+  border-bottom: 1px solid var(--hairline);
   cursor: pointer;
   font-family: var(--font-fell);
   font-size: 14px;

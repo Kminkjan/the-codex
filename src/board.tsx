@@ -559,7 +559,7 @@ export function NoticeBoard({
             color: "var(--ink)",
             transform: "rotate(-1deg)",
             boxShadow: "var(--shadow-pin)",
-            border: "1px solid rgba(139,94,40,.4)",
+            border: "1px solid var(--card-edge)",
             zIndex: 5,
             pointerEvents: "none",
           }}>

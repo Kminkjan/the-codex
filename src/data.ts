@@ -210,7 +210,7 @@ export function buildKinds(campaign: Campaign): KindDef[] {
     { key: "quests",    label: "Quests",        plural: "quests",    list: () => campaign.quests,    color: "var(--mustard)" },
     { key: "goals",     label: "Goals",         plural: "goals",     list: () => campaign.goals,     color: "var(--forest)" },
     { key: "factions",  label: "Factions",      plural: "factions",  list: () => campaign.factions,  color: "var(--slate)" },
-    { key: "items",     label: "Items",         plural: "items",     list: () => campaign.items,     color: "#8a6a28" },
+    { key: "items",     label: "Items",         plural: "items",     list: () => campaign.items,     color: "var(--gold-antique)" },
     { key: "lore",      label: "Lore",          plural: "lore",      list: () => campaign.lore,      color: "var(--forest-pale)" },
   ];
 }

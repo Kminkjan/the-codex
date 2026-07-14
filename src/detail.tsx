@@ -518,7 +518,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                 onClick={() => patch({ pinned: !isPinned(entity) })}
                 title={isPinned(entity) ? "Unpin from top of lists" : "Pin to top of lists"}
                 className="detail-action-btn"
-                style={isPinned(entity) ? { borderColor: "var(--mustard)", color: "#6e5018" } : undefined}
+                style={isPinned(entity) ? { borderColor: "var(--mustard)", color: "var(--mustard-deep)" } : undefined}
               >
                 {isPinned(entity) ? "★ PINNED" : "☆ PIN"}
               </button>
