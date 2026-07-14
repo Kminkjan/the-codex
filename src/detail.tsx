@@ -1,8 +1,8 @@
 import { useMemo, useRef, useState } from "react";
-import { type KindKey, PERSON_STATUS_OPTIONS, PERSON_TIER_OPTIONS, entityLabel, isArchivableKind, isArchived, isPinned, personTier, sessionLabel } from "./data";
+import { type KindKey, PERSON_STATUS_OPTIONS, PERSON_TIER_OPTIONS, entityLabel, isArchivableKind, isArchived, isHidden, isPinned, personTier, sessionLabel } from "./data";
 import { Icon, kindIcon } from "./icons";
 import { StatusChip, EditableText, EditableMarkdown, EnumSelect, EntitySelect, EntityCombobox } from "./components";
-import { useCampaign, useFindEntity } from "./hooks";
+import { useCampaign, useFindEntity, useIsDm } from "./hooks";
 import { useAuth } from "./auth";
 import {
   insertPartyNote,
@@ -185,13 +185,13 @@ function AddRelationForm({ fromId }: { fromId: string }) {
 
   const allOptions = useMemo(
     () => [
-      ...campaign.people.map((p) => ({ id: p.id, label: p.name, kind: "people" as const, archived: p.archived })),
-      ...campaign.locations.map((l) => ({ id: l.id, label: l.name, kind: "locations" as const, archived: l.archived })),
-      ...campaign.quests.map((q) => ({ id: q.id, label: q.title, kind: "quests" as const, archived: q.archived })),
-      ...campaign.goals.map((g) => ({ id: g.id, label: g.text, kind: "goals" as const, archived: g.archived })),
-      ...campaign.factions.map((f) => ({ id: f.id, label: f.name, kind: "factions" as const, archived: f.archived })),
-      ...campaign.items.map((i) => ({ id: i.id, label: i.name, kind: "items" as const, archived: i.archived })),
-      ...campaign.lore.map((l) => ({ id: l.id, label: l.title, kind: "lore" as const, archived: l.archived })),
+      ...campaign.people.map((p) => ({ id: p.id, label: p.name, kind: "people" as const, archived: p.archived, hidden: p.hidden })),
+      ...campaign.locations.map((l) => ({ id: l.id, label: l.name, kind: "locations" as const, archived: l.archived, hidden: l.hidden })),
+      ...campaign.quests.map((q) => ({ id: q.id, label: q.title, kind: "quests" as const, archived: q.archived, hidden: q.hidden })),
+      ...campaign.goals.map((g) => ({ id: g.id, label: g.text, kind: "goals" as const, archived: g.archived, hidden: g.hidden })),
+      ...campaign.factions.map((f) => ({ id: f.id, label: f.name, kind: "factions" as const, archived: f.archived, hidden: f.hidden })),
+      ...campaign.items.map((i) => ({ id: i.id, label: i.name, kind: "items" as const, archived: i.archived, hidden: i.hidden })),
+      ...campaign.lore.map((l) => ({ id: l.id, label: l.title, kind: "lore" as const, archived: l.archived, hidden: l.hidden })),
       ...campaign.sessions.map((s) => ({ id: s.id, label: s.title, kind: "sessions" as const })),
       ...campaign.arcs.map((a) => ({ id: a.id, label: a.title, kind: "arcs" as const })),
       ...campaign.events.map((e) => ({ id: e.id, label: e.title, kind: "events" as const })),
@@ -351,6 +351,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
   const findEntity = useFindEntity();
   const entity = findEntity(entityId);
   const { displayName, canEdit } = useAuth();
+  const isDm = useIsDm();
 
   const notes = campaign.notes[entityId] || [];
 
@@ -464,11 +465,11 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
     [campaign.sessions],
   );
   const locationOptions = useMemo(
-    () => campaign.locations.map((l) => ({ id: l.id, label: l.name, kind: "locations" as const, archived: l.archived })),
+    () => campaign.locations.map((l) => ({ id: l.id, label: l.name, kind: "locations" as const, archived: l.archived, hidden: l.hidden })),
     [campaign.locations],
   );
   const factionOptions = useMemo(
-    () => campaign.factions.map((f) => ({ id: f.id, label: f.name, kind: "factions" as const, archived: f.archived })),
+    () => campaign.factions.map((f) => ({ id: f.id, label: f.name, kind: "factions" as const, archived: f.archived, hidden: f.hidden })),
     [campaign.factions],
   );
 
@@ -509,7 +510,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
 
   return (
     <div className="detail-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className={`detail-sheet tex-vellum ${isArchived(entity) ? "is-archived" : ""}`}>
+      <div className={`detail-sheet tex-vellum ${isArchived(entity) ? "is-archived" : ""} ${isHidden(entity) ? "is-veiled" : ""}`}>
         <button className="detail-close" onClick={onClose}><Icon name="close" size={16} /></button>
         {canEdit && <div style={{ position: "absolute", top: 14, right: 54, display: "flex", gap: 6, zIndex: 2 }}>
           {isArchivableKind(kind) && (
@@ -530,6 +531,20 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
               >
                 {isArchived(entity) ? "⤴ UNARCHIVE" : "⤵ ARCHIVE"}
               </button>
+              {/* DM-only party visibility — distinct from ARCHIVE, which
+                  declutters but stays readable by everyone. */}
+              {isDm && (
+                <button
+                  onClick={() => patch({ hidden: !isHidden(entity) })}
+                  title={isHidden(entity)
+                    ? "Reveal to the party"
+                    : "Hide from the party — only the DM sees it"}
+                  className="detail-action-btn"
+                  style={isHidden(entity) ? { borderColor: "var(--ink-secondary)", color: "var(--ink-secondary)", borderStyle: "dashed" } : undefined}
+                >
+                  {isHidden(entity) ? "◈ UNREVEALED" : "◇ HIDE"}
+                </button>
+              )}
               {/* Board membership is a positions row, independent of tier/archive.
                   Not worded "PIN" — that already means pinned-to-top above. */}
               <button

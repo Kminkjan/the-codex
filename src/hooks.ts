@@ -15,6 +15,12 @@ export function useCampaignStatus() {
   return { campaign, loading, error };
 }
 
+// The DM gate for edit affordances that go beyond canEdit (hide/reveal,
+// staging, release). False for viewers, non-DM editors, and DM-less campaigns.
+export function useIsDm(): boolean {
+  return useContext(CampaignContext).isDm;
+}
+
 export function useCampaignSwitcher() {
   const { campaigns, activeCampaignId, switchCampaign } = useContext(CampaignContext);
   return { campaigns, activeCampaignId, switchCampaign };

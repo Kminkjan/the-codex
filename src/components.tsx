@@ -166,16 +166,27 @@ export function PinnedCard({
 }
 
 export function CardBody({ entity, kind }: { entity: any; kind: KindKey }) {
+  let body: React.ReactNode;
   switch (kind) {
-    case "people":    return <PosterCard person={entity} />;
-    case "locations": return <LocationCard loc={entity} />;
-    case "quests":    return <QuestCard quest={entity} />;
-    case "goals":     return <GoalCard goal={entity} />;
-    case "factions":  return <FactionCard f={entity} />;
-    case "items":     return <ItemCard i={entity} />;
-    case "lore":      return <LoreCard l={entity} />;
+    case "people":    body = <PosterCard person={entity} />; break;
+    case "locations": body = <LocationCard loc={entity} />; break;
+    case "quests":    body = <QuestCard quest={entity} />; break;
+    case "goals":     body = <GoalCard goal={entity} />; break;
+    case "factions":  body = <FactionCard f={entity} />; break;
+    case "items":     body = <ItemCard i={entity} />; break;
+    case "lore":      body = <LoreCard l={entity} />; break;
     default: return null;
   }
+  // Hidden rows never reach non-DM users (projected out in campaignContext),
+  // so this badge needs no role check — if it renders, the viewer is the DM.
+  // One insertion covers both board cards and kind-list cards.
+  if (!entity.hidden) return body;
+  return (
+    <>
+      <span className="veil-badge">unrevealed</span>
+      {body}
+    </>
+  );
 }
 
 export function PosterCard({ person }: { person: any }) {
@@ -1062,6 +1073,7 @@ export interface EntityOption {
   label: string;
   kind: KindKey;
   archived?: boolean;
+  hidden?: boolean;
 }
 
 interface EntityComboboxProps {
@@ -1105,7 +1117,7 @@ export function EntityCombobox({
   const [rect, setRect] = useState<{ left: number; top: number; width: number; flip: boolean; maxHeight: number } | null>(null);
 
   const index = useMemo<Indexed[]>(
-    () => options.map((o) => ({ id: o.id, kind: o.kind, label: o.label, primary: o.label, secondary: "", archived: o.archived })),
+    () => options.map((o) => ({ id: o.id, kind: o.kind, label: o.label, primary: o.label, secondary: "", archived: o.archived, hidden: o.hidden })),
     [options],
   );
   const results = useMemo(() => rankIndex(index, query), [index, query]);
@@ -1289,6 +1301,7 @@ export function EntityCombobox({
                   <span className={`entity-combobox-row-label${hit.archived ? " archived" : ""}`}>{hit.label}</span>
                   <span className="entity-combobox-kind">{KIND_LABEL[hit.kind]}</span>
                   {hit.archived && <span className="entity-combobox-archived">archived</span>}
+                  {hit.hidden && <span className="entity-combobox-veiled">unrevealed</span>}
                 </div>
               );
             })}

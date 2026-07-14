@@ -57,6 +57,10 @@ export interface CampaignEvent {
 export interface ArchivableFields {
   archived?: boolean;
   pinned?: boolean;
+  // DM-only visibility (issue #64): unlike archived (a declutter flag, still
+  // readable by everyone), hidden rows are projected out of the campaign
+  // object entirely for non-DM users — see projectCampaignForViewers.
+  hidden?: boolean;
   updatedAt?: string;
 }
 
@@ -175,6 +179,9 @@ export interface Campaign {
   sessionParticipants: Record<string, string[]>;
   // The shared "we're live in session N" pin (campaigns.active_session_id).
   activeSessionId?: string;
+  // The campaign's DM (campaigns.dm_user_id, an auth user id). One DM per
+  // campaign; V1 gating is client-side only.
+  dmUserId?: string;
   people: Person[];
   locations: Location[];
   quests: Quest[];
@@ -250,6 +257,52 @@ export function isArchived(e: any): boolean {
 
 export function isPinned(e: any): boolean {
   return !!(e && e.pinned);
+}
+
+export function isHidden(e: any): boolean {
+  return !!(e && e.hidden);
+}
+
+// Player-facing projection: strips DM-hidden entities and every reference to
+// them (connections, board positions, participant ids, party notes), so every
+// downstream surface — findEntity (deep links, detail sheet, relation rails),
+// buildKinds (lists, counts), buildIndex (⌘K, comboboxes), deriveRelations
+// (board yarn), rosters — is clean by construction rather than by per-surface
+// filtering. FK fields on visible entities (e.g. a person whose faction is
+// hidden) are left alone: consumers resolve them via findEntity and skip
+// nulls, and rewriting them here would risk write-back corruption.
+export function projectCampaignForViewers(c: Campaign): Campaign {
+  const hiddenIds = new Set<string>();
+  const keep = <T extends { id: string; hidden?: boolean }>(list: T[]): T[] =>
+    list.filter((e) => {
+      if (e.hidden) hiddenIds.add(e.id);
+      return !e.hidden;
+    });
+  const people = keep(c.people);
+  const locations = keep(c.locations);
+  const quests = keep(c.quests);
+  const goals = keep(c.goals);
+  const factions = keep(c.factions);
+  const items = keep(c.items);
+  const lore = keep(c.lore);
+  // Identity fast path: campaigns that never use the flag pay nothing and
+  // downstream memos keep their referential equality.
+  if (hiddenIds.size === 0) return c;
+  const dropHiddenValues = (rec: Record<string, string[]>): Record<string, string[]> =>
+    Object.fromEntries(
+      Object.entries(rec).map(([k, ids]) => [k, ids.filter((id) => !hiddenIds.has(id))]),
+    );
+  const dropHiddenKeys = <V>(rec: Record<string, V>): Record<string, V> =>
+    Object.fromEntries(Object.entries(rec).filter(([id]) => !hiddenIds.has(id)));
+  return {
+    ...c,
+    people, locations, quests, goals, factions, items, lore,
+    connections: c.connections.filter(([a, b]) => !hiddenIds.has(a) && !hiddenIds.has(b)),
+    board: dropHiddenKeys(c.board),
+    eventParticipants: dropHiddenValues(c.eventParticipants),
+    sessionParticipants: dropHiddenValues(c.sessionParticipants),
+    notes: dropHiddenKeys(c.notes),
+  };
 }
 
 // Null tier reads as major: existing rows predate the column and every curated

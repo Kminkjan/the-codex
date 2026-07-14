@@ -1,10 +1,12 @@
-import { createContext, useCallback, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "./utils/supabase";
+import { useAuth } from "./auth";
 import { setActiveCampaignId } from "./activeCampaign";
 import { setActiveSessionId } from "./activeSession";
 import { parseHash, writeCampaignHash } from "./route";
 import {
+  projectCampaignForViewers,
   type Campaign,
   type CampaignSummary,
   type BoardPosition,
@@ -20,6 +22,10 @@ interface CampaignContextValue {
   campaigns: CampaignSummary[];
   activeCampaignId: string | null;
   switchCampaign: (id: string) => void;
+  // True when the signed-in editor is this campaign's DM (campaigns.dm_user_id).
+  // Derived fresh every render, so it tracks campaign switches and realtime
+  // changes of the campaigns row automatically. V1: client-side gate only.
+  isDm: boolean;
 }
 
 export const CampaignContext = createContext<CampaignContextValue>({
@@ -29,12 +35,14 @@ export const CampaignContext = createContext<CampaignContextValue>({
   campaigns: [],
   activeCampaignId: null,
   switchCampaign: () => {},
+  isDm: false,
 });
 
 // Map a DB row (snake_case, `desc`) to the app's object shape (camelCase).
 const archiveFields = (r: any) => ({
   archived: !!r.archived,
   pinned: !!r.pinned,
+  hidden: !!r.hidden,
   updatedAt: r.updated_at ?? undefined,
 });
 
@@ -251,6 +259,7 @@ async function fetchCampaign(id: string): Promise<Campaign> {
     eventParticipants: buildParticipants(participantsRes.data ?? []),
     sessionParticipants: buildSessionParticipants(sessionParticipantsRes.data ?? []),
     activeSessionId: campaignRes.data.active_session_id ?? undefined,
+    dmUserId: campaignRes.data.dm_user_id ?? undefined,
     people: (peopleRes.data ?? []).map(mapPerson),
     locations: (locationsRes.data ?? []).map(mapLocation),
     quests: (questsRes.data ?? []).map(mapQuest),
@@ -279,6 +288,7 @@ function applyArrayChange<T extends { id: string }>(
 }
 
 export function CampaignProvider({ children }: { children: ReactNode }) {
+  const { user, canEdit } = useAuth();
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -386,7 +396,7 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
             if (cancelled) return;
             const next = payload.new?.active_session_id ?? undefined;
             setActiveSessionId(next ?? null);
-            setCampaign((c) => c && c.id === campaignId ? { ...c, activeSessionId: next, title: payload.new?.title ?? c.title, subtitle: payload.new?.subtitle ?? c.subtitle } : c);
+            setCampaign((c) => c && c.id === campaignId ? { ...c, activeSessionId: next, dmUserId: payload.new?.dm_user_id ?? undefined, title: payload.new?.title ?? c.title, subtitle: payload.new?.subtitle ?? c.subtitle } : c);
           },
         );
         channel.on(
@@ -540,8 +550,18 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
     };
   }, [campaignId]);
 
+  const isDm = !!campaign && canEdit && !!campaign.dmUserId && user?.id === campaign.dmUserId;
+
+  // The single hidden-entity funnel: non-DM users get a projected campaign
+  // with hidden rows (and every reference to them) stripped, so no downstream
+  // surface — lists, board, yarn, ⌘K, rails, counts, deep links — can leak one.
+  const visibleCampaign = useMemo(
+    () => (campaign && !isDm ? projectCampaignForViewers(campaign) : campaign),
+    [campaign, isDm],
+  );
+
   return (
-    <CampaignContext.Provider value={{ campaign, loading, error, campaigns, activeCampaignId: campaignId, switchCampaign }}>
+    <CampaignContext.Provider value={{ campaign: visibleCampaign, loading, error, campaigns, activeCampaignId: campaignId, switchCampaign, isDm }}>
       {children}
     </CampaignContext.Provider>
   );

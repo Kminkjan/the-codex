@@ -47,6 +47,7 @@ function searchHits(fullIndex: Indexed[], campaign: Campaign, query: string): Ra
           matchSource: "note",
           rank: 3,
           archived: parent.archived,
+          hidden: parent.hidden,
         });
         break;
       }
@@ -211,6 +212,7 @@ export function CommandPalette({ open, onClose, onOpenEntity, onLocate }: Comman
               </div>
               <span className="cmdk-kind">{KIND_LABEL[hit.kind]}</span>
               {hit.archived && <span className="cmdk-kind-archived">archived</span>}
+              {hit.hidden && <span className="cmdk-kind-veiled">unrevealed</span>}
               {canLocate(hit) && (
                 <button
                   type="button"
