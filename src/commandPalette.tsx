@@ -5,7 +5,10 @@ import { Icon, kindIcon } from "./icons";
 import {
   buildIndex,
   keepBest,
+  listAlphabetical,
   makeSnippet,
+  matchesOps,
+  parseOperators,
   rankEntities,
   sortHits,
   KIND_LABEL,
@@ -13,9 +16,19 @@ import {
   type RankedHit,
 } from "./entitySearch";
 
-function searchHits(index: Indexed[], campaign: Campaign, query: string): RankedHit[] {
-  const q = query.trim().toLowerCase();
-  if (!q) return [];
+function searchHits(fullIndex: Indexed[], campaign: Campaign, query: string): RankedHit[] {
+  // Facet operators (tier:/status:/race:/faction:) pre-filter the index; the
+  // remaining free text ranks as usual. The notes pass below reads the same
+  // filtered index, so a note hit can't resurrect an operator-excluded person.
+  const { ops, rest } = parseOperators(query);
+  const index = ops.length ? fullIndex.filter((e) => matchesOps(e, ops)) : fullIndex;
+  const q = rest.trim().toLowerCase();
+  if (!q && !ops.length) return [];
+  if (!q) {
+    // Pure operator query ("tier:background") — the whole filtered set,
+    // alphabetically, same listing the combobox shows before typing.
+    return listAlphabetical(index, 30);
+  }
 
   const best = new Map<string, RankedHit>();
   rankEntities(index, q, best);
@@ -170,7 +183,7 @@ export function CommandPalette({ open, onClose, onOpenEntity, onLocate }: Comman
         </div>
         <div className="cmdk-list" ref={listRef} role="listbox" id="cmdk-listbox">
           {query.trim() === "" && (
-            <div className="cmdk-empty">Type to search people, places, quests, goals, factions, items, lore, sessions, and party notes.</div>
+            <div className="cmdk-empty">Type to search people, places, quests, goals, factions, items, lore, sessions, and party notes — or narrow people with tier: status: race: faction:</div>
           )}
           {query.trim() !== "" && results.length === 0 && (
             <div className="cmdk-empty">Nothing in the codex matches "{query}".</div>
