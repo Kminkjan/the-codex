@@ -2332,6 +2332,27 @@ button.session-pin { line-height: 1; }
   padding: 0;
 }
 
+/* People facet bar (KindList): view controls, not edit affordances — dashed
+   borders mean "editable" everywhere else, so these stay borderless (the
+   input keeps a ghost hairline for discoverability). */
+.facet-select,
+.facet-input {
+  background: transparent;
+  border: none;
+  font-family: var(--font-fell-sc);
+  letter-spacing: .08em;
+  font-size: 11px;
+  color: var(--ink-secondary);
+  padding: 2px 4px 2px 0;
+}
+.facet-select { cursor: pointer; }
+.facet-input {
+  border-bottom: 1px solid var(--ink-ghost);
+  width: 150px;
+}
+.facet-input::placeholder { color: var(--ink-ghost); font-style: italic; }
+.facet-input:focus { outline: none; border-bottom-color: var(--ink-secondary); }
+
 .cmdk-hint {
   display: flex; gap: 16px; justify-content: flex-end;
   padding: 8px 16px;

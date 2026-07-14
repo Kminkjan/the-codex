@@ -7,6 +7,7 @@ import {
   entityLabel,
   isArchived,
   isPinned,
+  personTier,
 } from "./data";
 import { Icon } from "./icons";
 import { bulkArchive } from "./mutations";
@@ -55,6 +56,10 @@ function computeSuggestions(campaign: Campaign, n: number): Suggestion[] {
 
   for (const p of campaign.people) {
     if (skip(p)) continue;
+    // Background folk are already the "not in active rotation" designation —
+    // a bulk-imported roster (mostly session-linkless) would otherwise flood
+    // the panel and drown the real suggestions.
+    if (personTier(p) === "background") continue;
     if (activeByConnection.has(p.id)) continue;
     if (p.lastSeen && !recentSessionIds.has(p.lastSeen)) {
       const sess = sessionsByNum.find((s) => s.id === p.lastSeen);
