@@ -2204,6 +2204,73 @@ button.session-pin { line-height: 1; }
   opacity: .6;
 }
 
+/* ── DM-hidden ("unrevealed") badges ───────
+   Only ever rendered for the DM — hidden rows are projected out of the
+   campaign for everyone else. Dashed strokes read as "not yet in the world",
+   distinct from archived's solid ink stamp. --ink-secondary is the contrast
+   floor for ≤14px text (never --ink-faded/--ink-ghost on these labels). */
+
+/* Board cards + kind-list cards. A real element, not ::before — the card
+   pseudo-elements are already claimed by .archived and .is-pinned. */
+.veil-badge {
+  position: absolute;
+  top: -10px; right: 8px;
+  background: var(--vellum-light);
+  color: var(--ink-secondary);
+  border: 1px dashed var(--ink-secondary);
+  font-family: var(--font-fell-sc);
+  letter-spacing: .2em;
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 2px;
+  z-index: 5;
+  pointer-events: none;
+}
+
+/* Detail sheet banner — reuses the .statblock::after slot exactly like the
+   archived banner (the base ::after is a display:none fleuron, so display
+   and bottom must be overridden here too). Declared after the archived rule,
+   so when both flags are set the dashed veiled treatment wins and the
+   combined rule below merges the wording. */
+.detail-sheet.is-veiled .statblock::after {
+  content: "UNREVEALED";
+  display: block;
+  position: absolute;
+  /* Left corner, not centered like the archived banner — centered would sit
+     right under the action-button row and bleed through between buttons. */
+  top: 14px; left: 24px;
+  bottom: auto;
+  transform: none;
+  background: var(--vellum-light);
+  color: var(--ink-secondary);
+  border: 1px dashed var(--ink-secondary);
+  font-family: var(--font-fell-sc);
+  letter-spacing: .3em;
+  font-size: 10px;
+  padding: 2px 12px;
+  border-radius: 2px;
+  /* No z-index: the action-button row (z-index 2) must stay clickable above
+     the banner, same layering as the archived banner. */
+  pointer-events: none;
+}
+.detail-sheet.is-archived.is-veiled .statblock::after {
+  content: "ARCHIVED · UNREVEALED";
+}
+
+/* Command palette + entity combobox tags, matching the archived tag metrics */
+.cmdk-kind-veiled,
+.entity-combobox-veiled {
+  margin-left: 6px;
+  font-family: var(--font-fell-sc);
+  letter-spacing: .2em;
+  font-size: 9px;
+  color: var(--ink-secondary);
+  border: 1px dashed var(--ink-secondary);
+  background: var(--vellum-light);
+  padding: 1px 5px;
+  border-radius: 2px;
+}
+
 /* ── Cleanup panel (Tidy the Codex) ─────── */
 .cleanup-overlay {
   position: fixed;

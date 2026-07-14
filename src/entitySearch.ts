@@ -16,6 +16,7 @@ export interface RankedHit {
   matchSource: MatchSource;
   rank: 0 | 1 | 2 | 3;
   archived?: boolean;
+  hidden?: boolean;
 }
 
 export const KIND_LABEL: Record<KindKey, string> = {
@@ -38,6 +39,9 @@ export interface Indexed {
   primary: string;
   secondary: string;
   archived?: boolean;
+  // DM-only flag: non-DM users never index hidden rows (projected out of the
+  // campaign upstream), so this is only ever true for the DM's own view.
+  hidden?: boolean;
   // Structured facet values for palette operators (people only, all
   // lowercased). Entries without facets never match an operator query.
   facets?: { tier: string; status?: string; race?: string; factionName?: string };
@@ -67,6 +71,7 @@ export function buildIndex(campaign: Campaign): Indexed[] {
         p.status, p.notes,
       ),
       archived: p.archived,
+      hidden: p.hidden,
       facets: {
         tier: personTier(p),
         status: p.status,
@@ -83,6 +88,7 @@ export function buildIndex(campaign: Campaign): Indexed[] {
       primary: l.name ?? "",
       secondary: joinFields(l.kind, l.region, l.ruler, l.desc, l.notes),
       archived: l.archived,
+      hidden: l.hidden,
     });
   }
   for (const q of campaign.quests) {
@@ -93,6 +99,7 @@ export function buildIndex(campaign: Campaign): Indexed[] {
       primary: q.title ?? "",
       secondary: joinFields(q.status, q.reward, q.desc, q.hooks),
       archived: q.archived,
+      hidden: q.hidden,
     });
   }
   for (const g of campaign.goals) {
@@ -103,6 +110,7 @@ export function buildIndex(campaign: Campaign): Indexed[] {
       primary: g.text ?? "",
       secondary: joinFields(g.owner, g.kind, g.status),
       archived: g.archived,
+      hidden: g.hidden,
     });
   }
   for (const f of campaign.factions) {
@@ -113,6 +121,7 @@ export function buildIndex(campaign: Campaign): Indexed[] {
       primary: f.name ?? "",
       secondary: joinFields(f.sigil, f.desc, f.allegiance),
       archived: f.archived,
+      hidden: f.hidden,
     });
   }
   for (const i of campaign.items) {
@@ -123,6 +132,7 @@ export function buildIndex(campaign: Campaign): Indexed[] {
       primary: i.name ?? "",
       secondary: joinFields(i.kind, i.desc),
       archived: i.archived,
+      hidden: i.hidden,
     });
   }
   for (const lo of campaign.lore) {
@@ -133,6 +143,7 @@ export function buildIndex(campaign: Campaign): Indexed[] {
       primary: lo.title ?? "",
       secondary: lo.text ?? "",
       archived: lo.archived,
+      hidden: lo.hidden,
     });
   }
   for (const s of campaign.sessions) {
@@ -190,11 +201,11 @@ export function rankEntities(index: Indexed[], queryLower: string, best: Map<str
   for (const e of index) {
     const primary = e.primary.toLowerCase();
     if (primary.startsWith(queryLower)) {
-      keepBest(best, { id: e.id, kind: e.kind, label: e.label, matchSource: "primary", rank: 0, archived: e.archived });
+      keepBest(best, { id: e.id, kind: e.kind, label: e.label, matchSource: "primary", rank: 0, archived: e.archived, hidden: e.hidden });
       continue;
     }
     if (primary.includes(queryLower)) {
-      keepBest(best, { id: e.id, kind: e.kind, label: e.label, matchSource: "primary", rank: 1, archived: e.archived });
+      keepBest(best, { id: e.id, kind: e.kind, label: e.label, matchSource: "primary", rank: 1, archived: e.archived, hidden: e.hidden });
       continue;
     }
     const secondary = e.secondary.toLowerCase();
@@ -207,6 +218,7 @@ export function rankEntities(index: Indexed[], queryLower: string, best: Map<str
         matchSource: "secondary",
         rank: 2,
         archived: e.archived,
+        hidden: e.hidden,
       });
     }
   }
@@ -267,7 +279,7 @@ export function matchesOps(e: Indexed, ops: FacetOp[]): boolean {
 // shared by the combobox dropdown and the palette's pure-operator results.
 export function listAlphabetical(index: Indexed[], limit: number): RankedHit[] {
   return index
-    .map((e): RankedHit => ({ id: e.id, kind: e.kind, label: e.label, matchSource: "primary", rank: 0, archived: e.archived }))
+    .map((e): RankedHit => ({ id: e.id, kind: e.kind, label: e.label, matchSource: "primary", rank: 0, archived: e.archived, hidden: e.hidden }))
     .sort((a, b) => a.label.localeCompare(b.label))
     .slice(0, limit);
 }
