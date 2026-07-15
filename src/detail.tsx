@@ -15,6 +15,7 @@ import {
   unmarkSeen,
   stageEntity,
   unstageEntity,
+  releaseEntity,
   upsertBoardPosition,
   deleteBoardPosition,
 } from "./mutations";
@@ -359,6 +360,9 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
 
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
+  // Double-click guard for the RELEASE button: the reveal event insert isn't
+  // idempotent and realtime won't flip the staging row fast enough.
+  const [releasing, setReleasing] = useState(false);
   const draftRef = useRef<HTMLDivElement>(null);
 
   // Manual strings + FK relations (resides at / member of / quest giver /
@@ -554,32 +558,61 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
               {isDm && campaign.activeSessionId && (() => {
                 const activeNum = campaign.sessions.find((s) => s.id === campaign.activeSessionId)?.num;
                 const code = activeNum != null ? sessionLabel(activeNum) : "";
-                const staged = campaign.sessionStaging.some(
+                const stagingRow = campaign.sessionStaging.find(
                   (r) => r.sessionId === campaign.activeSessionId && r.entityId === entityId,
                 );
+                const staged = !!stagingRow;
                 return (
-                  <button
-                    onClick={() => {
-                      if (staged) {
-                        unstageEntity(campaign.activeSessionId!, entityId).catch(console.error);
-                        return;
-                      }
-                      // Staging happens either way — the confirm is only the
-                      // hide offer (default yes), so Cancel truthfully means
-                      // "stage it, but leave it visible".
-                      if (!isHidden(entity) && window.confirm(`Hide “${entityLabel(entity)}” from the party until released?`)) {
-                        patch({ hidden: true });
-                      }
-                      stageEntity(campaign.activeSessionId!, entityId).catch(console.error);
-                    }}
-                    title={staged
-                      ? `Remove from the session ${code} queue`
-                      : `Stage for session ${code} — queued for one-click release from the live panel`}
-                    className="detail-action-btn"
-                    style={staged ? { borderColor: "var(--mustard)", color: "var(--mustard-deep)" } : undefined}
-                  >
-                    {staged ? `⧉ STAGED ${code}` : `⧉ STAGE ${code}`}
-                  </button>
+                  <>
+                    <button
+                      onClick={() => {
+                        if (staged) {
+                          unstageEntity(campaign.activeSessionId!, entityId).catch(console.error);
+                          return;
+                        }
+                        // Staging happens either way — the confirm is only the
+                        // hide offer (default yes), so Cancel truthfully means
+                        // "stage it, but leave it visible".
+                        if (!isHidden(entity) && window.confirm(`Hide “${entityLabel(entity)}” from the party until released?`)) {
+                          patch({ hidden: true });
+                        }
+                        stageEntity(campaign.activeSessionId!, entityId).catch(console.error);
+                      }}
+                      title={staged
+                        ? `Remove from the session ${code} queue`
+                        : `Stage for session ${code} — queued for one-click release from the live panel`}
+                      className="detail-action-btn"
+                      style={staged ? { borderColor: "var(--mustard)", color: "var(--mustard-deep)" } : undefined}
+                    >
+                      {staged ? `⧉ STAGED ${code}` : `⧉ STAGE ${code}`}
+                    </button>
+                    {/* One-click release from the sheet (issue #68) — the same
+                        verb as the live panel's queue button. Unhiding via
+                        ◈ UNREVEALED is not a release: no feed event, no
+                        released_at stamp, no seen-mark. */}
+                    {staged && !stagingRow!.releasedAt && isHidden(entity) && (
+                      <button
+                        disabled={releasing}
+                        onClick={() => {
+                          setReleasing(true);
+                          releaseEntity(kind, entityId, campaign.activeSessionId!, {
+                            author: displayName || undefined,
+                            label: entityLabel(entity),
+                          })
+                            // Clear ONLY on failure (for retry). On success the
+                            // button unmounts once realtime flips hidden/
+                            // released_at; resetting here would re-enable it in
+                            // the echo gap and allow a duplicate release.
+                            .catch((e) => { console.error("releaseEntity failed", e); setReleasing(false); });
+                        }}
+                        title={`Reveal to the party now — unhides it, stamps the ${code} queue, and lands in the session feed`}
+                        className="detail-action-btn"
+                        style={{ borderColor: "var(--bloodred)", color: "var(--bloodred)" }}
+                      >
+                        {releasing ? "🕯 …" : "🕯 RELEASE"}
+                      </button>
+                    )}
+                  </>
                 );
               })()}
               {/* Board membership is a positions row, independent of tier/archive.

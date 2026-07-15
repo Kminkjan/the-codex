@@ -52,10 +52,15 @@ export function NoticeBoard({
   onOpenEntity,
   locateRequest,
   onLocated,
+  revealFlash,
 }: {
   onOpenEntity: (id: string) => void;
   locateRequest?: { id: string; seq: number } | null;
   onLocated?: () => void;
+  // One-shot "this card was just revealed" pulse (issue #68): flash only, no
+  // pan/zoom, no filter changes — pulling every player's view to the card is
+  // the follow-the-DM spotlight (#75), deliberately not this.
+  revealFlash?: { id: string; seq: number } | null;
 }) {
   const campaign = useCampaign();
   const findEntity = useFindEntity();
@@ -122,6 +127,10 @@ export function NoticeBoard({
   const [tidying, setTidying] = useState(false);
   const canvasRef = useRef<HTMLDivElement>(null);
   const lastLocateSeq = useRef(-1);
+  // Seeded from the incoming prop, NOT -1: the board unmounts on other views,
+  // so a reveal that landed there would otherwise flash minutes later when the
+  // user returns — a stale ceremony. Only seq changes while mounted flash.
+  const lastRevealSeq = useRef(revealFlash?.seq ?? -1);
   const rafRef = useRef<number | null>(null);
   // The final rounded target of an in-flight tidy; kept until campaign.board
   // reflects it so cards don't flash back to their old spots between the write
@@ -300,6 +309,18 @@ export function NoticeBoard({
     setFlash({ id, n: seq });
     onLocated?.();
   }, [locateRequest]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reveal pulse: reuse the locate flash (and its dim-the-rest treatment — the
+  // whole point is drawing every eye to the new card) but with none of the
+  // locate side effects: no pan/zoom, no filter/archived overrides, and no
+  // open-the-sheet fallback. Guarded by visible(): a card whose kind filter is
+  // off (or that isn't on the board at all) must not dim the board for nothing.
+  useEffect(() => {
+    if (!revealFlash || revealFlash.seq === lastRevealSeq.current) return;
+    lastRevealSeq.current = revealFlash.seq;
+    if (!visible(revealFlash.id)) return;
+    setFlash({ id: revealFlash.id, n: revealFlash.seq });
+  }, [revealFlash]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Decay the flash: end the glide, then clear the flash. Keyed on the flash
   // state (not locateRequest), so it re-derives its timers from state on every

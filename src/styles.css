@@ -235,7 +235,11 @@ body {
 /* ── App shell ────────────────────────────── */
 .app {
   display: grid;
-  grid-template-columns: 260px 1fr;
+  /* Third column is the live session panel (auto → 0 when no session is
+     live). The panel shrinks .main via grid reflow rather than overlaying it,
+     so the board's pan/zoom yarn coordinates stay correct. .main's
+     overflow:hidden zeroes its min-content, so 1fr can't blow out. */
+  grid-template-columns: 260px 1fr auto;
   grid-template-rows: 56px 1fr;
   height: 100vh;
   background: var(--vellum);
@@ -2454,3 +2458,230 @@ button.session-pin { line-height: 1; }
   background: color-mix(in srgb, var(--mustard) 12%, transparent);
   border-bottom: 1px solid var(--mustard);
 }
+
+/* ── Live session panel (M5 PR 3, issues #67/#68) ──────────────────────────
+   Docked right column of .app. All ≤14px content text sits at the
+   --ink-secondary floor per the ink-tier rules; --ink-faded/--ink-ghost only
+   on placeholders and off-states. Theme-aware variables throughout. */
+.live-panel {
+  width: 320px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--vellum-light);
+  border-left: 1px solid var(--vellum-deep);
+  box-shadow: -2px 0 10px rgba(40,20,5,.10);
+}
+.live-panel.is-collapsed { width: 34px; }
+.live-expand {
+  flex: 1;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 0;
+  color: var(--ink-secondary);
+}
+.live-expand:hover { background: rgba(139,94,40,.08); }
+.live-vertical {
+  writing-mode: vertical-rl;
+  font-family: var(--font-fell-sc);
+  letter-spacing: .24em;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.live-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--vellum-deep);
+  font-family: var(--font-fell-sc);
+  letter-spacing: .16em;
+  font-size: 11px;
+  color: var(--ink-secondary);
+}
+/* Same pulsing dot as the Topbar SessionPin — the panel echoes the ambient
+   LIVE signal, it doesn't invent a new one. */
+.live-panel .pin-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--ink-ghost);
+  flex-shrink: 0;
+}
+.live-panel .pin-dot.live {
+  background: var(--bloodred);
+  box-shadow: 0 0 0 2px rgba(138,42,31,.25);
+  animation: pin-pulse 2s ease-in-out infinite;
+}
+.live-collapse {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--ink-faded);
+  padding: 2px;
+  display: grid; place-items: center;
+}
+.live-collapse:hover { color: var(--ink); }
+
+.live-feed {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.live-empty {
+  font-family: var(--font-fell);
+  font-style: italic;
+  font-size: 13px;
+  color: var(--ink-secondary);
+  text-align: center;
+  margin-top: 24px;
+}
+/* Note rows: small siblings of the detail sheet's .note-scrap. */
+.live-note {
+  background: var(--paper-note);
+  border: 1px solid var(--card-edge);
+  box-shadow: 0 1px 0 rgba(255,255,255,.3) inset, 0 2px 4px rgba(40,20,5,.12);
+  padding: 8px 10px 9px;
+  font-family: var(--font-hand);
+  font-size: 16px;
+  line-height: 1.2;
+  color: var(--ink);
+}
+.live-meta {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--ink-secondary);
+  margin-top: 5px;
+  display: flex; justify-content: space-between; gap: 8px;
+}
+/* Reveal rows: the ceremonial entries — gold-washed, deep-linked. */
+.live-reveal {
+  background: color-mix(in srgb, var(--mustard) 14%, var(--vellum-light));
+  border: 1px solid var(--mustard);
+  padding: 9px 10px;
+  font-family: var(--font-fell);
+  font-style: italic;
+  font-size: 14px;
+  line-height: 1.35;
+  color: var(--ink-body);
+}
+.live-reveal em {
+  font-style: normal;
+  font-family: var(--font-fell-sc);
+  letter-spacing: .04em;
+}
+.live-reveal.linked { cursor: pointer; }
+.live-reveal.linked:hover {
+  background: color-mix(in srgb, var(--mustard) 22%, var(--vellum-light));
+}
+.live-marker {
+  text-align: center;
+  font-family: var(--font-fell-sc);
+  letter-spacing: .2em;
+  font-size: 10px;
+  color: var(--ink-secondary);
+  margin: 4px 0;
+}
+
+/* DM's desk: tonight's staged queue + end-session control. */
+.live-dm {
+  border-top: 1px solid var(--vellum-deep);
+  background: var(--vellum);
+  padding: 10px 12px;
+  max-height: 38%;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+.live-dm-head {
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--font-fell-sc);
+  letter-spacing: .18em;
+  font-size: 10px;
+  color: var(--ink-secondary);
+  margin-bottom: 8px;
+}
+.live-dm-empty {
+  font-family: var(--font-fell);
+  font-style: italic;
+  font-size: 12px;
+  color: var(--ink-secondary);
+}
+.live-end-btn {
+  background: transparent;
+  border: 1px solid var(--vellum-deep);
+  border-radius: 2px;
+  font-family: var(--font-fell-sc);
+  letter-spacing: .14em;
+  font-size: 9px;
+  color: var(--ink-secondary);
+  padding: 3px 8px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.live-end-btn:hover { border-color: var(--bloodred); color: var(--bloodred); }
+.live-stage-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--hairline);
+  font-family: var(--font-fell);
+  font-size: 13px;
+  color: var(--ink-body);
+}
+.live-stage-row:last-child { border-bottom: none; }
+.live-stage-row > svg { flex-shrink: 0; color: var(--ink-secondary); }
+.live-stage-row .lbl {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.live-stage-row .lbl:hover { color: var(--ink); text-decoration: underline; }
+.live-visible-hint {
+  margin-left: 6px;
+  font-family: var(--font-fell-sc);
+  letter-spacing: .14em;
+  font-size: 9px;
+  color: var(--ink-secondary);
+  border: 1px dashed var(--ink-secondary);
+  padding: 1px 5px;
+  border-radius: 2px;
+}
+.release-btn {
+  background: var(--bloodred);
+  color: var(--vellum-light);
+  border: none;
+  border-radius: 2px;
+  font-family: var(--font-fell-sc);
+  letter-spacing: .14em;
+  font-size: 10px;
+  padding: 4px 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.release-btn:hover:not(:disabled) { background: var(--bloodred-deep); }
+.release-btn:disabled { opacity: .5; cursor: default; }
+.live-released {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  letter-spacing: .06em;
+  color: var(--ink-secondary);
+  flex-shrink: 0;
+}
+
+.live-composer {
+  border-top: 1px solid var(--vellum-deep);
+  padding: 10px 12px;
+  flex-shrink: 0;
+}
+/* Reuses .add-note's dress; the composer sits flush in its own footer. */
+.live-composer .live-input { margin-top: 0; }
