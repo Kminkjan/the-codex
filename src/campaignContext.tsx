@@ -540,11 +540,15 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
           "postgres_changes" as any,
           { event: "*", schema: "public", table: "session_events", filter },
           (payload: any) => {
-            // Append-only in policy, but subscribe to "*": a session delete
-            // cascades DELETEs for its feed rows, and those must be applied or
-            // ghost events linger until reload. (DELETE payloads carry only
-            // the PK and bypass the campaign_id filter — harmless, the splice
-            // just filters on an id that isn't present.)
+            // INSERT is the live path (the feed is append-only — no UPDATE and
+            // no manual DELETE policy exist). We still subscribe to "*" and
+            // handle the DELETE splice defensively so that if a delete ever is
+            // delivered (e.g. a future REPLICA IDENTITY FULL) it's applied
+            // rather than ignored. Note the practical limit: session-delete
+            // cascades emit DELETEs whose old-row (default replica identity)
+            // carries only the PK, so Supabase can't match the campaign_id
+            // filter and drops them — a reload is the backstop for the rare
+            // "session deleted mid-feed" case, not this handler.
             setCampaign((c) => c && c.id === campaignId ? { ...c, sessionEvents: sortSessionEvents(applyArrayChange(c.sessionEvents, payload.eventType, payload.new?.id != null ? mapSessionEvent(payload.new) : null, payload.old?.id != null ? mapSessionEvent(payload.old) : null)) } : c);
           },
         );
