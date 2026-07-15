@@ -13,6 +13,8 @@ import {
   type Connection,
   type KindKey,
   type PartyNote,
+  type SessionEvent,
+  type SessionStagingRow,
 } from "./data";
 
 interface CampaignContextValue {
@@ -171,6 +173,30 @@ const buildSessionParticipants = (rows: any[]): Record<string, string[]> => {
   return bySession;
 };
 
+const mapSessionStaging = (r: any): SessionStagingRow => ({
+  sessionId: r.session_id,
+  entityId: r.entity_id,
+  releasedAt: r.released_at ?? null,
+});
+
+const mapSessionEvent = (r: any): SessionEvent => ({
+  id: r.id,
+  sessionId: r.session_id,
+  type: r.type,
+  author: r.author ?? undefined,
+  entityId: r.entity_id ?? undefined,
+  text: r.text ?? undefined,
+  createdAt: r.created_at,
+});
+
+// Feed order must be stable (created_at, id tiebreak — issue #66) and splice
+// order can't be trusted: bigserial ids are assigned at insert while realtime
+// follows commit order, so two concurrent authors can arrive inverted.
+// Date.parse rather than string compare — PostgREST's timestamptz text isn't
+// guaranteed lexicographically ordered (fractional digits vary).
+const sortSessionEvents = (list: SessionEvent[]): SessionEvent[] =>
+  list.slice().sort((a, b) => (Date.parse(a.createdAt) - Date.parse(b.createdAt)) || (a.id - b.id));
+
 const mapPresence = (r: any) => ({
   id: r.id,
   name: r.name,
@@ -204,6 +230,8 @@ async function fetchCampaign(id: string): Promise<Campaign> {
     eventsRes,
     participantsRes,
     sessionParticipantsRes,
+    sessionStagingRes,
+    sessionEventsRes,
     peopleRes,
     locationsRes,
     questsRes,
@@ -222,6 +250,8 @@ async function fetchCampaign(id: string): Promise<Campaign> {
     supabase.from("events").select("*").eq("campaign_id", id).order("order_num"),
     supabase.from("event_participants").select("*").eq("campaign_id", id),
     supabase.from("session_participants").select("*").eq("campaign_id", id),
+    supabase.from("session_staging").select("*").eq("campaign_id", id),
+    supabase.from("session_events").select("*").eq("campaign_id", id).order("created_at").order("id"),
     supabase.from("people").select("*").eq("campaign_id", id),
     supabase.from("locations").select("*").eq("campaign_id", id),
     supabase.from("quests").select("*").eq("campaign_id", id),
@@ -237,7 +267,7 @@ async function fetchCampaign(id: string): Promise<Campaign> {
 
   const first = [
     campaignRes, sessionsRes, arcsRes, eventsRes, participantsRes,
-    sessionParticipantsRes, peopleRes,
+    sessionParticipantsRes, sessionStagingRes, sessionEventsRes, peopleRes,
     locationsRes, questsRes, goalsRes, factionsRes, itemsRes, loreRes,
     connectionsRes, boardRes, presenceRes, notesRes,
   ].find((r) => r.error);
@@ -258,6 +288,8 @@ async function fetchCampaign(id: string): Promise<Campaign> {
     events: (eventsRes.data ?? []).map(mapEvent),
     eventParticipants: buildParticipants(participantsRes.data ?? []),
     sessionParticipants: buildSessionParticipants(sessionParticipantsRes.data ?? []),
+    sessionStaging: (sessionStagingRes.data ?? []).map(mapSessionStaging),
+    sessionEvents: (sessionEventsRes.data ?? []).map(mapSessionEvent),
     activeSessionId: campaignRes.data.active_session_id ?? undefined,
     dmUserId: campaignRes.data.dm_user_id ?? undefined,
     people: (peopleRes.data ?? []).map(mapPerson),
@@ -275,7 +307,8 @@ async function fetchCampaign(id: string): Promise<Campaign> {
 }
 
 // Splice a realtime change into an array-valued campaign field keyed by id.
-function applyArrayChange<T extends { id: string }>(
+// id is string for entity tables, number for bigserial ones (session_events).
+function applyArrayChange<T extends { id: string | number }>(
   list: T[],
   event: "INSERT" | "UPDATE" | "DELETE",
   newRow: T | null,
@@ -490,6 +523,33 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
               if (cancelled) return;
               setCampaign((c) => c && c.id === campaignId ? { ...c, sessionParticipants: buildSessionParticipants(data ?? []) } : c);
             });
+          },
+        );
+        channel.on(
+          "postgres_changes" as any,
+          { event: "*", schema: "public", table: "session_staging", filter },
+          () => {
+            // Composite PK, no client-side id — refetch, same as session_participants.
+            supabase.from("session_staging").select("*").eq("campaign_id", campaignId).then(({ data }) => {
+              if (cancelled) return;
+              setCampaign((c) => c && c.id === campaignId ? { ...c, sessionStaging: (data ?? []).map(mapSessionStaging) } : c);
+            });
+          },
+        );
+        channel.on(
+          "postgres_changes" as any,
+          { event: "*", schema: "public", table: "session_events", filter },
+          (payload: any) => {
+            // INSERT is the live path (the feed is append-only — no UPDATE and
+            // no manual DELETE policy exist). We still subscribe to "*" and
+            // handle the DELETE splice defensively so that if a delete ever is
+            // delivered (e.g. a future REPLICA IDENTITY FULL) it's applied
+            // rather than ignored. Note the practical limit: session-delete
+            // cascades emit DELETEs whose old-row (default replica identity)
+            // carries only the PK, so Supabase can't match the campaign_id
+            // filter and drops them — a reload is the backstop for the rare
+            // "session deleted mid-feed" case, not this handler.
+            setCampaign((c) => c && c.id === campaignId ? { ...c, sessionEvents: sortSessionEvents(applyArrayChange(c.sessionEvents, payload.eventType, payload.new?.id != null ? mapSessionEvent(payload.new) : null, payload.old?.id != null ? mapSessionEvent(payload.old) : null)) } : c);
           },
         );
         channel.on(

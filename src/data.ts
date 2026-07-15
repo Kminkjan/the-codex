@@ -162,6 +162,32 @@ export interface PartyNote {
 
 export type Connection = [string, string, string];
 
+// A DM-staged entity queued for a session (session_staging junction). Rows
+// with releasedAt null are "queued"; PR 3's one-click release stamps it.
+export interface SessionStagingRow {
+  sessionId: string;
+  entityId: string;
+  releasedAt: string | null;
+}
+
+export type SessionEventType = "note" | "reveal" | "start" | "end";
+
+// One row of the append-only live-session feed (session_events). INSERT-only
+// by construction — rows are never edited, so one author per row and inserts
+// commute across clients.
+export interface SessionEvent {
+  id: number;
+  sessionId: string;
+  type: SessionEventType;
+  author?: string;
+  // Cross-kind entity ref with no FK; events outlive entity deletion (the
+  // feed is history), so this may dangle — renderers must findEntity and
+  // tolerate null.
+  entityId?: string;
+  text?: string;
+  createdAt: string;
+}
+
 export type Entity =
   & (Person | Location | Quest | Goal | Faction | Item | Lore | Session | Arc | CampaignEvent)
   & { _kind?: KindKey; _kindLabel?: string };
@@ -177,6 +203,10 @@ export interface Campaign {
   eventParticipants: Record<string, string[]>;
   // session id → person ids seen in that session (session_participants junction).
   sessionParticipants: Record<string, string[]>;
+  // DM prep queue (session_staging). Projected to [] for non-DM viewers.
+  sessionStaging: SessionStagingRow[];
+  // Append-only live feed (session_events), sorted by (createdAt, id).
+  sessionEvents: SessionEvent[];
   // The shared "we're live in session N" pin (campaigns.active_session_id).
   activeSessionId?: string;
   // The campaign's DM (campaigns.dm_user_id, an auth user id). One DM per
@@ -285,10 +315,12 @@ export function projectCampaignForViewers(c: Campaign): Campaign {
   const factions = keep(c.factions);
   const items = keep(c.items);
   const lore = keep(c.lore);
-  // Identity fast path: when nothing is hidden, return the original object so
-  // downstream memos keep their referential equality. (The seven filter passes
-  // above still run — what's saved is the memo invalidation, not the scan.)
-  if (hiddenIds.size === 0) return c;
+  // Identity fast path: when nothing is hidden AND nothing is staged, return
+  // the original object so downstream memos keep their referential equality.
+  // (The seven filter passes above still run — what's saved is the memo
+  // invalidation, not the scan.) Staging must be part of the condition: a
+  // staged-but-visible entity would otherwise leak the DM's prep to viewers.
+  if (hiddenIds.size === 0 && c.sessionStaging.length === 0) return c;
   const dropHiddenValues = (rec: Record<string, string[]>): Record<string, string[]> =>
     Object.fromEntries(
       Object.entries(rec).map(([k, ids]) => [k, ids.filter((id) => !hiddenIds.has(id))]),
@@ -303,6 +335,13 @@ export function projectCampaignForViewers(c: Campaign): Campaign {
     eventParticipants: dropHiddenValues(c.eventParticipants),
     sessionParticipants: dropHiddenValues(c.sessionParticipants),
     notes: dropHiddenKeys(c.notes),
+    // The whole prep queue is DM-only ("staged-but-unreleased items are
+    // visible only to the DM", #65) — nothing player-facing consumes it, the
+    // player surface is the feed, so viewers get none of it.
+    sessionStaging: [],
+    // Defensive: a reveal event normally implies its entity was just unhidden,
+    // but a re-hidden entity must not leak back through old feed rows.
+    sessionEvents: c.sessionEvents.filter((e) => !e.entityId || !hiddenIds.has(e.entityId)),
   };
 }
 
