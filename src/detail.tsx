@@ -599,8 +599,11 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                             author: displayName || undefined,
                             label: entityLabel(entity),
                           })
-                            .catch((e) => console.error("releaseEntity failed", e))
-                            .finally(() => setReleasing(false));
+                            // Clear ONLY on failure (for retry). On success the
+                            // button unmounts once realtime flips hidden/
+                            // released_at; resetting here would re-enable it in
+                            // the echo gap and allow a duplicate release.
+                            .catch((e) => { console.error("releaseEntity failed", e); setReleasing(false); });
                         }}
                         title={`Reveal to the party now — unhides it, stamps the ${code} queue, and lands in the session feed`}
                         className="detail-action-btn"

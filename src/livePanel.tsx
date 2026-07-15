@@ -178,8 +178,11 @@ export function LivePanel({ onOpenEntity }: { onOpenEntity: (id: string) => void
   }
 
   const send = () => {
-    const el = composerRef.current;
-    const text = (el?.textContent || "").trim();
+    // Read the body from `draft` (set only by real typing), NOT el.textContent:
+    // the placeholder is a real DOM child while empty, so textContent would
+    // submit "Note for the record…" as a note on a bare Enter. Same guard as
+    // the party-notes composer's addNote.
+    const text = draft.trim();
     if (!text) return;
     insertSessionEvent({
       type: "note",
@@ -187,6 +190,7 @@ export function LivePanel({ onOpenEntity }: { onOpenEntity: (id: string) => void
       author: displayName || "Anonymous",
       text,
     }).catch(console.error);
+    const el = composerRef.current;
     if (el) el.textContent = "";
     setDraft("");
   };
