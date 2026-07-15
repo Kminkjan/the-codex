@@ -527,7 +527,16 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
         );
         channel.on(
           "postgres_changes" as any,
-          { event: "*", schema: "public", table: "session_staging", filter },
+          // NO server-side campaign_id filter here (unlike the other tables).
+          // unstageEntity() is a hard DELETE, and session_staging has no
+          // REPLICA IDENTITY FULL, so a DELETE's old-row payload carries only
+          // the composite PK (session_id, entity_id) — not campaign_id. A
+          // `campaign_id=eq.<id>` filter can't match that, so Supabase drops
+          // the event and the unstaged row lingers on other clients until a
+          // reload. The handler already refetches campaign-scoped and guards on
+          // the campaign id, so a filterless subscription is safe: the worst a
+          // cross-campaign event does is trigger one redundant scoped refetch.
+          { event: "*", schema: "public", table: "session_staging" },
           () => {
             // Composite PK, no client-side id — refetch, same as session_participants.
             supabase.from("session_staging").select("*").eq("campaign_id", campaignId).then(({ data }) => {
