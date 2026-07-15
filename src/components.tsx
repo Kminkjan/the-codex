@@ -5,8 +5,8 @@ import remarkGfm from "remark-gfm";
 import { sessionLabel, type KindKey, type PresenceUser } from "./data";
 import { Icon, MapScribble, kindIcon } from "./icons";
 import { rankIndex, KIND_LABEL, type Indexed } from "./entitySearch";
-import { useCampaign, useCampaignSwitcher, useKinds } from "./hooks";
-import { createEntity, setActiveSession } from "./mutations";
+import { useCampaign, useCampaignSwitcher, useIsDm, useKinds } from "./hooks";
+import { createEntity, endLiveSession, setActiveSession, startLiveSession, switchLiveSession } from "./mutations";
 import { SignInDialog, useAuth } from "./auth";
 
 interface Position {
@@ -599,7 +599,8 @@ function CampaignPicker() {
 // campaign-wide and synced to every client via realtime.
 function SessionPin() {
   const campaign = useCampaign();
-  const { canEdit } = useAuth();
+  const { canEdit, displayName } = useAuth();
+  const isDm = useIsDm();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -635,8 +636,21 @@ function SessionPin() {
     );
   }
 
+  // When the DM moves the pin, the feed gets its start/end brackets too; other
+  // editors keep the plain pin move (the markers are the DM's ceremony).
+  // Switching A→B goes through switchLiveSession so the pin never passes
+  // through null — that would flicker "not live" across every client.
   const pick = (id: string | null) => {
-    setActiveSession(id).catch(console.error);
+    const prev = campaign.activeSessionId ?? null;
+    const author = displayName || undefined;
+    const op = !isDm || id === prev
+      ? setActiveSession(id)
+      : id && prev
+        ? switchLiveSession(prev, id, author)
+        : id
+          ? startLiveSession(id, author)
+          : endLiveSession(prev!, author);
+    op.catch(console.error);
     setOpen(false);
   };
   // Newest sessions first — that's the one you're most likely going live on.

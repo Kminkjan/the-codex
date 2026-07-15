@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CampaignProvider } from "./campaignContext";
 import { AuthProvider, DisplayNameGate } from "./auth";
-import { useCampaign, useCampaignStatus, useFindEntity, useKinds } from "./hooks";
+import { useCampaign, useCampaignStatus, useFindEntity, useIsDm, useKinds } from "./hooks";
+import { entityLabel } from "./data";
 import { campaignHash, parseHash, writeCampaignHash } from "./route";
 import { Icon } from "./icons";
 import { Sidebar, Topbar } from "./components";
@@ -9,6 +10,7 @@ import { NoticeBoard, KindList } from "./board";
 import { ArcsPage } from "./arcs";
 import { EventsPage } from "./events";
 import { DetailSheet } from "./detail";
+import { LivePanel } from "./livePanel";
 import { CommandPalette, useCommandPaletteHotkey } from "./commandPalette";
 import { CleanupPanel } from "./cleanupPanel";
 
@@ -78,6 +80,61 @@ function AppLoaded() {
   // doesn't re-pan. This is a UI intent, not mirrored DB state.
   const [locate, setLocate] = useState<{ id: string; seq: number } | null>(null);
   const locateSeq = useRef(0);
+  const isDm = useIsDm();
+  // Reveal reactions (issue #68): the transient push half of a release. Both
+  // are UI intents derived from session_events arriving over realtime — the
+  // feed row is the persistent half and always exists first (push + persist).
+  const [revealToast, setRevealToast] = useState<{ eventId: number; entityId: string; label: string } | null>(null);
+  const [revealFlash, setRevealFlash] = useState<{ id: string; seq: number } | null>(null);
+  const revealSeq = useRef(0);
+  // Ids of feed rows already seen, lazily seeded from the mount-time array so
+  // a reload/late-join replays the feed without replaying toasts. A Set diff,
+  // NOT a max-id watermark: bigserial ids are assigned at insert while realtime
+  // follows commit order, so a reveal can arrive carrying a lower id than an
+  // already-seen note — a watermark would silently drop it.
+  const seenEventsRef = useRef<Set<number> | null>(null);
+
+  const sessionEvents = campaign.sessionEvents;
+  const activeSessionId = campaign.activeSessionId;
+  useEffect(() => {
+    if (seenEventsRef.current === null) {
+      seenEventsRef.current = new Set(sessionEvents.map((e) => e.id));
+      return;
+    }
+    const seen = seenEventsRef.current;
+    const fresh = sessionEvents.filter((e) => !seen.has(e.id));
+    if (fresh.length === 0) return;
+    fresh.forEach((e) => seen.add(e.id));
+    // The active-session filter is load-bearing, not tidiness: viewers'
+    // projection drops reveal events pointing at hidden entities, so
+    // re-releasing a once-revealed-then-re-hidden entity makes its OLD
+    // sessions' reveal rows reappear in the projected array — the diff sees
+    // them as new, and only this filter keeps stale ceremonies from toasting.
+    const reveals = fresh.filter(
+      (e) => e.type === "reveal" && e.sessionId === activeSessionId && e.entityId,
+    );
+    if (reveals.length === 0) return;
+    const last = reveals[reveals.length - 1];
+    setRevealFlash({ id: last.entityId!, seq: ++revealSeq.current });
+    if (!isDm) {
+      // The releasing DM's feedback is the queue row flipping to "released".
+      const ent = findEntity(last.entityId);
+      setRevealToast({
+        eventId: last.id,
+        entityId: last.entityId!,
+        label: ent ? entityLabel(ent) : last.text || "something",
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionEvents]);
+
+  // Auto-dismiss keyed on eventId so re-revealing the same entity restarts the
+  // timer. Longer than shareToast's 2.2s — this one carries an action.
+  useEffect(() => {
+    if (!revealToast) return;
+    const t = window.setTimeout(() => setRevealToast(null), 6000);
+    return () => window.clearTimeout(t);
+  }, [revealToast?.eventId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const togglePalette = useCallback(() => setPaletteOpen((o) => !o), []);
   useCommandPaletteHotkey(togglePalette);
@@ -154,12 +211,14 @@ function AppLoaded() {
               onOpenEntity={setOpenId}
               locateRequest={locate}
               onLocated={() => setLocate(null)}
+              revealFlash={revealFlash}
             />
           )}
           {view === "arcs" && <ArcsPage onOpenEntity={setOpenId} />}
           {view === "events" && <EventsPage onOpenEntity={setOpenId} />}
           {!["board", "arcs", "events"].includes(view) && <KindList kind={view} onOpenEntity={setOpenId} />}
         </main>
+        <LivePanel onOpenEntity={setOpenId} />
       </div>
 
       {openId && (
@@ -195,6 +254,34 @@ function AppLoaded() {
           zIndex: 70, borderRadius: 2,
         }}>
           <Icon name="check" size={14} /> Share link copied — anyone with the link may read.
+        </div>
+      )}
+
+      {/* The transient half of a reveal (issue #68) — same dress as the share
+          toast. Single slot: a newer reveal replaces this one; the feed row in
+          the live panel is the recovery path, never this toast. */}
+      {revealToast && (
+        <div style={{
+          position: "fixed", bottom: 26, left: "50%", transform: "translateX(-50%)",
+          background: "var(--ink)", color: "var(--vellum-light)",
+          padding: "10px 14px",
+          fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 14,
+          boxShadow: "0 6px 20px rgba(40,20,5,.45)",
+          display: "flex", alignItems: "center", gap: 12,
+          zIndex: 70, borderRadius: 2,
+        }}>
+          <span>🕯 The DM revealed <strong style={{ fontStyle: "normal" }}>{revealToast.label}</strong></span>
+          <button
+            onClick={() => { setOpenId(revealToast.entityId); setRevealToast(null); }}
+            style={{
+              background: "transparent", color: "var(--vellum-light)",
+              border: "1px solid var(--vellum-deep)", borderRadius: 2,
+              fontFamily: "var(--font-fell-sc)", letterSpacing: ".16em", fontSize: 10,
+              padding: "4px 10px", cursor: "pointer", flexShrink: 0,
+            }}
+          >
+            VIEW
+          </button>
         </div>
       )}
 

@@ -280,6 +280,61 @@ export async function insertSessionEvent(ev: {
   if (error) throw error;
 }
 
+// ===== Live session: one-click release + start/end markers (PR 3, #67/#68) =
+
+// The centerpiece verb: permanent unlock + transient push, one click.
+// Ordering is load-bearing: the unhide must COMMIT before the reveal event is
+// inserted. All of a campaign's realtime rides one channel in commit order, so
+// every client processes the entity UPDATE before the session_events INSERT —
+// and the viewer projection (which drops reveal events pointing at still-hidden
+// entities) keeps the event by construction. Swap the order and player clients
+// could project the reveal away, killing the toast.
+export async function releaseEntity(
+  kind: KindKey,
+  entityId: string,
+  sessionId: string,
+  opts: { author?: string; label?: string } = {},
+) {
+  await updateEntity(kind, entityId, { hidden: false });
+  const stamp = supabase
+    .from("session_staging")
+    .update({ released_at: new Date().toISOString() })
+    .eq("campaign_id", getActiveCampaignId())
+    .eq("session_id", sessionId)
+    .eq("entity_id", entityId)
+    .then(({ error }) => { if (error) throw error; });
+  await Promise.all([
+    stamp,
+    insertSessionEvent({ type: "reveal", sessionId, author: opts.author, entityId, text: opts.label }),
+  ]);
+  // A released person has, by definition, shown up on screen. Idempotent and
+  // non-fatal — the release itself already succeeded.
+  if (kind === "people") markSeen(entityId).catch(console.error);
+}
+
+// DM ceremony around the shared pin: moving it also brackets the feed with
+// start/end markers. `author` comes from the caller (mutations can't reach
+// React context). Non-DM editors keep calling plain setActiveSession — the
+// markers are the DM's to write.
+export async function startLiveSession(sessionId: string, author?: string) {
+  await setActiveSession(sessionId);
+  await insertSessionEvent({ type: "start", sessionId, author });
+}
+
+export async function endLiveSession(sessionId: string, author?: string) {
+  await insertSessionEvent({ type: "end", sessionId, author });
+  await setActiveSession(null);
+}
+
+// Switching sessions while live must never route the pin through null — that
+// would broadcast a transient "not live", closing every client's panel and
+// resetting board session-focus for a frame.
+export async function switchLiveSession(fromId: string, toId: string, author?: string) {
+  await insertSessionEvent({ type: "end", sessionId: fromId, author });
+  await setActiveSession(toId);
+  await insertSessionEvent({ type: "start", sessionId: toId, author });
+}
+
 // session_staging.entity_id spans seven tables so it has no FK (like
 // connections) — swept here. session_events rows are deliberately NOT swept:
 // the feed is append-only history and reveals should outlive their entity
