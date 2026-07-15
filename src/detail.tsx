@@ -13,6 +13,8 @@ import {
   removeEventParticipant,
   markSeen,
   unmarkSeen,
+  stageEntity,
+  unstageEntity,
   upsertBoardPosition,
   deleteBoardPosition,
 } from "./mutations";
@@ -545,6 +547,41 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                   {isHidden(entity) ? "◈ UNREVEALED" : "◇ HIDE"}
                 </button>
               )}
+              {/* DM prep queue (issue #65) — link this entity to the pinned
+                  session so PR 3's live panel can release it one click at a
+                  time. Ignores released_at on purpose: for PR 2, "in the
+                  queue" is the only state this button knows. */}
+              {isDm && campaign.activeSessionId && (() => {
+                const activeNum = campaign.sessions.find((s) => s.id === campaign.activeSessionId)?.num;
+                const code = activeNum != null ? sessionLabel(activeNum) : "";
+                const staged = campaign.sessionStaging.some(
+                  (r) => r.sessionId === campaign.activeSessionId && r.entityId === entityId,
+                );
+                return (
+                  <button
+                    onClick={() => {
+                      if (staged) {
+                        unstageEntity(campaign.activeSessionId!, entityId).catch(console.error);
+                        return;
+                      }
+                      // Staging happens either way — the confirm is only the
+                      // hide offer (default yes), so Cancel truthfully means
+                      // "stage it, but leave it visible".
+                      if (!isHidden(entity) && window.confirm(`Hide “${entityLabel(entity)}” from the party until released?`)) {
+                        patch({ hidden: true });
+                      }
+                      stageEntity(campaign.activeSessionId!, entityId).catch(console.error);
+                    }}
+                    title={staged
+                      ? `Remove from the session ${code} queue`
+                      : `Stage for session ${code} — queued for one-click release from the live panel`}
+                    className="detail-action-btn"
+                    style={staged ? { borderColor: "var(--mustard)", color: "var(--mustard-deep)" } : undefined}
+                  >
+                    {staged ? `⧉ STAGED ${code}` : `⧉ STAGE ${code}`}
+                  </button>
+                );
+              })()}
               {/* Board membership is a positions row, independent of tier/archive.
                   Not worded "PIN" — that already means pinned-to-top above. */}
               <button

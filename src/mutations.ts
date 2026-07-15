@@ -1,7 +1,7 @@
 import { supabase } from "./utils/supabase";
 import { getActiveCampaignId } from "./activeCampaign";
 import { getActiveSessionId } from "./activeSession";
-import { type KindKey, type PartyNote, type BoardPosition } from "./data";
+import { type KindKey, type PartyNote, type BoardPosition, type SessionEventType } from "./data";
 
 // Realtime subscriptions in campaignContext.tsx reflect writes back into UI
 // state, so callers do not need to patch local state (fire-and-forget is fine).
@@ -230,6 +230,69 @@ export async function unmarkSeen(personId: string) {
   if (error) throw error;
 }
 
+// ===== Live session: staging queue + feed (M5 PR 2, issues #65/#66) ========
+
+export async function stageEntity(sessionId: string, entityId: string) {
+  // Merge (NOT ignoreDuplicates, unlike markSeen): re-staging a previously
+  // released row must reset released_at to null — "staged" always means
+  // queued-and-unreleased. The staging UPDATE policy permits the merge path.
+  const { error } = await supabase.from("session_staging").upsert(
+    {
+      campaign_id: getActiveCampaignId(),
+      session_id: sessionId,
+      entity_id: entityId,
+      released_at: null,
+    },
+    { onConflict: "session_id,entity_id" },
+  );
+  if (error) throw error;
+}
+
+export async function unstageEntity(sessionId: string, entityId: string) {
+  const { error } = await supabase
+    .from("session_staging")
+    .delete()
+    .eq("campaign_id", getActiveCampaignId())
+    .eq("session_id", sessionId)
+    .eq("entity_id", entityId);
+  if (error) throw error;
+}
+
+// The feed is append-only: INSERT is the only verb (no update/delete policies
+// exist on session_events). `author` is the caller's display name, same
+// signing as party_notes; `entityId` rides on reveal events, `text` carries
+// note bodies / reveal flair.
+export async function insertSessionEvent(ev: {
+  type: SessionEventType;
+  sessionId: string;
+  author?: string;
+  entityId?: string;
+  text?: string;
+}) {
+  const { error } = await supabase.from("session_events").insert({
+    campaign_id: getActiveCampaignId(),
+    session_id: ev.sessionId,
+    type: ev.type,
+    author: ev.author ?? null,
+    entity_id: ev.entityId ?? null,
+    text: ev.text ?? null,
+  });
+  if (error) throw error;
+}
+
+// session_staging.entity_id spans seven tables so it has no FK (like
+// connections) — swept here. session_events rows are deliberately NOT swept:
+// the feed is append-only history and reveals should outlive their entity
+// (renderers tolerate a dangling entity_id).
+async function deleteSessionStagingFor(entityId: string) {
+  const { error } = await supabase
+    .from("session_staging")
+    .delete()
+    .eq("campaign_id", getActiveCampaignId())
+    .eq("entity_id", entityId);
+  if (error) throw error;
+}
+
 // ===== Entity CRUD ==========================================================
 
 export async function createEntity(
@@ -287,6 +350,7 @@ export async function deleteEntity(kind: KindKey, id: string) {
     deleteBoardPosition(id).catch(() => {}),
     deleteConnectionsFor(id),
     deletePartyNotesFor(id),
+    deleteSessionStagingFor(id),
   ]);
   const { error } = await supabase
     .from(kind)
