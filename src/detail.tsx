@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { type KindKey, PERSON_STATUS_OPTIONS, PERSON_TIER_OPTIONS, entityLabel, isArchivableKind, isArchived, isHidden, isPinned, personTier, sessionFeedToMarkdown, sessionLabel } from "./data";
 import { Icon, kindIcon } from "./icons";
 import { StatusChip, EditableText, EditableMarkdown, EnumSelect, EntitySelect, EntityCombobox } from "./components";
@@ -365,8 +365,15 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
   // idempotent and realtime won't flip the staging row fast enough.
   const [releasing, setReleasing] = useState(false);
   // Same guard for DRAFT RECAP (issue #72): the append is a read-modify-write
-  // on summary, and realtime lag would let a double-click land the digest twice.
+  // on summary. Like RELEASE, the guard clears on failure only — clearing on
+  // success would re-enable the button in the realtime echo gap while
+  // entity.summary is still stale. Unlike RELEASE the button doesn't unmount
+  // on success, so the echo itself (summary changing) is what re-enables it.
   const [draftingRecap, setDraftingRecap] = useState(false);
+  const entitySummary = entity ? (entity as any).summary : undefined;
+  useEffect(() => {
+    setDraftingRecap(false);
+  }, [entitySummary]);
   const draftRef = useRef<HTMLDivElement>(null);
 
   // Manual strings + FK relations (resides at / member of / quest giver /
@@ -476,8 +483,12 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
     const existing = ((entity as any).summary ?? "").trim();
     setDraftingRecap(true);
     updateEntity("sessions", entityId, { summary: existing ? `${existing}\n\n${digest}` : digest })
-      .catch((e) => console.error("draft recap failed", e))
-      .finally(() => setDraftingRecap(false));
+      // Clear ONLY on failure (for retry) — the summary-echo effect above
+      // handles success, once the appended digest is actually visible.
+      .catch((e) => {
+        console.error("draft recap failed", e);
+        setDraftingRecap(false);
+      });
   };
 
   const arcOptions = useMemo(
