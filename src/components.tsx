@@ -5,7 +5,7 @@ import remarkGfm from "remark-gfm";
 import { sessionLabel, type KindKey, type PresenceUser } from "./data";
 import { Icon, MapScribble, kindIcon } from "./icons";
 import { rankIndex, KIND_LABEL, type Indexed } from "./entitySearch";
-import { useCampaign, useCampaignSwitcher, useKinds, useViewAsPlayer } from "./hooks";
+import { useCampaign, useCampaignSwitcher, useKinds, usePresence, useViewAsPlayer } from "./hooks";
 import { createEntity, endLiveSession, setActiveSession, startLiveSession, switchLiveSession } from "./mutations";
 import { SignInDialog, useAuth } from "./auth";
 
@@ -322,12 +322,7 @@ export function Presence({ users }: { users: PresenceUser[] }) {
   return (
     <div className="presence" title="Currently viewing">
       {users.map((u) => (
-        <div
-          key={u.id}
-          className={`avatar ${u.active ? "" : "inactive"}`}
-          style={{ background: u.color }}
-          title={`${u.name} ${u.active ? "(online)" : "(idle)"}`}
-        >
+        <div key={u.id} className="avatar" style={{ background: u.color }} title={`${u.name} (online)`}>
           {u.initials}
         </div>
       ))}
@@ -703,7 +698,7 @@ function SessionPin() {
 }
 
 export function Topbar({ onShare }: { onShare: () => void }) {
-  const campaign = useCampaign();
+  const presenceUsers = usePresence();
   const { canEdit, displayName, avatarUrl, signOut } = useAuth();
   const { isRealDm, viewAsPlayer, setViewAsPlayer } = useViewAsPlayer();
   const [signingIn, setSigningIn] = useState(false);
@@ -721,7 +716,7 @@ export function Topbar({ onShare }: { onShare: () => void }) {
         <SessionPin />
       </div>
       <div className="topbar-right">
-        <Presence users={campaign.presence} />
+        <Presence users={presenceUsers} />
         {/* "View as player" (#71) — DM-only, gated on isRealDm so it doesn't
             vanish mid-mode; while active the banner's EXIT is the off-switch,
             so the button hides rather than double up as a second exit. */}

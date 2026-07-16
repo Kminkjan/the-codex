@@ -1,0 +1,15 @@
+-- 0020: real presence (issue #74).
+--
+-- "Who's at the table" moved from the static seeded presence_users table to
+-- Supabase channel Presence on the campaign realtime channel: clients
+-- .track({ id, name, initials, color }) derived from their auth display
+-- name, and occupancy expires with the socket — no rows, no ghosts.
+--
+-- The table is dropped, not repurposed: nothing referenced it besides the
+-- Topbar strip, identity/color are derived client-side, and the "session is
+-- live" fact stays campaigns.active_session_id (a dropped DM tab must never
+-- silently end a session).
+--
+-- DROP TABLE cascades the policies (0001 read, 0006 member write) and
+-- removes the table from the supabase_realtime publication automatically.
+drop table if exists public.presence_users;
