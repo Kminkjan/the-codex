@@ -479,9 +479,13 @@ export async function deleteEntity(kind: KindKey, id: string) {
     deleteBoardPosition(id).catch(() => {}),
     deleteConnectionsFor(id),
     deletePartyNotesFor(id),
+    // Since 0018 the staging and dm_notes sweeps are DM-only at the DB
+    // layer: when a non-DM editor strikes a visible entity the DM had staged
+    // or annotated, these two match 0 rows and the orphaned row lingers.
+    // Accepted: it's invisible to players (RLS), the live panel drops
+    // staging rows whose entity is gone, and entity ids never recur (uuid) —
+    // metadata-only residue, not a leak.
     deleteSessionStagingFor(id),
-    // RLS makes this a DM-only delete; for non-DM editors the sweep is a
-    // silent 0-row no-op (a non-DM can't have a dm_note to sweep anyway).
     deleteDmNotesFor(id),
   ]);
   const { error } = await supabase
