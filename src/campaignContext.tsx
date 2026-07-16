@@ -1,4 +1,4 @@
-import { createContext, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "./utils/supabase";
 import { useAuth } from "./auth";
@@ -13,6 +13,7 @@ import {
   type Connection,
   type KindKey,
   type PartyNote,
+  type PresenceUser,
   type SessionEvent,
   type SessionStagingRow,
 } from "./data";
@@ -42,6 +43,10 @@ interface CampaignContextValue {
   // "View as player" (#71): pure client state, reset on campaign switch.
   viewAsPlayer: boolean;
   setViewAsPlayer: (on: boolean) => void;
+  // Who's at the table right now (issue #74) — channel presence on the
+  // campaign realtime channel, one entry per signed-in named editor.
+  // Occupancy only: the "session is live" fact stays active_session_id.
+  presenceUsers: PresenceUser[];
 }
 
 export const CampaignContext = createContext<CampaignContextValue>({
@@ -55,7 +60,38 @@ export const CampaignContext = createContext<CampaignContextValue>({
   isRealDm: false,
   viewAsPlayer: false,
   setViewAsPlayer: () => {},
+  presenceUsers: [],
 });
+
+// --- Channel presence identity (issue #74) ---------------------------------
+// Derived, never stored: the presence_users table is gone (0021). Colors are
+// the 0001 seed parchment tones plus two theme-consistent extras.
+const PRESENCE_PALETTE = ["#8a2a1f", "#3d5536", "#b08228", "#4a6d68", "#5d4a72", "#7a5230"];
+
+const initialsOf = (name: string): string =>
+  name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("") || "?";
+
+const colorFor = (userId: string): string => {
+  let h = 0;
+  for (let i = 0; i < userId.length; i++) h = (h * 31 + userId.charCodeAt(i)) | 0;
+  return PRESENCE_PALETTE[Math.abs(h) % PRESENCE_PALETTE.length];
+};
+
+// presenceState() is presence-key → metas. The key is the default random
+// per-connection one, so the same user in two tabs is two entries — dedupe by
+// the tracked payload's user id, and sort by name because key iteration order
+// is join order, which differs per client.
+const flattenPresenceState = (state: Record<string, any[]>): PresenceUser[] => {
+  const byId = new Map<string, PresenceUser>();
+  for (const metas of Object.values(state)) {
+    for (const m of metas) {
+      if (m && typeof m.id === "string" && m.name && !byId.has(m.id)) {
+        byId.set(m.id, { id: m.id, name: m.name, initials: m.initials ?? "?", color: m.color ?? PRESENCE_PALETTE[0] });
+      }
+    }
+  }
+  return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
+};
 
 // Map a DB row (snake_case, `desc`) to the app's object shape (camelCase).
 const archiveFields = (r: any) => ({
@@ -218,14 +254,6 @@ const mapSessionEvent = (r: any): SessionEvent => ({
 const sortSessionEvents = (list: SessionEvent[]): SessionEvent[] =>
   list.slice().sort((a, b) => (Date.parse(a.createdAt) - Date.parse(b.createdAt)) || (a.id - b.id));
 
-const mapPresence = (r: any) => ({
-  id: r.id,
-  name: r.name,
-  initials: r.initials,
-  color: r.color,
-  active: !!r.active,
-});
-
 const mapBoardPosition = (r: any): [string, BoardPosition] => [
   r.entity_id,
   { x: r.x, y: r.y, rot: r.rot ?? 0, kind: r.kind as KindKey },
@@ -263,7 +291,6 @@ async function fetchCampaign(id: string): Promise<Campaign> {
     loreRes,
     connectionsRes,
     boardRes,
-    presenceRes,
     notesRes,
   ] = await Promise.all([
     supabase.from("campaigns").select("*").eq("id", id).single(),
@@ -285,7 +312,6 @@ async function fetchCampaign(id: string): Promise<Campaign> {
     supabase.from("lore").select("*").eq("campaign_id", id),
     supabase.from("connections").select("*").eq("campaign_id", id),
     supabase.from("board_positions").select("*").eq("campaign_id", id),
-    supabase.from("presence_users").select("*").eq("campaign_id", id),
     supabase.from("party_notes").select("*").eq("campaign_id", id).order("created_at"),
   ]);
 
@@ -293,7 +319,7 @@ async function fetchCampaign(id: string): Promise<Campaign> {
     campaignRes, sessionsRes, arcsRes, eventsRes, participantsRes,
     sessionParticipantsRes, sessionStagingRes, sessionEventsRes, dmNotesRes,
     peopleRes, locationsRes, questsRes, goalsRes, factionsRes, itemsRes,
-    loreRes, connectionsRes, boardRes, presenceRes, notesRes,
+    loreRes, connectionsRes, boardRes, notesRes,
   ].find((r) => r.error);
   if (first?.error) throw new Error(first.error.message);
 
@@ -326,7 +352,6 @@ async function fetchCampaign(id: string): Promise<Campaign> {
     lore: (loreRes.data ?? []).map(mapLore),
     connections: (connectionsRes.data ?? []).map(mapConnection),
     board: Object.fromEntries((boardRes.data ?? []).map(mapBoardPosition)),
-    presence: (presenceRes.data ?? []).map(mapPresence),
     notes: notesByEntity,
   };
 }
@@ -355,7 +380,7 @@ function applyArrayChange<T extends { id: string | number }>(
 }
 
 export function CampaignProvider({ children }: { children: ReactNode }) {
-  const { user, canEdit } = useAuth();
+  const { user, canEdit, displayName } = useAuth();
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -363,6 +388,37 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
   const [campaignId, setCampaignId] = useState<string | null>(null);
   const [viewAsPlayer, setViewAsPlayer] = useState(false);
   const [isDmMember, setIsDmMember] = useState(false);
+  const [presenceUsers, setPresenceUsers] = useState<PresenceUser[]>([]);
+
+  // Channel presence (issue #74). The channel lives inside the campaign
+  // effect (keyed on campaignId only — auth changes must NOT refetch the
+  // campaign), so track/untrack reaches it through refs. subscribedRef gates
+  // every push: track() before the first join throws in realtime-js.
+  const channelRef = useRef<RealtimeChannel | null>(null);
+  const subscribedRef = useRef(false);
+  const authRef = useRef({ userId: null as string | null, displayName: null as string | null, canEdit: false });
+  authRef.current = { userId: user?.id ?? null, displayName, canEdit };
+
+  // Idempotent: safe to call from SUBSCRIBED (fires again on every network
+  // rejoin — realtime-js does not re-track by itself) and from auth changes.
+  const syncPresence = useCallback(() => {
+    const ch = channelRef.current;
+    if (!ch || !subscribedRef.current) return;
+    const { userId, displayName, canEdit } = authRef.current;
+    if (canEdit && userId && displayName) {
+      // Fire-and-forget: a push buffered across a disconnect can resolve
+      // "timed out" even though the rejoin re-track supersedes it.
+      void ch.track({ id: userId, name: displayName, initials: initialsOf(displayName), color: colorFor(userId) });
+    } else {
+      void ch.untrack(); // anonymous viewers observe without appearing
+    }
+  }, []);
+
+  // Sign-in, sign-out (→ fresh anonymous session) and display-name edits
+  // re-track without touching the channel lifecycle.
+  useEffect(() => {
+    syncPresence();
+  }, [user?.id, displayName, canEdit, syncPresence]);
 
   // DM membership lookup (issue #73): one campaign_members row decides
   // isRealDm. Not realtime-synced — roles are dashboard-managed, a mid-
@@ -461,6 +517,7 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     setError(null);
     setViewAsPlayer(false); // a view mode never outlives its campaign
+    setPresenceUsers([]); // occupancy is per-channel — no stale-avatar flash
 
     (async () => {
       try {
@@ -472,6 +529,16 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
 
         const filter = `campaign_id=eq.${campaignId}`;
         channel = supabase.channel(`campaign:${campaignId}`);
+        channelRef.current = channel;
+
+        // Must be registered BEFORE subscribe(): realtime-js only enables
+        // presence in the join payload when a presence binding already
+        // exists. `sync` fires after the initial state and every diff, so
+        // one handler covers joins, leaves, and expiry (no ghosts).
+        channel.on("presence", { event: "sync" }, () => {
+          if (cancelled) return;
+          setPresenceUsers(flattenPresenceState(channel!.presenceState()));
+        });
 
         // Shared by each table's own handler AND the reveal path below. A
         // release makes connections/board rows that reference the revealed
@@ -678,13 +745,6 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
         );
         channel.on(
           "postgres_changes" as any,
-          { event: "*", schema: "public", table: "presence_users", filter },
-          (payload: any) => {
-            setCampaign((c) => c && c.id === campaignId ? { ...c, presence: applyArrayChange(c.presence, payload.eventType, payload.new ? mapPresence(payload.new) : null, payload.old ? mapPresence(payload.old) : null) } : c);
-          },
-        );
-        channel.on(
-          "postgres_changes" as any,
           { event: "*", schema: "public", table: "connections", filter },
           // Connections have no stable `id` on the client (stored as tuples). Refetch.
           refetchConnections,
@@ -710,7 +770,15 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
           },
         );
 
-        channel.subscribe();
+        channel.subscribe((status) => {
+          if (cancelled) return;
+          // SUBSCRIBED re-fires on every network rejoin; re-tracking there is
+          // the only way presence survives a drop (see syncPresence).
+          if (status === "SUBSCRIBED") {
+            subscribedRef.current = true;
+            syncPresence();
+          }
+        });
       } catch (e: any) {
         if (cancelled) return;
         setError(e?.message ?? "Failed to load campaign");
@@ -720,6 +788,10 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
 
     return () => {
       cancelled = true;
+      // removeChannel leaves the topic, which emits the presence leave to
+      // everyone else — no explicit untrack needed.
+      channelRef.current = null;
+      subscribedRef.current = false;
       if (channel) supabase.removeChannel(channel);
     };
   }, [campaignId]);
@@ -739,7 +811,7 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
   );
 
   return (
-    <CampaignContext.Provider value={{ campaign: visibleCampaign, loading, error, campaigns, activeCampaignId: campaignId, switchCampaign, isDm, isRealDm, viewAsPlayer, setViewAsPlayer }}>
+    <CampaignContext.Provider value={{ campaign: visibleCampaign, loading, error, campaigns, activeCampaignId: campaignId, switchCampaign, isDm, isRealDm, viewAsPlayer, setViewAsPlayer, presenceUsers }}>
       {children}
     </CampaignContext.Provider>
   );

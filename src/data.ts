@@ -145,12 +145,13 @@ export function isArchivableKind(k: KindKey): boolean {
 
 export type BoardPosition = { x: number; y: number; rot: number; kind: KindKey };
 
+// Ephemeral channel-presence identity (issue #74) — derived from the auth
+// display name and tracked on the campaign realtime channel, never stored.
 export interface PresenceUser {
   id: string;
   name: string;
   initials: string;
   color: string;
-  active: boolean;
 }
 
 export interface PartyNote {
@@ -240,7 +241,6 @@ export interface Campaign {
   lore: Lore[];
   connections: Connection[];
   board: Record<string, BoardPosition>;
-  presence: PresenceUser[];
   notes: Record<string, PartyNote[]>;
 }
 
