@@ -145,7 +145,7 @@ function AppLoaded() {
         // lost. Degrade to the toast — the feed row is the recovery path.
         const el = document.activeElement;
         const midEdit = el instanceof HTMLElement &&
-          (el.isContentEditable || el.tagName === "INPUT" || el.tagName === "TEXTAREA");
+          (el.isContentEditable || el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT");
         if (ent && !midEdit) {
           // One slot, never stacked: a second show replaces the first.
           setOpenId(last.entityId!);

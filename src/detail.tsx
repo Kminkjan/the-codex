@@ -621,7 +621,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                         released_at stamp, no seen-mark. */}
                     {staged && !stagingRow!.releasedAt && isHidden(entity) && (
                       <button
-                        disabled={releasing}
+                        disabled={releasing || showing}
                         onClick={() => {
                           setReleasing(true);
                           releaseEntity(kind, entityId, campaign.activeSessionId!, {
