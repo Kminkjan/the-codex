@@ -525,7 +525,7 @@ export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, counts 
 
 // Campaign switcher in the Topbar. Visible to read-only viewers too —
 // switching campaigns is navigation, not an edit.
-function CampaignPicker() {
+function CampaignPicker({ onOpenCharter }: { onOpenCharter: () => void }) {
   const campaign = useCampaign();
   const { campaigns, activeCampaignId, switchCampaign } = useCampaignSwitcher();
   const [open, setOpen] = useState(false);
@@ -553,17 +553,19 @@ function CampaignPicker() {
     <div className="campaign-picker" ref={rootRef}>
       <button
         className="campaign-chip"
-        onClick={() => canSwitch && setOpen((o) => !o)}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        title={canSwitch ? "Switch campaign" : undefined}
-        style={{ cursor: canSwitch ? "pointer" : "default" }}
+        onClick={() => (canSwitch ? setOpen((o) => !o) : onOpenCharter())}
+        aria-haspopup={canSwitch ? "listbox" : undefined}
+        aria-expanded={canSwitch ? open : undefined}
+        title={canSwitch ? "Switch campaign" : "View campaign charter"}
+        style={{ cursor: "pointer" }}
       >
         <span className="dot" />
         <span style={{ fontFamily: "var(--font-fell-sc)", letterSpacing: ".1em", fontSize: 11 }}>CAMPAIGN</span>
         <span>·</span>
         <span style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 15 }}>{campaign.title}</span>
-        <span style={{ color: "var(--ink-secondary)", fontStyle: "italic", fontSize: 12 }}>· {campaign.subtitle}</span>
+        {campaign.subtitle && (
+          <span style={{ color: "var(--ink-secondary)", fontStyle: "italic", fontSize: 12 }}>· {campaign.subtitle}</span>
+        )}
         {canSwitch && (
           <Icon name="chevron" size={11} style={{ transform: open ? "rotate(-90deg)" : "rotate(90deg)", color: "var(--ink-faded)", flexShrink: 0 }} />
         )}
@@ -587,6 +589,16 @@ function CampaignPicker() {
               </span>
             </button>
           ))}
+          <button
+            className="campaign-picker-item"
+            onClick={() => { onOpenCharter(); setOpen(false); }}
+            style={{ borderTop: "1px dashed var(--vellum-deep)" }}
+          >
+            <span className="dot" style={{ visibility: "hidden" }} />
+            <span style={{ fontFamily: "var(--font-fell-sc)", letterSpacing: ".14em", fontSize: 11, color: "var(--ink-secondary)" }}>
+              VIEW CHARTER
+            </span>
+          </button>
         </div>
       )}
     </div>
@@ -594,15 +606,18 @@ function CampaignPicker() {
 }
 
 // The shared "we're live in session N" pin, beside the campaign picker.
-// Editors get a dropdown to go live / switch / stand down; viewers see a static
-// label so everyone at the table knows which session is current. The value is
+// The DM gets a dropdown to go live / switch / stand down; everyone else —
+// viewers AND non-DM editors — sees a static label so the whole table knows
+// which session is current. DM-only since #85: migration 0020 gates the
+// campaigns UPDATE (which carries active_session_id) on is_campaign_dm, so a
+// non-DM editor's pin move would silently match 0 rows. The value is
 // campaign-wide and synced to every client via realtime.
 function SessionPin() {
   const campaign = useCampaign();
   const { canEdit, displayName } = useAuth();
-  // Real DM-ness, NOT the view-as-player-flipped gate: this decides which
-  // MUTATION runs (bracketed vs bare pin move). A view toggle changing what
-  // gets persisted would silently drop feed markers from the append-only log.
+  // Real DM-ness, NOT the view-as-player-flipped gate: the pin must keep
+  // working while the DM previews the player view (it's a write control,
+  // like the toggle itself), and the mutations write the DM's feed brackets.
   const { isRealDm } = useViewAsPlayer();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -626,8 +641,9 @@ function SessionPin() {
   const live = campaign.sessions.find((s) => s.id === campaign.activeSessionId);
   const label = live ? `SESSION ${live.num}` : "NOT LIVE";
 
-  // Viewers: static, non-interactive label (only shown when a session is live).
-  if (!canEdit) {
+  // Viewers and non-DM editors: static, non-interactive label (only shown
+  // when a session is live) — their pin writes would be RLS no-ops (0020).
+  if (!canEdit || !isRealDm) {
     if (!live) return null;
     return (
       <div className="session-pin">
@@ -639,14 +655,15 @@ function SessionPin() {
     );
   }
 
-  // When the DM moves the pin, the feed gets its start/end brackets too; other
-  // editors keep the plain pin move (the markers are the DM's ceremony).
-  // Switching A→B goes through switchLiveSession so the pin never passes
-  // through null — that would flicker "not live" across every client.
+  // Only the DM reaches this point (see the gate above), so every pin move
+  // gets its feed start/end brackets; re-picking the current session stays a
+  // bare no-op write. Switching A→B goes through switchLiveSession so the
+  // pin never passes through null — that would flicker "not live" across
+  // every client.
   const pick = (id: string | null) => {
     const prev = campaign.activeSessionId ?? null;
     const author = displayName || undefined;
-    const op = !isRealDm || id === prev
+    const op = id === prev
       ? setActiveSession(id)
       : id && prev
         ? switchLiveSession(prev, id, author)
@@ -702,7 +719,7 @@ function SessionPin() {
   );
 }
 
-export function Topbar({ onShare }: { onShare: () => void }) {
+export function Topbar({ onShare, onOpenCharter }: { onShare: () => void; onOpenCharter: () => void }) {
   const campaign = useCampaign();
   const { canEdit, displayName, avatarUrl, signOut } = useAuth();
   const { isRealDm, viewAsPlayer, setViewAsPlayer } = useViewAsPlayer();
@@ -717,7 +734,7 @@ export function Topbar({ onShare }: { onShare: () => void }) {
         </div>
       </div>
       <div className="topbar-center">
-        <CampaignPicker />
+        <CampaignPicker onOpenCharter={onOpenCharter} />
         <SessionPin />
       </div>
       <div className="topbar-right">

@@ -5,9 +5,12 @@ const MAX_BYTES = 5 * 1024 * 1024;
 
 export type UploadableKind = "people" | "locations" | "factions" | "items" | "sessions";
 
+// "campaign" is a path prefix for the campaign crest (issue #85), not a
+// KindKey — keep it out of UploadableKind, which detail.tsx feeds into
+// KindKey-typed helpers.
 export async function uploadEntityImage(
   file: File,
-  kind: UploadableKind,
+  kind: UploadableKind | "campaign",
   entityId: string,
 ): Promise<string> {
   if (!file.type.startsWith("image/")) {

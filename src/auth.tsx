@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "./utils/supabase";
+import { upsertMyProfile } from "./mutations";
 
 // Dev-only editor quick-login for local/automated testing. Anonymous sessions
 // fail both the canEdit gate and the RLS write policy, so real end-to-end
@@ -106,6 +107,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     (user?.user_metadata?.display_name as string | undefined)?.trim() ||
     (user?.email ? user.email.split("@")[0] : null);
   const avatarUrl = (user?.user_metadata?.avatar_url as string | undefined) || null;
+
+  // Mirror editor identity into public.profiles (0020) so the charter roster
+  // can name campaign_members rows — auth metadata is only readable for the
+  // signed-in user. Re-runs when the DisplayNameGate saves (updateUser →
+  // auth state change → displayName re-derives); token refreshes don't
+  // change these deps. Fire-and-forget: a pre-migration 404 is harmless.
+  const userId = user?.id;
+  const isAnon = user?.is_anonymous;
+  useEffect(() => {
+    if (!userId || isAnon) return;
+    upsertMyProfile(userId, displayName, avatarUrl).catch(console.error);
+  }, [userId, isAnon, displayName, avatarUrl]);
 
   const setDisplayName = async (name: string) => {
     const trimmed = name.trim();
