@@ -586,7 +586,7 @@ export function NoticeBoard({
           }}>
             <span className="pin-head" style={{ left: "10%" }} />
             <span className="pin-head" style={{ left: "90%" }} />
-            ✦ THE NOTICE BOARD OF THE CROOKED TANKARD ✦
+            ✦ {campaign.title.toUpperCase()} ✦
           </div>
 
           <svg className="yarn-layer" viewBox={`0 0 ${bounds.w} ${bounds.h}`} preserveAspectRatio="none">
@@ -672,7 +672,7 @@ export function NoticeBoard({
             );
           })}
 
-          <div className="wax-seal" style={{ top: 120, left: 60 }}>EC</div>
+          <div className="wax-seal" style={{ top: 120, left: 60 }}>✦</div>
           <div className="wax-seal" style={{ top: 1820, left: 2200, background: "radial-gradient(circle at 35% 30%, #c5a04a 0%, #8a6820 60%, #5a430f 100%)" }}>✦</div>
         </div>
 
