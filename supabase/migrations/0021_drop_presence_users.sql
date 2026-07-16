@@ -1,4 +1,4 @@
--- 0020: real presence (issue #74).
+-- 0021: real presence (issue #74).
 --
 -- "Who's at the table" moved from the static seeded presence_users table to
 -- Supabase channel Presence on the campaign realtime channel: clients

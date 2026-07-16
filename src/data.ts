@@ -213,6 +213,8 @@ export interface Campaign {
   id: string;
   title: string;
   subtitle: string;
+  // Optional crest/cover image for the charter (campaigns.image_url, 0020).
+  imageUrl?: string;
   sessions: Session[];
   arcs: Arc[];
   events: CampaignEvent[];

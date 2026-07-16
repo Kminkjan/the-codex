@@ -198,6 +198,36 @@ export async function setActiveSession(sessionId: string | null) {
   if (error) throw error;
 }
 
+// Campaign identity for the charter (issue #85). DM-only at the DB layer
+// (0020's UPDATE policy): a non-DM write matches 0 rows with NO error, so
+// callers must gate the affordance on isDm rather than rely on error
+// handling. Realtime echoes title/subtitle/image_url back into state.
+export async function updateCampaign(patch: { title?: string; subtitle?: string; imageUrl?: string | null }) {
+  const row: Record<string, unknown> = {};
+  if (patch.title !== undefined) row.title = patch.title; // NOT NULL — callers reject empty
+  if (patch.subtitle !== undefined) row.subtitle = patch.subtitle || null;
+  if (patch.imageUrl !== undefined) row.image_url = patch.imageUrl || null;
+  const { error } = await supabase
+    .from("campaigns")
+    .update(row)
+    .eq("id", getActiveCampaignId());
+  if (error) throw error;
+}
+
+// User-scoped, not campaign-scoped (no getActiveCampaignId): mirrors the
+// signed-in editor's auth metadata into public.profiles (0020) so the
+// charter roster can put names/avatars on campaign_members rows. RLS
+// restricts the upsert to the caller's own row.
+export async function upsertMyProfile(userId: string, displayName: string | null, avatarUrl: string | null) {
+  const { error } = await supabase
+    .from("profiles")
+    .upsert(
+      { user_id: userId, display_name: displayName, avatar_url: avatarUrl },
+      { onConflict: "user_id" },
+    );
+  if (error) throw error;
+}
+
 export async function markSeen(personId: string) {
   const sessionId = getActiveSessionId();
   if (!sessionId) {

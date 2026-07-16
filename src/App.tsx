@@ -9,6 +9,7 @@ import { Sidebar, Topbar } from "./components";
 import { NoticeBoard, KindList } from "./board";
 import { ArcsPage } from "./arcs";
 import { EventsPage } from "./events";
+import { CampaignCharterPage } from "./campaign";
 import { DetailSheet } from "./detail";
 import { LivePanel } from "./livePanel";
 import { CommandPalette, useCommandPaletteHotkey } from "./commandPalette";
@@ -239,7 +240,7 @@ function AppLoaded() {
   return (
     <>
       <div className="app">
-        <Topbar onShare={onShare} />
+        <Topbar onShare={onShare} onOpenCharter={() => setView("campaign")} />
         <Sidebar active={view} onSelect={setView} onOpenEntity={setOpenId} onOpenCleanup={() => setCleanupOpen(true)} counts={counts} />
         <main className="main">
           {view === "board" && (
@@ -252,7 +253,10 @@ function AppLoaded() {
           )}
           {view === "arcs" && <ArcsPage onOpenEntity={setOpenId} />}
           {view === "events" && <EventsPage onOpenEntity={setOpenId} />}
-          {!["board", "arcs", "events"].includes(view) && <KindList kind={view} onOpenEntity={setOpenId} />}
+          {view === "campaign" && <CampaignCharterPage onOpenEntity={setOpenId} />}
+          {/* Catch-all treats the view as a KindKey — every non-kind view
+              must be excluded here or it double-renders a bogus KindList. */}
+          {!["board", "arcs", "events", "campaign"].includes(view) && <KindList kind={view} onOpenEntity={setOpenId} />}
         </main>
         <LivePanel onOpenEntity={setOpenId} />
       </div>
