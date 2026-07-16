@@ -7,6 +7,7 @@ import { useAuth } from "./auth";
 import {
   insertPartyNote,
   updateEntity,
+  updateDmNotes,
   deleteEntity,
   insertConnection,
   addEventParticipant,
@@ -992,15 +993,16 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
               )}
 
               {/* DM-only notes (issue #70): one coarse field per entity, the
-                  80% substitute for per-section permissions. Client-gated on
-                  isDm like hide/stage/release; the projection strips dmNotes
-                  for everyone else, so this block can't exist for players. */}
+                  80% substitute for per-section permissions. Stored in the
+                  dm_notes side table whose RLS is DM-only (issue #73), so
+                  campaign.dmNotes is empty on every non-DM client; the isDm
+                  gate here is the view-as-player affordance, not security. */}
               {isDm && kind !== "arcs" && kind !== "events" && (
                 <div className="dm-note">
                   <div className="dm-note-head">✦ DM'S EYES ONLY ✦</div>
                   <EditableMarkdown
-                    value={(entity as any).dmNotes ?? ""}
-                    onSave={(v) => patch({ dmNotes: v })}
+                    value={campaign.dmNotes[entityId] ?? ""}
+                    onSave={(v) => updateDmNotes(entityId, v).catch((e) => console.error("updateDmNotes failed", e))}
                     placeholder="Prep notes the party never sees…"
                     style={{ fontFamily: "var(--font-fell)" }}
                   />
