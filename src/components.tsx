@@ -701,7 +701,7 @@ function SessionPin() {
 
 export function Topbar({ onShare }: { onShare: () => void }) {
   const campaign = useCampaign();
-  const { canEdit, displayName, signOut } = useAuth();
+  const { canEdit, displayName, avatarUrl, signOut } = useAuth();
   const [signingIn, setSigningIn] = useState(false);
   return (
     <header className="topbar">
@@ -721,6 +721,17 @@ export function Topbar({ onShare }: { onShare: () => void }) {
         <button className="btn" onClick={onShare}><Icon name="share" size={14} /> Share link</button>
         {canEdit ? (
           <>
+            {avatarUrl && (
+              <img
+                src={avatarUrl}
+                alt=""
+                referrerPolicy="no-referrer"
+                style={{
+                  width: 20, height: 20, borderRadius: "50%",
+                  border: "1px solid var(--ink-faded)", objectFit: "cover",
+                }}
+              />
+            )}
             {/* Functional micro-text, not flavor — the UI face reads better
                 than 12px italic serif. */}
             <span style={{
