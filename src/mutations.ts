@@ -16,27 +16,37 @@ const fieldAlias: Record<KindKey, Record<string, string>> = {
     faction: "faction_id",
     lastSeen: "last_seen_session_id",
     imageUrl: "image_url",
+    dmNotes: "dm_notes",
   },
   quests: {
     giver: "giver_id",
     session: "session_id",
     arc: "arc_id",
+    dmNotes: "dm_notes",
   },
   locations: {
     imageUrl: "image_url",
+    dmNotes: "dm_notes",
   },
-  goals: {},
+  goals: {
+    dmNotes: "dm_notes",
+  },
   factions: {
     imageUrl: "image_url",
+    dmNotes: "dm_notes",
   },
   items: {
     imageUrl: "image_url",
+    dmNotes: "dm_notes",
   },
-  lore: {},
+  lore: {
+    dmNotes: "dm_notes",
+  },
   sessions: {
     imageUrl: "image_url",
     inGameDate: "in_game_date",
     arc: "arc_id",
+    dmNotes: "dm_notes",
   },
   arcs: {
     startSession: "start_session_id",

@@ -28,6 +28,9 @@ export interface Session {
   imageUrl?: string;
   inGameDate?: string;
   arc?: string;
+  // DM prep notes (issue #70) — same projection-stripped rule as
+  // ArchivableFields.dmNotes; sessions just don't share that mixin.
+  dmNotes?: string;
 }
 
 // Story arcs group sessions and quests ("Barovia Saga"). Like sessions they
@@ -61,6 +64,10 @@ export interface ArchivableFields {
   // readable by everyone), hidden rows are projected out of the campaign
   // object entirely for non-DM users — see projectCampaignForViewers.
   hidden?: boolean;
+  // DM-only notes (issue #70): free prose, stripped from the projection for
+  // non-DM users like hidden entities — never rendered, indexed, or searched
+  // outside the DM's view. Client-gated in V1; RLS is issue #73.
+  dmNotes?: string;
   updatedAt?: string;
 }
 
@@ -319,11 +326,24 @@ export function isHidden(e: any): boolean {
 // nulls, and rewriting them here would risk write-back corruption.
 export function projectCampaignForViewers(c: Campaign): Campaign {
   const hiddenIds = new Set<string>();
-  const keep = <T extends { id: string; hidden?: boolean }>(list: T[]): T[] =>
-    list.filter((e) => {
-      if (e.hidden) hiddenIds.add(e.id);
-      return !e.hidden;
-    });
+  // dm_notes (issue #70) is stripped here too — same central-funnel rule as
+  // hidden entities, so no player surface can render it even by accident.
+  // Only entities that actually carry dmNotes get a new object; the rest keep
+  // their reference so downstream memos don't churn.
+  let sawDmNotes = false;
+  const stripDmNotes = <T extends { dmNotes?: string }>(e: T): T => {
+    if (e.dmNotes === undefined) return e;
+    sawDmNotes = true;
+    const { dmNotes: _dm, ...rest } = e;
+    return rest as T;
+  };
+  const keep = <T extends { id: string; hidden?: boolean; dmNotes?: string }>(list: T[]): T[] =>
+    list
+      .filter((e) => {
+        if (e.hidden) hiddenIds.add(e.id);
+        return !e.hidden;
+      })
+      .map(stripDmNotes);
   const people = keep(c.people);
   const locations = keep(c.locations);
   const quests = keep(c.quests);
@@ -331,12 +351,14 @@ export function projectCampaignForViewers(c: Campaign): Campaign {
   const factions = keep(c.factions);
   const items = keep(c.items);
   const lore = keep(c.lore);
-  // Identity fast path: when nothing is hidden AND nothing is staged, return
-  // the original object so downstream memos keep their referential equality.
-  // (The seven filter passes above still run — what's saved is the memo
-  // invalidation, not the scan.) Staging must be part of the condition: a
-  // staged-but-visible entity would otherwise leak the DM's prep to viewers.
-  if (hiddenIds.size === 0 && c.sessionStaging.length === 0) return c;
+  const sessions = c.sessions.map(stripDmNotes);
+  // Identity fast path: when nothing is hidden, nothing is staged AND no
+  // dm_notes exist, return the original object so downstream memos keep their
+  // referential equality. (The filter/strip passes above still run — what's
+  // saved is the memo invalidation, not the scan.) Staging must be part of
+  // the condition: a staged-but-visible entity would otherwise leak the DM's
+  // prep to viewers; dm_notes likewise would ride through untouched.
+  if (hiddenIds.size === 0 && c.sessionStaging.length === 0 && !sawDmNotes) return c;
   const dropHiddenValues = (rec: Record<string, string[]>): Record<string, string[]> =>
     Object.fromEntries(
       Object.entries(rec).map(([k, ids]) => [k, ids.filter((id) => !hiddenIds.has(id))]),
@@ -345,7 +367,7 @@ export function projectCampaignForViewers(c: Campaign): Campaign {
     Object.fromEntries(Object.entries(rec).filter(([id]) => !hiddenIds.has(id)));
   return {
     ...c,
-    people, locations, quests, goals, factions, items, lore,
+    people, locations, quests, goals, factions, items, lore, sessions,
     connections: c.connections.filter(([a, b]) => !hiddenIds.has(a) && !hiddenIds.has(b)),
     board: dropHiddenKeys(c.board),
     eventParticipants: dropHiddenValues(c.eventParticipants),
@@ -359,6 +381,40 @@ export function projectCampaignForViewers(c: Campaign): Campaign {
     // but a re-hidden entity must not leak back through old feed rows.
     sessionEvents: c.sessionEvents.filter((e) => !e.entityId || !hiddenIds.has(e.entityId)),
   };
+}
+
+// Session-end recap (issue #72): a plain deterministic transform of a
+// session's feed into a markdown digest the DM appends to the Chronicle.
+// No AI — the feed already is the record of the night. It runs on the DM's
+// unprojected campaign but the digest lands in the public `summary`, so it
+// must mirror the projection's reveal filter: reveals of currently-hidden
+// entities (released, then re-hidden) are skipped entirely — even the label
+// snapshotted in `text` would leak. Reveals whose entity was deleted fall
+// back to that snapshot, same as the live feed's rows.
+export function sessionFeedToMarkdown(
+  events: SessionEvent[],
+  resolveEntity: (id?: string | null) => Entity | null,
+): string {
+  const fmtTime = (iso: string) =>
+    new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const lines: string[] = [];
+  for (const ev of events) {
+    const t = fmtTime(ev.createdAt);
+    if (ev.type === "start" || ev.type === "end") {
+      lines.push(`- *${t}* — ✦ the session ${ev.type === "start" ? "begins" : "ends"} ✦`);
+    } else if (ev.type === "reveal") {
+      const ent = resolveEntity(ev.entityId);
+      if (isHidden(ent)) continue;
+      // Show rows (#69) carry the SHOW_MARK sentinel in text — strip it from
+      // the label snapshot and word them as the louder verb they were.
+      const label = ent ? entityLabel(ent) : stripShowMark(ev.text) || "something struck from the codex";
+      const verb = isShowEvent(ev) ? "⚡ **" + label + "** shown to the table" : "🕯 **" + label + "** revealed";
+      lines.push(`- *${t}* — ${verb}${ev.author ? ` by ${ev.author}` : ""}`);
+    } else {
+      lines.push(`- *${t}* — ${ev.author || "Anonymous"}: ${ev.text ?? ""}`);
+    }
+  }
+  return `### As it happened\n\n${lines.join("\n")}`;
 }
 
 // Null tier reads as major: existing rows predate the column and every curated

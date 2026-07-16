@@ -28,10 +28,13 @@ if (import.meta.env.DEV && import.meta.env.VITE_DEV_EDITOR_EMAIL) {
 type AuthState = {
   user: User | null;
   displayName: string | null;
-  /** True for non-anonymous (magic-link) sessions; RLS rejects anonymous writes. */
+  /** Discord avatar for OAuth editors; null for email/anonymous sessions. */
+  avatarUrl: string | null;
+  /** True for non-anonymous (magic-link or Discord) sessions; RLS rejects anonymous writes. */
   canEdit: boolean;
   setDisplayName: (name: string) => Promise<void>;
   signInWithEmail: (email: string) => Promise<void>;
+  signInWithDiscord: () => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -41,10 +44,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [authNotice, setAuthNotice] = useState<string | null>(null);
   const signingOutRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
+
+    // A failed OAuth redirect (Discord denied, provider error, …) lands back
+    // here with #error=...&error_description=... and no session — without this
+    // the app would silently stay anonymous. Strip the params before route.ts
+    // can misread them; supabase-js only cleans up successful callbacks.
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const oauthError = hashParams.get("error_description") || hashParams.get("error");
+    if (oauthError) {
+      setAuthNotice(oauthError.replace(/\+/g, " "));
+      history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
 
     (async () => {
       const { data: existing } = await supabase.auth.getSession();
@@ -90,6 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const displayName =
     (user?.user_metadata?.display_name as string | undefined)?.trim() ||
     (user?.email ? user.email.split("@")[0] : null);
+  const avatarUrl = (user?.user_metadata?.avatar_url as string | undefined) || null;
 
   const setDisplayName = async (name: string) => {
     const trimmed = name.trim();
@@ -106,6 +122,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       options: { emailRedirectTo: window.location.origin },
     });
     if (otpErr) throw otpErr;
+  };
+
+  const signInWithDiscord = async () => {
+    const { error: oauthErr } = await supabase.auth.signInWithOAuth({
+      provider: "discord",
+      options: { redirectTo: window.location.origin },
+    });
+    if (oauthErr) throw oauthErr;
   };
 
   const signOut = async () => {
@@ -131,10 +155,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, displayName, canEdit, setDisplayName, signInWithEmail, signOut }}
+      value={{ user, displayName, avatarUrl, canEdit, setDisplayName, signInWithEmail, signInWithDiscord, signOut }}
     >
       {children}
+      {authNotice && (
+        <AuthNotice message={authNotice} onDismiss={() => setAuthNotice(null)} />
+      )}
     </AuthContext.Provider>
+  );
+}
+
+function AuthNotice({ message, onDismiss }: { message: string; onDismiss: () => void }) {
+  return (
+    <div style={{
+      position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)",
+      zIndex: 110, maxWidth: 480,
+      display: "flex", alignItems: "baseline", gap: 12,
+      padding: "10px 16px",
+      background: "var(--vellum-light)", color: "var(--ink)",
+      boxShadow: "0 6px 24px rgba(40,20,5,.3)",
+      border: "1px solid var(--ink-faded)",
+      fontFamily: "var(--font-fell)", fontSize: 13,
+    }}>
+      <span style={{ fontFamily: "var(--font-fell-sc)", letterSpacing: ".2em", fontSize: 10, color: "var(--bloodred)", whiteSpace: "nowrap" }}>
+        SIGN-IN FAILED
+      </span>
+      <span style={{ fontStyle: "italic" }}>{message}</span>
+      <button
+        onClick={onDismiss}
+        aria-label="Dismiss"
+        style={{
+          background: "none", border: "none", cursor: "pointer",
+          color: "var(--ink-secondary)", fontSize: 14, lineHeight: 1, padding: 0,
+        }}
+      >
+        ✕
+      </button>
+    </div>
   );
 }
 
@@ -171,6 +228,18 @@ export function DisplayNameGate({ children }: { children: ReactNode }) {
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  // Discord editors arrive with a provider name in metadata but no
+  // display_name — prefill it so accepting is one click, while still letting
+  // them type a persona name. Seeded by effect, not useState: the gate is
+  // already mounted when the session flips from anonymous to Discord, so an
+  // initializer would only ever see the anonymous (empty) metadata.
+  const meta = (user?.user_metadata ?? {}) as Record<string, any>;
+  const suggested = ((meta.custom_claims?.global_name || meta.full_name || meta.name || "") as string).trim();
+  useEffect(() => {
+    if (suggested) setDraft((d) => d || suggested);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   if (!user) return null;
   // Anonymous visitors are read-only viewers — the name only signs party
@@ -248,10 +317,11 @@ export function DisplayNameGate({ children }: { children: ReactNode }) {
 }
 
 export function SignInDialog({ onClose }: { onClose: () => void }) {
-  const { signInWithEmail } = useAuth();
+  const { signInWithEmail, signInWithDiscord } = useAuth();
   const [email, setEmail] = useState("");
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   const submit = async () => {
@@ -265,6 +335,20 @@ export function SignInDialog({ onClose }: { onClose: () => void }) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
       setSending(false);
+    }
+  };
+
+  const discord = async () => {
+    if (redirecting) return;
+    setRedirecting(true);
+    setErr(null);
+    try {
+      // On success the page navigates away to Discord; the redirecting state
+      // only shows for the moment before that (or sticks on error below).
+      await signInWithDiscord();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+      setRedirecting(false);
     }
   };
 
@@ -297,7 +381,33 @@ export function SignInDialog({ onClose }: { onClose: () => void }) {
         ) : (
           <>
             <div style={{ fontStyle: "italic", fontSize: 15, marginBottom: 22, color: "var(--ink)" }}>
-              Members of the party sign in by email to edit the codex.
+              Members of the party sign in with Discord or by email to edit the codex.
+            </div>
+            <button
+              onClick={discord}
+              disabled={redirecting}
+              style={{
+                width: "100%", padding: "10px 16px", marginBottom: 18,
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+                background: "var(--ink)", color: "var(--vellum-light)",
+                fontFamily: "var(--font-fell-sc)", letterSpacing: ".2em", fontSize: 12,
+                border: "none", cursor: redirecting ? "wait" : "pointer",
+                opacity: redirecting ? 0.7 : 1,
+              }}
+            >
+              <svg width="16" height="12" viewBox="0 0 127 96" fill="currentColor" aria-hidden="true">
+                <path d="M107.7 8.07A105.15 105.15 0 0 0 81.47 0a72.06 72.06 0 0 0-3.36 6.83 97.68 97.68 0 0 0-29.11 0A72.37 72.37 0 0 0 45.64 0a105.89 105.89 0 0 0-26.25 8.09C2.79 32.65-1.71 56.6.54 80.21a105.73 105.73 0 0 0 32.17 16.15 77.7 77.7 0 0 0 6.89-11.11 68.42 68.42 0 0 1-10.85-5.18c.91-.66 1.8-1.34 2.66-2a75.57 75.57 0 0 0 64.32 0c.87.71 1.76 1.39 2.66 2a68.68 68.68 0 0 1-10.87 5.19 77 77 0 0 0 6.89 11.1 105.25 105.25 0 0 0 32.19-16.14c2.64-27.38-4.51-51.11-18.9-72.15ZM42.45 65.69C36.18 65.69 31 60 31 53s5-12.74 11.43-12.74S54 46 53.89 53s-5.05 12.69-11.44 12.69Zm42.24 0C78.41 65.69 73.25 60 73.25 53s5-12.74 11.44-12.74S96.23 46 96.12 53s-5.04 12.69-11.43 12.69Z" />
+              </svg>
+              {redirecting ? "Opening the portal…" : "Sign in with Discord"}
+            </button>
+            <div style={{
+              display: "flex", alignItems: "center", gap: 10, marginBottom: 18,
+              fontFamily: "var(--font-fell-sc)", letterSpacing: ".2em", fontSize: 10,
+              color: "var(--ink-secondary)",
+            }}>
+              <span style={{ flex: 1, borderTop: "1px solid var(--ink-faded)" }} />
+              OR BY EMAIL
+              <span style={{ flex: 1, borderTop: "1px solid var(--ink-faded)" }} />
             </div>
             <input
               autoFocus
