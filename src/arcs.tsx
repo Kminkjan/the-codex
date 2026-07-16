@@ -3,8 +3,9 @@ import { useCampaign } from "./hooks";
 import { useAuth } from "./auth";
 import { createEntity } from "./mutations";
 
-// Plain-text excerpt of a markdown summary for the arc list.
-function excerpt(text: string | undefined, max = 140): string {
+// Plain-text excerpt of a markdown summary for the arc list (also used by
+// the charter's sessions ledger).
+export function excerpt(text: string | undefined, max = 140): string {
   if (!text) return "";
   const plain = text.replace(/[#*_>`~\[\]]/g, "").replace(/\s+/g, " ").trim();
   return plain.length > max ? `${plain.slice(0, max)}…` : plain;

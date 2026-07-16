@@ -307,6 +307,7 @@ async function fetchCampaign(id: string): Promise<Campaign> {
     id: campaignRes.data.id,
     title: campaignRes.data.title,
     subtitle: campaignRes.data.subtitle ?? "",
+    imageUrl: campaignRes.data.image_url ?? undefined,
     sessions: (sessionsRes.data ?? []).map(mapSession),
     arcs: (arcsRes.data ?? []).map(mapArc),
     events: (eventsRes.data ?? []).map(mapEvent),
@@ -503,7 +504,23 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
             if (cancelled) return;
             const next = payload.new?.active_session_id ?? undefined;
             setActiveSessionId(next ?? null);
-            setCampaign((c) => c && c.id === campaignId ? { ...c, activeSessionId: next, title: payload.new?.title ?? c.title, subtitle: payload.new?.subtitle ?? c.subtitle } : c);
+            // subtitle/imageUrl map null → ""/undefined (not `?? c.x`): the
+            // DM clearing them from the charter must propagate, and `??`
+            // would swallow the null. title is NOT NULL so falling back to
+            // the current value is safe there.
+            setCampaign((c) => c && c.id === campaignId ? {
+              ...c,
+              activeSessionId: next,
+              title: payload.new?.title ?? c.title,
+              subtitle: payload.new?.subtitle ?? "",
+              imageUrl: payload.new?.image_url ?? undefined,
+            } : c);
+            // Keep the picker's dropdown list fresh for the active campaign.
+            // Other campaigns' rows aren't in this realtime filter — their
+            // renames still take a reload (pre-existing, acceptable).
+            setCampaigns((list) => list.map((s) => s.id === campaignId
+              ? { ...s, title: payload.new?.title ?? s.title, subtitle: payload.new?.subtitle ?? null }
+              : s));
           },
         );
         channel.on(
