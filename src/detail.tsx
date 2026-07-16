@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { type KindKey, PERSON_STATUS_OPTIONS, PERSON_TIER_OPTIONS, entityLabel, isArchivableKind, isArchived, isHidden, isPinned, personTier, sessionLabel } from "./data";
+import { type KindKey, PERSON_STATUS_OPTIONS, PERSON_TIER_OPTIONS, entityLabel, isArchivableKind, isArchived, isHidden, isPinned, personTier, sessionFeedToMarkdown, sessionLabel } from "./data";
 import { Icon, kindIcon } from "./icons";
 import { StatusChip, EditableText, EditableMarkdown, EnumSelect, EntitySelect, EntityCombobox } from "./components";
 import { useCampaign, useFindEntity, useIsDm } from "./hooks";
@@ -20,6 +20,7 @@ import {
   deleteBoardPosition,
 } from "./mutations";
 import { findFreeSpot } from "./boardLayout";
+import { FeedRow } from "./livePanel";
 import { uploadEntityImage, type UploadableKind } from "./upload";
 import { deriveRelations } from "./relations";
 
@@ -363,6 +364,9 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
   // Double-click guard for the RELEASE button: the reveal event insert isn't
   // idempotent and realtime won't flip the staging row fast enough.
   const [releasing, setReleasing] = useState(false);
+  // Same guard for DRAFT RECAP (issue #72): the append is a read-modify-write
+  // on summary, and realtime lag would let a double-click land the digest twice.
+  const [draftingRecap, setDraftingRecap] = useState(false);
   const draftRef = useRef<HTMLDivElement>(null);
 
   // Manual strings + FK relations (resides at / member of / quest giver /
@@ -457,6 +461,24 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
     updateEntity(kind, entityId, fields).catch((e) =>
       console.error(`updateEntity(${kind}) failed`, e),
     );
+
+  // The session's own feed (issue #72): session_events are loaded campaign-
+  // wide and kept sorted, so past feeds are already in memory. Rendered
+  // read-only once the session isn't the live one — during live, the panel
+  // is the surface. Hidden-entity reveals are projected out for players.
+  const sessionFeed = kind === "sessions"
+    ? campaign.sessionEvents.filter((e) => e.sessionId === entityId)
+    : [];
+  const showFeed = sessionFeed.length > 0 && campaign.activeSessionId !== entityId;
+
+  const draftRecap = () => {
+    const digest = sessionFeedToMarkdown(sessionFeed, findEntity);
+    const existing = ((entity as any).summary ?? "").trim();
+    setDraftingRecap(true);
+    updateEntity("sessions", entityId, { summary: existing ? `${existing}\n\n${digest}` : digest })
+      .catch((e) => console.error("draft recap failed", e))
+      .finally(() => setDraftingRecap(false));
+  };
 
   const arcOptions = useMemo(
     () => campaign.arcs
@@ -814,6 +836,27 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                 </div>
               )}
 
+              {showFeed && (
+                <div className="detail-feed">
+                  <h3 style={{ marginTop: 28 }}>As It Happened</h3>
+                  <div className="detail-feed-rows">
+                    {sessionFeed.map((ev) => (
+                      <FeedRow key={ev.id} ev={ev} onOpenEntity={onOpen} />
+                    ))}
+                  </div>
+                  {isDm && (
+                    <button
+                      className="draft-recap-btn"
+                      disabled={draftingRecap}
+                      onClick={draftRecap}
+                      title="Append a markdown digest of this feed to the Chronicle — existing prose is kept"
+                    >
+                      {draftingRecap ? "…" : "✒ DRAFT RECAP FROM FEED"}
+                    </button>
+                  )}
+                </div>
+              )}
+
               {kind === "arcs" && (
                 <div className="long-note">
                   <EditableMarkdown
@@ -882,6 +925,22 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                     onSave={(v) => patch({ hooks: v })}
                     placeholder="(no warning given)"
                     style={{ display: "inline" }}
+                  />
+                </div>
+              )}
+
+              {/* DM-only notes (issue #70): one coarse field per entity, the
+                  80% substitute for per-section permissions. Client-gated on
+                  isDm like hide/stage/release; the projection strips dmNotes
+                  for everyone else, so this block can't exist for players. */}
+              {isDm && kind !== "arcs" && kind !== "events" && (
+                <div className="dm-note">
+                  <div className="dm-note-head">✦ DM'S EYES ONLY ✦</div>
+                  <EditableMarkdown
+                    value={(entity as any).dmNotes ?? ""}
+                    onSave={(v) => patch({ dmNotes: v })}
+                    placeholder="Prep notes the party never sees…"
+                    style={{ fontFamily: "var(--font-fell)" }}
                   />
                 </div>
               )}

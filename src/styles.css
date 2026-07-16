@@ -1657,6 +1657,46 @@ button.session-pin { line-height: 1; }
   font-style: normal;
 }
 
+/* DM-only notes (issue #70): the veiled block on the detail sheet. Dashed
+   secondary-ink frame — deliberately quieter than .note-scrap (party) and
+   set apart from .long-note (public prose). Rendered only for the DM. */
+.dm-note {
+  margin-top: 28px;
+  padding: 12px 14px 14px;
+  border: 1px dashed var(--ink-secondary);
+  background: color-mix(in srgb, var(--vellum-deep) 24%, transparent);
+}
+.dm-note-head {
+  font-family: var(--font-fell-sc);
+  letter-spacing: .18em;
+  font-size: 10px;
+  color: var(--ink-secondary);
+  margin-bottom: 8px;
+}
+
+/* Session recap (issue #72): a past session's feed replayed read-only on its
+   detail sheet. Rows reuse the live panel's .live-note/.live-reveal/.live-marker
+   language; only the stack layout is ours (the panel's .live-feed provides it
+   there). */
+.detail-feed-rows {
+  margin-top: 16px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.draft-recap-btn {
+  margin-top: 12px;
+  background: transparent;
+  border: 1px solid var(--vellum-deep);
+  border-radius: 2px;
+  font-family: var(--font-fell-sc);
+  letter-spacing: .14em;
+  font-size: 10px;
+  color: var(--ink-secondary);
+  padding: 5px 12px;
+  cursor: pointer;
+}
+.draft-recap-btn:hover:not(:disabled) { border-color: var(--bloodred); color: var(--bloodred); }
+.draft-recap-btn:disabled { opacity: .5; cursor: default; }
+
 /* Relations rail */
 .detail-rail {
   padding: 24px 22px 30px;

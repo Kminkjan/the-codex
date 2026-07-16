@@ -15,7 +15,9 @@ import { endLiveSession, insertSessionEvent, releaseEntity } from "./mutations";
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
-function FeedRow({ ev, onOpenEntity }: { ev: SessionEvent; onOpenEntity: (id: string) => void }) {
+// Exported for the session detail sheet's read-only "As it happened" block
+// (issue #72) — past feeds render with the exact same row language.
+export function FeedRow({ ev, onOpenEntity }: { ev: SessionEvent; onOpenEntity: (id: string) => void }) {
   const findEntity = useFindEntity();
   if (ev.type === "start" || ev.type === "end") {
     return (
