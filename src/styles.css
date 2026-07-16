@@ -2710,6 +2710,17 @@ button.session-pin { line-height: 1; }
 }
 .release-btn:hover:not(:disabled) { background: var(--bloodred-deep); }
 .release-btn:disabled { opacity: .5; cursor: default; }
+/* "Show now" (#69): the rare, loud sibling of RELEASE — outlined so the two
+   verbs read as different intensities, not duplicates. */
+.release-btn.show-btn {
+  background: transparent;
+  color: var(--bloodred);
+  border: 1px solid var(--bloodred);
+}
+.release-btn.show-btn:hover:not(:disabled) {
+  background: var(--bloodred);
+  color: var(--vellum-light);
+}
 .live-released {
   font-family: var(--font-ui);
   font-size: 10px;

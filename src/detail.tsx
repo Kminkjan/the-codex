@@ -16,6 +16,7 @@ import {
   stageEntity,
   unstageEntity,
   releaseEntity,
+  showEntity,
   upsertBoardPosition,
   deleteBoardPosition,
 } from "./mutations";
@@ -364,6 +365,9 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
   // Double-click guard for the RELEASE button: the reveal event insert isn't
   // idempotent and realtime won't flip the staging row fast enough.
   const [releasing, setReleasing] = useState(false);
+  // Same guard for SHOW NOW, but cleared on settle (success and failure):
+  // this button never unmounts, and a deliberate re-show is legitimate.
+  const [showing, setShowing] = useState(false);
   // Same guard for DRAFT RECAP (issue #72): the append is a read-modify-write
   // on summary. Like RELEASE, the guard clears on failure only — clearing on
   // success would re-enable the button in the realtime echo gap while
@@ -376,6 +380,25 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
   }, [entitySummary]);
   const draftRef = useRef<HTMLDivElement>(null);
 
+  // Esc closes the sheet ("single Esc/click dismiss", #69 — and general UX).
+  // defaultPrevented skips Esc already claimed by an inner editor (EditableText
+  // cancel, combobox/palette close — all preventDefault, and React's root-
+  // attached handlers run before this window listener). The editable-target
+  // check is the second belt for editors that don't.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      const el = e.target;
+      if (
+        el instanceof HTMLElement &&
+        (el.isContentEditable || el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT")
+      ) return;
+      onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   // Manual strings + FK relations (resides at / member of / quest giver /
   // happened at), unioned by the same selector the board reads — so the sheet
   // and the board can't drift. Session/arc/event/chapter links below aren't
@@ -383,6 +406,33 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
   const relations = useMemo(
     () => deriveRelations(campaign),
     [campaign.connections, campaign.people, campaign.quests, campaign.events],
+  );
+
+  // These four sat below the `if (!entity) return null` early return, which
+  // violates the Rules of Hooks the moment `entity` resolves across renders —
+  // the sheet can legitimately mount before its row lands over realtime
+  // ("New person" opens the id right after createEntity; the takeover and
+  // deep links guard with findEntity, this flow can't). Hooks live above the
+  // return; they only read campaign, so a null entity is fine here.
+  const arcOptions = useMemo(
+    () => campaign.arcs
+      .slice()
+      .sort((a, b) => a.orderNum - b.orderNum)
+      .map((a) => ({ id: a.id, label: a.title, kind: "arcs" as const })),
+    [campaign.arcs],
+  );
+  const sessionOptions = useMemo(
+    () => campaign.sessions
+      .map((s) => ({ id: s.id, label: `${sessionLabel(s.num)} — ${s.title}`, kind: "sessions" as const })),
+    [campaign.sessions],
+  );
+  const locationOptions = useMemo(
+    () => campaign.locations.map((l) => ({ id: l.id, label: l.name, kind: "locations" as const, archived: l.archived, hidden: l.hidden })),
+    [campaign.locations],
+  );
+  const factionOptions = useMemo(
+    () => campaign.factions.map((f) => ({ id: f.id, label: f.name, kind: "factions" as const, archived: f.archived, hidden: f.hidden })),
+    [campaign.factions],
   );
 
   if (!entity) return null;
@@ -490,27 +540,6 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
         setDraftingRecap(false);
       });
   };
-
-  const arcOptions = useMemo(
-    () => campaign.arcs
-      .slice()
-      .sort((a, b) => a.orderNum - b.orderNum)
-      .map((a) => ({ id: a.id, label: a.title, kind: "arcs" as const })),
-    [campaign.arcs],
-  );
-  const sessionOptions = useMemo(
-    () => campaign.sessions
-      .map((s) => ({ id: s.id, label: `${sessionLabel(s.num)} — ${s.title}`, kind: "sessions" as const })),
-    [campaign.sessions],
-  );
-  const locationOptions = useMemo(
-    () => campaign.locations.map((l) => ({ id: l.id, label: l.name, kind: "locations" as const, archived: l.archived, hidden: l.hidden })),
-    [campaign.locations],
-  );
-  const factionOptions = useMemo(
-    () => campaign.factions.map((f) => ({ id: f.id, label: f.name, kind: "factions" as const, archived: f.archived, hidden: f.hidden })),
-    [campaign.factions],
-  );
 
   const onDelete = () => {
     if (!entity) return;
@@ -625,7 +654,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                         released_at stamp, no seen-mark. */}
                     {staged && !stagingRow!.releasedAt && isHidden(entity) && (
                       <button
-                        disabled={releasing}
+                        disabled={releasing || showing}
                         onClick={() => {
                           setReleasing(true);
                           releaseEntity(kind, entityId, campaign.activeSessionId!, {
@@ -645,6 +674,28 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                         {releasing ? "🕯 …" : "🕯 RELEASE"}
                       </button>
                     )}
+                    {/* "Show now" (#69): the loud reveal — release semantics
+                        (unhide + stamp if queued) plus a takeover that opens
+                        this sheet on every player's screen. Legal on anything
+                        while live, hidden or not, staged or not. */}
+                    <button
+                      disabled={showing || releasing}
+                      onClick={() => {
+                        setShowing(true);
+                        showEntity(kind, entityId, campaign.activeSessionId!, {
+                          author: displayName || undefined,
+                          label: entityLabel(entity),
+                          unhide: isHidden(entity),
+                        })
+                          .catch((e) => console.error("showEntity failed", e))
+                          .finally(() => setShowing(false));
+                      }}
+                      title={`Show “${entityLabel(entity)}” now — opens it on every player's screen and lands in the ${code} feed`}
+                      className="detail-action-btn"
+                      style={{ background: "var(--bloodred)", borderColor: "var(--bloodred)", color: "var(--vellum-light)" }}
+                    >
+                      {showing ? "⚡ …" : "⚡ SHOW NOW"}
+                    </button>
                   </>
                 );
               })()}

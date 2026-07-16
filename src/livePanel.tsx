@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { entityLabel, isHidden, type KindKey, type SessionEvent } from "./data";
+import { entityLabel, isHidden, isShowEvent, stripShowMark, type KindKey, type SessionEvent } from "./data";
 import { Icon, kindIcon } from "./icons";
 import { useCampaign, useFindEntity, useIsDm } from "./hooks";
 import { useAuth } from "./auth";
-import { endLiveSession, insertSessionEvent, releaseEntity } from "./mutations";
+import { endLiveSession, insertSessionEvent, releaseEntity, showEntity } from "./mutations";
 
 // The at-the-table surface (issue #67): a docked right panel that opens when a
 // session is live (campaigns.active_session_id) and closes when it isn't. It
@@ -28,16 +28,18 @@ export function FeedRow({ ev, onOpenEntity }: { ev: SessionEvent; onOpenEntity: 
   }
   if (ev.type === "reveal") {
     // The ceremonial row. entityId may dangle (feed rows outlive entity
-    // deletion by design) — fall back to the label snapshotted in `text`.
+    // deletion by design) — fall back to the label snapshotted in `text`
+    // (always through stripShowMark: show rows carry the sentinel prefix).
     const ent = findEntity(ev.entityId);
-    const label = ent ? entityLabel(ent) : ev.text || "something struck from the codex";
+    const label = ent ? entityLabel(ent) : stripShowMark(ev.text) || "something struck from the codex";
+    const shown = isShowEvent(ev);
     return (
       <div
         className={`live-reveal${ent ? " linked" : ""}`}
         onClick={ent ? () => onOpenEntity(ent.id) : undefined}
         title={ent ? "Open in the codex" : undefined}
       >
-        <div>🕯 The DM revealed <em>{label}</em></div>
+        <div>{shown ? <>⚡ The DM showed <em>{label}</em></> : <>🕯 The DM revealed <em>{label}</em></>}</div>
         <div className="live-meta"><span>{ev.author ? `by ${ev.author}` : ""}</span><span>{fmtTime(ev.createdAt)}</span></div>
       </div>
     );
@@ -61,6 +63,10 @@ function DmSection({ sessionId, onOpenEntity }: { sessionId: string; onOpenEntit
   // means released_at won't disable the button in time — guard double-clicks
   // locally. Cleared on failure so the button comes back.
   const [releasing, setReleasing] = useState<ReadonlySet<string>>(new Set());
+  // In-flight shows, same double-click guard — but cleared on settle (success
+  // AND failure), unlike `releasing`: the SHOW button never unmounts (released
+  // rows keep it) and a deliberate re-show is legitimate.
+  const [showing, setShowing] = useState<ReadonlySet<string>>(new Set());
 
   const rows = campaign.sessionStaging
     .filter((r) => r.sessionId === sessionId)
@@ -87,6 +93,19 @@ function DmSection({ sessionId, onOpenEntity }: { sessionId: string; onOpenEntit
         return next;
       });
     });
+  };
+
+  // "Show now" (#69): the loud reveal — release semantics plus a takeover on
+  // every player client. Legal on both queued and already-released rows.
+  const onShow = (kind: KindKey, entityId: string, label: string, unhide: boolean) => {
+    setShowing((prev) => new Set(prev).add(entityId));
+    showEntity(kind, entityId, sessionId, { author, label, unhide })
+      .catch((e) => console.error("showEntity failed", e))
+      .finally(() => setShowing((prev) => {
+        const next = new Set(prev);
+        next.delete(entityId);
+        return next;
+      }));
   };
 
   return (
@@ -122,13 +141,21 @@ function DmSection({ sessionId, onOpenEntity }: { sessionId: string; onOpenEntit
             ) : (
               <button
                 className="release-btn"
-                disabled={releasing.has(row.entityId)}
+                disabled={releasing.has(row.entityId) || showing.has(row.entityId)}
                 onClick={() => onRelease(kind, row.entityId, label)}
                 title={`Reveal “${label}” to the party — unhides it, stamps the queue, and lands in the feed`}
               >
                 {releasing.has(row.entityId) ? "…" : "RELEASE"}
               </button>
             )}
+            <button
+              className="release-btn show-btn"
+              disabled={showing.has(row.entityId) || releasing.has(row.entityId)}
+              onClick={() => onShow(kind, row.entityId, label, isHidden(ent))}
+              title={`Show “${label}” now — ${row.releasedAt ? "" : "releases it and "}opens it on every player's screen`}
+            >
+              {showing.has(row.entityId) ? "…" : "⚡ SHOW"}
+            </button>
           </div>
         );
       })}

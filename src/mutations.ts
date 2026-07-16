@@ -1,7 +1,7 @@
 import { supabase } from "./utils/supabase";
 import { getActiveCampaignId } from "./activeCampaign";
 import { getActiveSessionId } from "./activeSession";
-import { type KindKey, type PartyNote, type BoardPosition, type SessionEventType } from "./data";
+import { SHOW_MARK, type KindKey, type PartyNote, type BoardPosition, type SessionEventType } from "./data";
 
 // Realtime subscriptions in campaignContext.tsx reflect writes back into UI
 // state, so callers do not need to patch local state (fire-and-forget is fine).
@@ -319,6 +319,44 @@ export async function releaseEntity(
   ]);
   // A released person has, by definition, shown up on screen. Idempotent and
   // non-fatal — the release itself already succeeded.
+  if (kind === "people") markSeen(entityId).catch(console.error);
+}
+
+// The loud sibling of releaseEntity ("show now", #69): same permanent unlock,
+// but the transient push is a takeover — player clients open the entity's
+// sheet the moment the SHOW_MARK-prefixed reveal event lands. Same commit-
+// order doctrine as releaseEntity when unhiding. Differences from release:
+// - `unhide` is caller-decided (isHidden(entity)): re-showing an already
+//   visible entity must not touch the row — updateEntity would bump
+//   updated_at and jump it to the top of every sorted list.
+// - The staging stamp is scoped to `released_at is null`: showing an
+//   already-released row keeps its original release time, and showing a
+//   never-staged entity is a clean no-op on the queue.
+export async function showEntity(
+  kind: KindKey,
+  entityId: string,
+  sessionId: string,
+  opts: { author?: string; label?: string; unhide?: boolean } = {},
+) {
+  if (opts.unhide) await updateEntity(kind, entityId, { hidden: false });
+  const stamp = supabase
+    .from("session_staging")
+    .update({ released_at: new Date().toISOString() })
+    .eq("campaign_id", getActiveCampaignId())
+    .eq("session_id", sessionId)
+    .eq("entity_id", entityId)
+    .is("released_at", null)
+    .then(({ error }) => { if (error) throw error; });
+  await Promise.all([
+    stamp,
+    insertSessionEvent({
+      type: "reveal",
+      sessionId,
+      author: opts.author,
+      entityId,
+      text: SHOW_MARK + (opts.label ?? ""),
+    }),
+  ]);
   if (kind === "people") markSeen(entityId).catch(console.error);
 }
 
