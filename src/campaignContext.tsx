@@ -45,6 +45,7 @@ const archiveFields = (r: any) => ({
   archived: !!r.archived,
   pinned: !!r.pinned,
   hidden: !!r.hidden,
+  dmNotes: r.dm_notes ?? undefined,
   updatedAt: r.updated_at ?? undefined,
 });
 
@@ -135,6 +136,7 @@ const mapSession = (r: any) => ({
   imageUrl: r.image_url ?? undefined,
   inGameDate: r.in_game_date ?? undefined,
   arc: r.arc_id ?? undefined,
+  dmNotes: r.dm_notes ?? undefined,
 });
 
 const mapArc = (r: any) => ({
