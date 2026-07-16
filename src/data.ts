@@ -188,6 +188,22 @@ export interface SessionEvent {
   createdAt: string;
 }
 
+// "Show now" (#69) rides a 'reveal' row with this sentinel prefixed to `text`:
+// the 0016 CHECK constraint pins type to note/reveal/start/end, so a dedicated
+// 'show' type needs a migration (planned for 0017). Zero-width space + bolt —
+// nothing a user would type into a label, so plain reveals can't collide.
+// Data-as-flag caveat: EVERY renderer of a reveal event's `text` must go
+// through stripShowMark, or the invisible sentinel leaks into the UI/exports.
+export const SHOW_MARK = "\u200b⚡";
+
+export function isShowEvent(e: SessionEvent): boolean {
+  return e.type === "reveal" && !!e.text?.startsWith(SHOW_MARK);
+}
+
+export function stripShowMark(text: string | undefined): string | undefined {
+  return text?.startsWith(SHOW_MARK) ? text.slice(SHOW_MARK.length) : text;
+}
+
 export type Entity =
   & (Person | Location | Quest | Goal | Faction | Item | Lore | Session | Arc | CampaignEvent)
   & { _kind?: KindKey; _kindLabel?: string };

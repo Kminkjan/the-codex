@@ -16,9 +16,18 @@ export function useCampaignStatus() {
 }
 
 // The DM gate for edit affordances that go beyond canEdit (hide/reveal,
-// staging, release). False for viewers, non-DM editors, and DM-less campaigns.
+// staging, release). False for viewers, non-DM editors, DM-less campaigns —
+// and for the real DM while "view as player" is on (that flip is the feature).
 export function useIsDm(): boolean {
   return useContext(CampaignContext).isDm;
+}
+
+// "View as player" (#71). isRealDm ignores the toggle — it gates the toggle
+// affordance and banner themselves (which must survive the flip) and write
+// paths whose mutation choice depends on real DM-ness (SessionPin brackets).
+export function useViewAsPlayer() {
+  const { isRealDm, viewAsPlayer, setViewAsPlayer } = useContext(CampaignContext);
+  return { isRealDm, viewAsPlayer, setViewAsPlayer };
 }
 
 export function useCampaignSwitcher() {

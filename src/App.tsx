@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CampaignProvider } from "./campaignContext";
 import { AuthProvider, DisplayNameGate } from "./auth";
-import { useCampaign, useCampaignStatus, useFindEntity, useIsDm, useKinds } from "./hooks";
-import { entityLabel } from "./data";
+import { useCampaign, useCampaignStatus, useFindEntity, useIsDm, useKinds, useViewAsPlayer } from "./hooks";
+import { entityLabel, isShowEvent, stripShowMark } from "./data";
 import { campaignHash, parseHash, writeCampaignHash } from "./route";
 import { Icon } from "./icons";
 import { Sidebar, Topbar } from "./components";
@@ -81,6 +81,7 @@ function AppLoaded() {
   const [locate, setLocate] = useState<{ id: string; seq: number } | null>(null);
   const locateSeq = useRef(0);
   const isDm = useIsDm();
+  const { viewAsPlayer, setViewAsPlayer } = useViewAsPlayer();
   // Reveal reactions (issue #68): the transient push half of a release. Both
   // are UI intents derived from session_events arriving over realtime — the
   // feed row is the persistent half and always exists first (push + persist).
@@ -114,16 +115,51 @@ function AppLoaded() {
       (e) => e.type === "reveal" && e.sessionId === activeSessionId && e.entityId,
     );
     if (reveals.length === 0) return;
-    const last = reveals[reveals.length - 1];
-    setRevealFlash({ id: last.entityId!, seq: ++revealSeq.current });
-    if (!isDm) {
-      // The releasing DM's feedback is the queue row flipping to "released".
-      const ent = findEntity(last.entityId);
-      setRevealToast({
-        eventId: last.id,
-        entityId: last.entityId!,
-        label: ent ? entityLabel(ent) : last.text || "something",
-      });
+    // Partition quiet releases from "show now" takeovers (#69) and process
+    // quiet first, show last — deterministic regardless of how a realtime
+    // flush interleaves them, and a takeover always wins over a toast.
+    const quiet = reveals.filter((e) => !isShowEvent(e));
+    const shows = reveals.filter(isShowEvent);
+    if (quiet.length > 0) {
+      const last = quiet[quiet.length - 1];
+      setRevealFlash({ id: last.entityId!, seq: ++revealSeq.current });
+      if (!isDm) {
+        // The releasing DM's feedback is the queue row flipping to "released".
+        const ent = findEntity(last.entityId);
+        setRevealToast({
+          eventId: last.id,
+          entityId: last.entityId!,
+          label: ent ? entityLabel(ent) : stripShowMark(last.text) || "something",
+        });
+      }
+    }
+    if (shows.length > 0) {
+      const last = shows[shows.length - 1];
+      setRevealFlash({ id: last.entityId!, seq: ++revealSeq.current });
+      // The takeover is for player clients only — never ambush the DM who
+      // triggered it (their feedback is the feed row / queue stamp).
+      if (!isDm) {
+        const ent = findEntity(last.entityId);
+        // Don't yank the sheet out from under someone mid-edit: unmounting a
+        // focused editable never fires its blur-commit, so the draft would be
+        // lost. Degrade to the toast — the feed row is the recovery path.
+        const el = document.activeElement;
+        const midEdit = el instanceof HTMLElement &&
+          (el.isContentEditable || el.tagName === "INPUT" || el.tagName === "TEXTAREA");
+        if (ent && !midEdit) {
+          // One slot, never stacked: a second show replaces the first.
+          setOpenId(last.entityId!);
+          setRevealToast(null);
+        } else {
+          // Entity unresolvable (dropped UPDATE / deleted) or user mid-edit —
+          // a blind setOpenId would render nothing; the toast at least tells.
+          setRevealToast({
+            eventId: last.id,
+            entityId: last.entityId!,
+            label: ent ? entityLabel(ent) : stripShowMark(last.text) || "something",
+          });
+        }
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionEvents]);
@@ -281,6 +317,35 @@ function AppLoaded() {
             }}
           >
             VIEW
+          </button>
+        </div>
+      )}
+
+      {/* Mode visibility for "view as player" (#71): the mode must be
+          unmissable while active and exit in one click (NN/g modes guidance).
+          z 72: above the detail overlay (50) and toasts (70) so it stays
+          visible with a sheet open, below ⌘K (80) which opens top-center. */}
+      {viewAsPlayer && (
+        <div style={{
+          position: "fixed", top: 64, left: "50%", transform: "translateX(-50%)",
+          background: "var(--bloodred)", color: "var(--vellum-light)",
+          padding: "8px 12px 8px 16px",
+          fontFamily: "var(--font-fell-sc)", letterSpacing: ".14em", fontSize: 11,
+          boxShadow: "0 6px 20px rgba(40,20,5,.45)",
+          display: "flex", alignItems: "center", gap: 14,
+          zIndex: 72, borderRadius: 2, whiteSpace: "nowrap",
+        }}>
+          <span>◉ VIEWING AS PLAYER — hidden entries &amp; DM tools concealed</span>
+          <button
+            onClick={() => setViewAsPlayer(false)}
+            style={{
+              background: "var(--vellum-light)", color: "var(--bloodred)",
+              border: "none", borderRadius: 2,
+              fontFamily: "var(--font-fell-sc)", letterSpacing: ".16em", fontSize: 10,
+              fontWeight: 700, padding: "4px 10px", cursor: "pointer", flexShrink: 0,
+            }}
+          >
+            EXIT
           </button>
         </div>
       )}

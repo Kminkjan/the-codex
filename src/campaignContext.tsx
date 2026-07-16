@@ -27,7 +27,18 @@ interface CampaignContextValue {
   // True when the signed-in editor is this campaign's DM (campaigns.dm_user_id).
   // Derived fresh every render, so it tracks campaign switches and realtime
   // changes of the campaigns row automatically. V1: client-side gate only.
+  // While viewAsPlayer is on this reads FALSE even for the real DM — it is the
+  // effective gate, and flipping it here flips the projection and every DM
+  // affordance at once (that's the whole "view as player" mechanism, #71).
   isDm: boolean;
+  // The un-flipped DM check. Only for surfaces that must survive view-as-player:
+  // the toggle/banner itself, and write paths whose *mutation choice* depends on
+  // real DM-ness (SessionPin's feed brackets) — a view toggle must never change
+  // what gets persisted.
+  isRealDm: boolean;
+  // "View as player" (#71): pure client state, reset on campaign switch.
+  viewAsPlayer: boolean;
+  setViewAsPlayer: (on: boolean) => void;
 }
 
 export const CampaignContext = createContext<CampaignContextValue>({
@@ -38,6 +49,9 @@ export const CampaignContext = createContext<CampaignContextValue>({
   activeCampaignId: null,
   switchCampaign: () => {},
   isDm: false,
+  isRealDm: false,
+  viewAsPlayer: false,
+  setViewAsPlayer: () => {},
 });
 
 // Map a DB row (snake_case, `desc`) to the app's object shape (camelCase).
@@ -327,6 +341,7 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [campaigns, setCampaigns] = useState<CampaignSummary[]>([]);
   const [campaignId, setCampaignId] = useState<string | null>(null);
+  const [viewAsPlayer, setViewAsPlayer] = useState(false);
 
   // Load the picker list once, then resolve the active id:
   // hash → host-page tweak → first campaign by creation date.
@@ -404,6 +419,7 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
     setCampaign(null);
     setLoading(true);
     setError(null);
+    setViewAsPlayer(false); // a view mode never outlives its campaign
 
     (async () => {
       try {
@@ -619,7 +635,11 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
     };
   }, [campaignId]);
 
-  const isDm = !!campaign && canEdit && !!campaign.dmUserId && user?.id === campaign.dmUserId;
+  const isRealDm = !!campaign && canEdit && !!campaign.dmUserId && user?.id === campaign.dmUserId;
+  // The effective gate: "view as player" (#71) flips this one derivation and
+  // the projection below plus every isDm-gated affordance follow — that single
+  // choke point IS the feature. Real DM-ness is untouched, so exit is instant.
+  const isDm = isRealDm && !viewAsPlayer;
 
   // The single hidden-entity funnel: non-DM users get a projected campaign
   // with hidden rows (and every reference to them) stripped, so no downstream
@@ -630,7 +650,7 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
   );
 
   return (
-    <CampaignContext.Provider value={{ campaign: visibleCampaign, loading, error, campaigns, activeCampaignId: campaignId, switchCampaign, isDm }}>
+    <CampaignContext.Provider value={{ campaign: visibleCampaign, loading, error, campaigns, activeCampaignId: campaignId, switchCampaign, isDm, isRealDm, viewAsPlayer, setViewAsPlayer }}>
       {children}
     </CampaignContext.Provider>
   );

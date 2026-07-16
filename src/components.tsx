@@ -5,7 +5,7 @@ import remarkGfm from "remark-gfm";
 import { sessionLabel, type KindKey, type PresenceUser } from "./data";
 import { Icon, MapScribble, kindIcon } from "./icons";
 import { rankIndex, KIND_LABEL, type Indexed } from "./entitySearch";
-import { useCampaign, useCampaignSwitcher, useIsDm, useKinds } from "./hooks";
+import { useCampaign, useCampaignSwitcher, useKinds, useViewAsPlayer } from "./hooks";
 import { createEntity, endLiveSession, setActiveSession, startLiveSession, switchLiveSession } from "./mutations";
 import { SignInDialog, useAuth } from "./auth";
 
@@ -600,7 +600,10 @@ function CampaignPicker() {
 function SessionPin() {
   const campaign = useCampaign();
   const { canEdit, displayName } = useAuth();
-  const isDm = useIsDm();
+  // Real DM-ness, NOT the view-as-player-flipped gate: this decides which
+  // MUTATION runs (bracketed vs bare pin move). A view toggle changing what
+  // gets persisted would silently drop feed markers from the append-only log.
+  const { isRealDm } = useViewAsPlayer();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -643,7 +646,7 @@ function SessionPin() {
   const pick = (id: string | null) => {
     const prev = campaign.activeSessionId ?? null;
     const author = displayName || undefined;
-    const op = !isDm || id === prev
+    const op = !isRealDm || id === prev
       ? setActiveSession(id)
       : id && prev
         ? switchLiveSession(prev, id, author)
@@ -702,6 +705,7 @@ function SessionPin() {
 export function Topbar({ onShare }: { onShare: () => void }) {
   const campaign = useCampaign();
   const { canEdit, displayName, signOut } = useAuth();
+  const { isRealDm, viewAsPlayer, setViewAsPlayer } = useViewAsPlayer();
   const [signingIn, setSigningIn] = useState(false);
   return (
     <header className="topbar">
@@ -718,6 +722,18 @@ export function Topbar({ onShare }: { onShare: () => void }) {
       </div>
       <div className="topbar-right">
         <Presence users={campaign.presence} />
+        {/* "View as player" (#71) — DM-only, gated on isRealDm so it doesn't
+            vanish mid-mode; while active the banner's EXIT is the off-switch,
+            so the button hides rather than double up as a second exit. */}
+        {isRealDm && !viewAsPlayer && (
+          <button
+            className="btn"
+            onClick={() => setViewAsPlayer(true)}
+            title="See the codex exactly as a player does — hidden entries and DM tools concealed"
+          >
+            <Icon name="eye" size={14} /> View as player
+          </button>
+        )}
         <button className="btn" onClick={onShare}><Icon name="share" size={14} /> Share link</button>
         {canEdit ? (
           <>
