@@ -16,37 +16,27 @@ const fieldAlias: Record<KindKey, Record<string, string>> = {
     faction: "faction_id",
     lastSeen: "last_seen_session_id",
     imageUrl: "image_url",
-    dmNotes: "dm_notes",
   },
   quests: {
     giver: "giver_id",
     session: "session_id",
     arc: "arc_id",
-    dmNotes: "dm_notes",
   },
   locations: {
     imageUrl: "image_url",
-    dmNotes: "dm_notes",
   },
-  goals: {
-    dmNotes: "dm_notes",
-  },
+  goals: {},
   factions: {
     imageUrl: "image_url",
-    dmNotes: "dm_notes",
   },
   items: {
     imageUrl: "image_url",
-    dmNotes: "dm_notes",
   },
-  lore: {
-    dmNotes: "dm_notes",
-  },
+  lore: {},
   sessions: {
     imageUrl: "image_url",
     inGameDate: "in_game_date",
     arc: "arc_id",
-    dmNotes: "dm_notes",
   },
   arcs: {
     startSession: "start_session_id",
@@ -383,6 +373,42 @@ export async function switchLiveSession(fromId: string, toId: string, author?: s
   await insertSessionEvent({ type: "start", sessionId: toId, author });
 }
 
+// ===== DM notes =============================================================
+
+// DM-only notes live in the dm_notes side table (0018, issue #73) — a column
+// on the entity rows can't be hidden from `select *`, a table with a DM-only
+// read policy can. Empty text deletes the row so the table stays a sparse map.
+export async function updateDmNotes(entityId: string, text: string) {
+  const campaignId = getActiveCampaignId();
+  if (text.trim() === "") {
+    const { error } = await supabase
+      .from("dm_notes")
+      .delete()
+      .eq("campaign_id", campaignId)
+      .eq("entity_id", entityId);
+    if (error) throw error;
+    return;
+  }
+  const { error } = await supabase
+    .from("dm_notes")
+    .upsert(
+      { campaign_id: campaignId, entity_id: entityId, text },
+      { onConflict: "campaign_id,entity_id" },
+    );
+  if (error) throw error;
+}
+
+// dm_notes.entity_id spans eight tables (7 kinds + sessions) so it has no FK
+// (like connections) — swept on entity delete.
+async function deleteDmNotesFor(entityId: string) {
+  const { error } = await supabase
+    .from("dm_notes")
+    .delete()
+    .eq("campaign_id", getActiveCampaignId())
+    .eq("entity_id", entityId);
+  if (error) throw error;
+}
+
 // session_staging.entity_id spans seven tables so it has no FK (like
 // connections) — swept here. session_events rows are deliberately NOT swept:
 // the feed is append-only history and reveals should outlive their entity
@@ -454,6 +480,9 @@ export async function deleteEntity(kind: KindKey, id: string) {
     deleteConnectionsFor(id),
     deletePartyNotesFor(id),
     deleteSessionStagingFor(id),
+    // RLS makes this a DM-only delete; for non-DM editors the sweep is a
+    // silent 0-row no-op (a non-DM can't have a dm_note to sweep anyway).
+    deleteDmNotesFor(id),
   ]);
   const { error } = await supabase
     .from(kind)

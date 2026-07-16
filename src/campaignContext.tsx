@@ -24,9 +24,12 @@ interface CampaignContextValue {
   campaigns: CampaignSummary[];
   activeCampaignId: string | null;
   switchCampaign: (id: string) => void;
-  // True when the signed-in editor is this campaign's DM (campaigns.dm_user_id).
-  // Derived fresh every render, so it tracks campaign switches and realtime
-  // changes of the campaigns row automatically. V1: client-side gate only.
+  // True when the signed-in editor holds the dm role in campaign_members
+  // (issue #73 — supersedes campaigns.dm_user_id). Fetched per campaign; a
+  // membership change mid-session needs a reload (campaign_members isn't in
+  // the realtime publication — deliberate, membership is dashboard-managed).
+  // Since 0018 this is a UI affordance gate, not the security boundary: RLS
+  // decides what actually reaches the client.
   // While viewAsPlayer is on this reads FALSE even for the real DM — it is the
   // effective gate, and flipping it here flips the projection and every DM
   // affordance at once (that's the whole "view as player" mechanism, #71).
@@ -59,7 +62,6 @@ const archiveFields = (r: any) => ({
   archived: !!r.archived,
   pinned: !!r.pinned,
   hidden: !!r.hidden,
-  dmNotes: r.dm_notes ?? undefined,
   updatedAt: r.updated_at ?? undefined,
 });
 
@@ -150,7 +152,6 @@ const mapSession = (r: any) => ({
   imageUrl: r.image_url ?? undefined,
   inGameDate: r.in_game_date ?? undefined,
   arc: r.arc_id ?? undefined,
-  dmNotes: r.dm_notes ?? undefined,
 });
 
 const mapArc = (r: any) => ({
@@ -188,6 +189,10 @@ const buildSessionParticipants = (rows: any[]): Record<string, string[]> => {
   });
   return bySession;
 };
+
+// dm_notes side table (0018, issue #73) → entity id → text map.
+const buildDmNotes = (rows: any[]): Record<string, string> =>
+  Object.fromEntries(rows.map((r: any) => [r.entity_id, r.text ?? ""]));
 
 const mapSessionStaging = (r: any): SessionStagingRow => ({
   sessionId: r.session_id,
@@ -248,6 +253,7 @@ async function fetchCampaign(id: string): Promise<Campaign> {
     sessionParticipantsRes,
     sessionStagingRes,
     sessionEventsRes,
+    dmNotesRes,
     peopleRes,
     locationsRes,
     questsRes,
@@ -268,6 +274,8 @@ async function fetchCampaign(id: string): Promise<Campaign> {
     supabase.from("session_participants").select("*").eq("campaign_id", id),
     supabase.from("session_staging").select("*").eq("campaign_id", id),
     supabase.from("session_events").select("*").eq("campaign_id", id).order("created_at").order("id"),
+    // DM-only read policy (0018): returns rows on the DM's client, [] on all others.
+    supabase.from("dm_notes").select("*").eq("campaign_id", id),
     supabase.from("people").select("*").eq("campaign_id", id),
     supabase.from("locations").select("*").eq("campaign_id", id),
     supabase.from("quests").select("*").eq("campaign_id", id),
@@ -283,9 +291,9 @@ async function fetchCampaign(id: string): Promise<Campaign> {
 
   const first = [
     campaignRes, sessionsRes, arcsRes, eventsRes, participantsRes,
-    sessionParticipantsRes, sessionStagingRes, sessionEventsRes, peopleRes,
-    locationsRes, questsRes, goalsRes, factionsRes, itemsRes, loreRes,
-    connectionsRes, boardRes, presenceRes, notesRes,
+    sessionParticipantsRes, sessionStagingRes, sessionEventsRes, dmNotesRes,
+    peopleRes, locationsRes, questsRes, goalsRes, factionsRes, itemsRes,
+    loreRes, connectionsRes, boardRes, presenceRes, notesRes,
   ].find((r) => r.error);
   if (first?.error) throw new Error(first.error.message);
 
@@ -307,7 +315,7 @@ async function fetchCampaign(id: string): Promise<Campaign> {
     sessionStaging: (sessionStagingRes.data ?? []).map(mapSessionStaging),
     sessionEvents: (sessionEventsRes.data ?? []).map(mapSessionEvent),
     activeSessionId: campaignRes.data.active_session_id ?? undefined,
-    dmUserId: campaignRes.data.dm_user_id ?? undefined,
+    dmNotes: buildDmNotes(dmNotesRes.data ?? []),
     people: (peopleRes.data ?? []).map(mapPerson),
     locations: (locationsRes.data ?? []).map(mapLocation),
     quests: (questsRes.data ?? []).map(mapQuest),
@@ -331,7 +339,16 @@ function applyArrayChange<T extends { id: string | number }>(
   oldRow: T | null,
 ): T[] {
   if (event === "INSERT" && newRow) return [...list, newRow];
-  if (event === "UPDATE" && newRow) return list.map((item) => (item.id === newRow.id ? newRow : item));
+  if (event === "UPDATE" && newRow) {
+    // Upsert, not replace: under RLS (0018) an UPDATE can be the first event
+    // a client is ALLOWED to see for a row — a release flips hidden to false
+    // and realtime re-checks visibility per subscriber against the new row.
+    // Players never held the hidden row, so an unmatched id must append or
+    // the reveal silently vanishes until reload.
+    return list.some((item) => item.id === newRow.id)
+      ? list.map((item) => (item.id === newRow.id ? newRow : item))
+      : [...list, newRow];
+  }
   if (event === "DELETE" && oldRow) return list.filter((item) => item.id !== oldRow.id);
   return list;
 }
@@ -344,6 +361,27 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
   const [campaigns, setCampaigns] = useState<CampaignSummary[]>([]);
   const [campaignId, setCampaignId] = useState<string | null>(null);
   const [viewAsPlayer, setViewAsPlayer] = useState(false);
+  const [isDmMember, setIsDmMember] = useState(false);
+
+  // DM membership lookup (issue #73): one campaign_members row decides
+  // isRealDm. Not realtime-synced — roles are dashboard-managed, a mid-
+  // session change takes a reload. Until it resolves the DM briefly renders
+  // the player projection (no flash of hidden content the other way around).
+  useEffect(() => {
+    setIsDmMember(false);
+    if (!campaignId || !user || user.is_anonymous) return;
+    let cancelled = false;
+    supabase
+      .from("campaign_members")
+      .select("role")
+      .eq("campaign_id", campaignId)
+      .eq("user_id", user.id)
+      .eq("role", "dm")
+      .then(({ data }) => {
+        if (!cancelled) setIsDmMember((data ?? []).length > 0);
+      });
+    return () => { cancelled = true; };
+  }, [campaignId, user?.id, user?.is_anonymous]);
 
   // Load the picker list once, then resolve the active id:
   // hash → host-page tweak → first campaign by creation date.
@@ -434,6 +472,24 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
         const filter = `campaign_id=eq.${campaignId}`;
         channel = supabase.channel(`campaign:${campaignId}`);
 
+        // Shared by each table's own handler AND the reveal path below. A
+        // release makes connections/board rows that reference the revealed
+        // entity newly visible to players (0018 gates them on entity_hidden)
+        // WITHOUT any event on those tables — the rows didn't change, the
+        // entity did — so the reveal event has to trigger the refetch.
+        const refetchConnections = () => {
+          supabase.from("connections").select("*").eq("campaign_id", campaignId).then(({ data }) => {
+            if (cancelled) return;
+            setCampaign((c) => c && c.id === campaignId ? { ...c, connections: (data ?? []).map(mapConnection) } : c);
+          });
+        };
+        const refetchBoard = () => {
+          supabase.from("board_positions").select("*").eq("campaign_id", campaignId).then(({ data }) => {
+            if (cancelled) return;
+            setCampaign((c) => c && c.id === campaignId ? { ...c, board: Object.fromEntries((data ?? []).map(mapBoardPosition)) } : c);
+          });
+        };
+
         // The shared pin lives on the campaigns row itself, so it's filtered by
         // `id`, not `campaign_id`. Keep both the React state and the module-level
         // store (read by mutations) in sync when another client moves the pin.
@@ -447,7 +503,7 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
             if (cancelled) return;
             const next = payload.new?.active_session_id ?? undefined;
             setActiveSessionId(next ?? null);
-            setCampaign((c) => c && c.id === campaignId ? { ...c, activeSessionId: next, dmUserId: payload.new?.dm_user_id ?? undefined, title: payload.new?.title ?? c.title, subtitle: payload.new?.subtitle ?? c.subtitle } : c);
+            setCampaign((c) => c && c.id === campaignId ? { ...c, activeSessionId: next, title: payload.new?.title ?? c.title, subtitle: payload.new?.subtitle ?? c.subtitle } : c);
           },
         );
         channel.on(
@@ -577,6 +633,30 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
             // filter and drops them — a reload is the backstop for the rare
             // "session deleted mid-feed" case, not this handler.
             setCampaign((c) => c && c.id === campaignId ? { ...c, sessionEvents: sortSessionEvents(applyArrayChange(c.sessionEvents, payload.eventType, payload.new?.id != null ? mapSessionEvent(payload.new) : null, payload.old?.id != null ? mapSessionEvent(payload.old) : null)) } : c);
+            // Release side effect (issue #73): the revealed entity's own
+            // UPDATE arrives via its table handler, but its connections and
+            // board pin become visible without any event of their own.
+            // Unconditional (DM clients refetch redundantly but harmlessly —
+            // reveals are rare) because isDm isn't in this effect's scope.
+            if (payload.eventType === "INSERT" && payload.new?.type === "reveal") {
+              refetchConnections();
+              refetchBoard();
+            }
+          },
+        );
+        channel.on(
+          "postgres_changes" as any,
+          { event: "*", schema: "public", table: "dm_notes", filter },
+          () => {
+            // Composite PK that INCLUDES campaign_id, so unlike
+            // session_staging a DELETE's PK-only old-row still matches the
+            // server-side filter. Refetch like the other composite-PK tables;
+            // RLS returns [] on non-DM clients (the only events that even
+            // reach them are unfiltered DELETEs — metadata-only).
+            supabase.from("dm_notes").select("*").eq("campaign_id", campaignId).then(({ data }) => {
+              if (cancelled) return;
+              setCampaign((c) => c && c.id === campaignId ? { ...c, dmNotes: buildDmNotes(data ?? []) } : c);
+            });
           },
         );
         channel.on(
@@ -589,23 +669,13 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
         channel.on(
           "postgres_changes" as any,
           { event: "*", schema: "public", table: "connections", filter },
-          () => {
-            // Connections have no stable `id` on the client (stored as tuples). Refetch.
-            supabase.from("connections").select("*").eq("campaign_id", campaignId).then(({ data }) => {
-              if (cancelled) return;
-              setCampaign((c) => c && c.id === campaignId ? { ...c, connections: (data ?? []).map(mapConnection) } : c);
-            });
-          },
+          // Connections have no stable `id` on the client (stored as tuples). Refetch.
+          refetchConnections,
         );
         channel.on(
           "postgres_changes" as any,
           { event: "*", schema: "public", table: "board_positions", filter },
-          () => {
-            supabase.from("board_positions").select("*").eq("campaign_id", campaignId).then(({ data }) => {
-              if (cancelled) return;
-              setCampaign((c) => c && c.id === campaignId ? { ...c, board: Object.fromEntries((data ?? []).map(mapBoardPosition)) } : c);
-            });
-          },
+          refetchBoard,
         );
         channel.on(
           "postgres_changes" as any,
@@ -637,7 +707,7 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
     };
   }, [campaignId]);
 
-  const isRealDm = !!campaign && canEdit && !!campaign.dmUserId && user?.id === campaign.dmUserId;
+  const isRealDm = !!campaign && canEdit && isDmMember;
   // The effective gate: "view as player" (#71) flips this one derivation and
   // the projection below plus every isDm-gated affordance follow — that single
   // choke point IS the feature. Real DM-ness is untouched, so exit is instant.

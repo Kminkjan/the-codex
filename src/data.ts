@@ -28,9 +28,6 @@ export interface Session {
   imageUrl?: string;
   inGameDate?: string;
   arc?: string;
-  // DM prep notes (issue #70) — same projection-stripped rule as
-  // ArchivableFields.dmNotes; sessions just don't share that mixin.
-  dmNotes?: string;
 }
 
 // Story arcs group sessions and quests ("Barovia Saga"). Like sessions they
@@ -64,10 +61,6 @@ export interface ArchivableFields {
   // readable by everyone), hidden rows are projected out of the campaign
   // object entirely for non-DM users — see projectCampaignForViewers.
   hidden?: boolean;
-  // DM-only notes (issue #70): free prose, stripped from the projection for
-  // non-DM users like hidden entities — never rendered, indexed, or searched
-  // outside the DM's view. Client-gated in V1; RLS is issue #73.
-  dmNotes?: string;
   updatedAt?: string;
 }
 
@@ -232,9 +225,10 @@ export interface Campaign {
   sessionEvents: SessionEvent[];
   // The shared "we're live in session N" pin (campaigns.active_session_id).
   activeSessionId?: string;
-  // The campaign's DM (campaigns.dm_user_id, an auth user id). One DM per
-  // campaign; V1 gating is client-side only.
-  dmUserId?: string;
+  // DM-only prep notes (issues #70/#73), entity id → text. Lives in the
+  // dm_notes side table with a DM-only read policy, so this map is populated
+  // only on the DM's client — RLS returns zero rows to everyone else.
+  dmNotes: Record<string, string>;
   people: Person[];
   locations: Location[];
   quests: Quest[];
@@ -326,24 +320,11 @@ export function isHidden(e: any): boolean {
 // nulls, and rewriting them here would risk write-back corruption.
 export function projectCampaignForViewers(c: Campaign): Campaign {
   const hiddenIds = new Set<string>();
-  // dm_notes (issue #70) is stripped here too — same central-funnel rule as
-  // hidden entities, so no player surface can render it even by accident.
-  // Only entities that actually carry dmNotes get a new object; the rest keep
-  // their reference so downstream memos don't churn.
-  let sawDmNotes = false;
-  const stripDmNotes = <T extends { dmNotes?: string }>(e: T): T => {
-    if (e.dmNotes === undefined) return e;
-    sawDmNotes = true;
-    const { dmNotes: _dm, ...rest } = e;
-    return rest as T;
-  };
-  const keep = <T extends { id: string; hidden?: boolean; dmNotes?: string }>(list: T[]): T[] =>
-    list
-      .filter((e) => {
-        if (e.hidden) hiddenIds.add(e.id);
-        return !e.hidden;
-      })
-      .map(stripDmNotes);
+  const keep = <T extends { id: string; hidden?: boolean }>(list: T[]): T[] =>
+    list.filter((e) => {
+      if (e.hidden) hiddenIds.add(e.id);
+      return !e.hidden;
+    });
   const people = keep(c.people);
   const locations = keep(c.locations);
   const quests = keep(c.quests);
@@ -351,14 +332,21 @@ export function projectCampaignForViewers(c: Campaign): Campaign {
   const factions = keep(c.factions);
   const items = keep(c.items);
   const lore = keep(c.lore);
-  const sessions = c.sessions.map(stripDmNotes);
+  // Since 0018 (issue #73) RLS already keeps hidden rows, staging and
+  // dm_notes off non-DM clients — for players this projection is normally the
+  // identity. It still must exist and still must strip everything: it is the
+  // "view as player" mechanism (#71), where the DM's own client (whose JWT
+  // receives everything) flips isDm off without changing what's loaded.
+  //
   // Identity fast path: when nothing is hidden, nothing is staged AND no
   // dm_notes exist, return the original object so downstream memos keep their
-  // referential equality. (The filter/strip passes above still run — what's
-  // saved is the memo invalidation, not the scan.) Staging must be part of
-  // the condition: a staged-but-visible entity would otherwise leak the DM's
+  // referential equality. (The filter passes above still run — what's saved
+  // is the memo invalidation, not the scan.) Staging must be part of the
+  // condition: a staged-but-visible entity would otherwise leak the DM's
   // prep to viewers; dm_notes likewise would ride through untouched.
-  if (hiddenIds.size === 0 && c.sessionStaging.length === 0 && !sawDmNotes) return c;
+  let hasDmNotes = false;
+  for (const _ in c.dmNotes) { hasDmNotes = true; break; }
+  if (hiddenIds.size === 0 && c.sessionStaging.length === 0 && !hasDmNotes) return c;
   const dropHiddenValues = (rec: Record<string, string[]>): Record<string, string[]> =>
     Object.fromEntries(
       Object.entries(rec).map(([k, ids]) => [k, ids.filter((id) => !hiddenIds.has(id))]),
@@ -367,7 +355,9 @@ export function projectCampaignForViewers(c: Campaign): Campaign {
     Object.fromEntries(Object.entries(rec).filter(([id]) => !hiddenIds.has(id)));
   return {
     ...c,
-    people, locations, quests, goals, factions, items, lore, sessions,
+    people, locations, quests, goals, factions, items, lore,
+    // DM's eyes only — emptied for the player view (issue #70/#73).
+    dmNotes: {},
     connections: c.connections.filter(([a, b]) => !hiddenIds.has(a) && !hiddenIds.has(b)),
     board: dropHiddenKeys(c.board),
     eventParticipants: dropHiddenValues(c.eventParticipants),
