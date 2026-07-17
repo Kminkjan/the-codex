@@ -514,6 +514,31 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
       });
     }
   }
+  // Reveal chips, derived from the session_events log rather than stored as
+  // connections rows — releaseEntity/showEntity already record the fact, so a
+  // second table would just drift (re-hide, unstage, event delete). A session's
+  // sheet lists what surfaced during it; an entity's sheet points back at the
+  // sessions that revealed it. Curated chips win: any existing chip for the
+  // same pair (manual string, introduced in / last seen in) suppresses the
+  // derived one, mirroring how FK edges yield to manual strings. Hidden-entity
+  // reveals are already projected out for players, so nothing leaks here.
+  {
+    const revealSeen = new Set<string>();
+    campaign.sessionEvents.forEach((ev) => {
+      if (ev.type !== "reveal" || !ev.entityId || !ev.sessionId) return;
+      if (kind === "sessions" ? ev.sessionId !== entityId : ev.entityId !== entityId) return;
+      const otherId = kind === "sessions" ? ev.entityId : ev.sessionId;
+      if (revealSeen.has(otherId)) return; // re-reveals collapse to the first
+      revealSeen.add(otherId);
+      const other = findEntity(otherId);
+      if (!other) return;
+      const k = kind === "sessions" ? (other._kind as string) : "sessions";
+      related[k] = related[k] || [];
+      if (!related[k].find((r) => r.entity.id === other.id)) {
+        related[k].push({ entity: other, rel: kind === "sessions" ? "revealed this session" : "revealed in" });
+      }
+    });
+  }
 
   const patch = (fields: Record<string, unknown>) =>
     updateEntity(kind, entityId, fields).catch((e) =>
