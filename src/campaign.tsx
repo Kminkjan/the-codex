@@ -299,7 +299,11 @@ function DangerZoneCard() {
   const [confirmText, setConfirmText] = useState("");
   const [archiving, setArchiving] = useState(false);
   const onlyCampaign = campaigns.length <= 1;
-  const armed = confirmText.trim() === campaign.title;
+  // Archiving mid-live would drop the pin without endLiveSession's 'end'
+  // feed marker, breaking the start/end bracketing invariant — make the DM
+  // stand down first instead of half-reimplementing that verb here.
+  const sessionLive = !!campaign.activeSessionId;
+  const armed = confirmText.trim() === campaign.title && !sessionLive;
 
   const archive = async () => {
     if (!armed || onlyCampaign || archiving) return;
@@ -332,20 +336,19 @@ function DangerZoneCard() {
         <div style={{ fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 13, color: "var(--ink-secondary)", marginTop: 8 }}>
           {onlyCampaign
             ? "The last campaign in the codex cannot be shelved — found another first."
+            : sessionLive
+            ? "A session is live — stand down from the table before shelving this campaign."
             : "Shelving removes this campaign from the picker for everyone. Nothing is burned: its pages remain and a keeper of the archive can restore it. To proceed, write the campaign's full title."}
         </div>
         {!onlyCampaign && (
           <div style={{ display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap", alignItems: "center" }}>
             <input
+              className="parchment-input"
               value={confirmText}
               onChange={(e) => setConfirmText(e.target.value)}
               placeholder={campaign.title}
               aria-label="Type the campaign title to confirm"
-              style={{
-                fontFamily: "var(--font-fell)", fontSize: 14, color: "var(--ink)",
-                background: "var(--vellum)", border: "1px solid var(--vellum-deep)",
-                borderRadius: 4, padding: "6px 10px", minWidth: 220,
-              }}
+              style={{ minWidth: 220 }}
             />
             <button
               className="cleanup-link-btn"

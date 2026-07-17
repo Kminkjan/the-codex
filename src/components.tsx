@@ -5,7 +5,7 @@ import remarkGfm from "remark-gfm";
 import { sessionLabel, type KindKey, type PresenceUser } from "./data";
 import { Icon, MapScribble, kindIcon } from "./icons";
 import { rankIndex, KIND_LABEL, type Indexed } from "./entitySearch";
-import { useCampaign, useCampaignSwitcher, useKinds, usePresence, useViewAsPlayer } from "./hooks";
+import { useCampaign, useCampaignSwitcher, useDismiss, useKinds, usePresence, useViewAsPlayer } from "./hooks";
 import { createCampaign, createEntity, endLiveSession, setActiveSession, startLiveSession, switchLiveSession } from "./mutations";
 import { requestCharterOnNextLoad } from "./route";
 import { SignInDialog, useAuth } from "./auth";
@@ -529,22 +529,20 @@ function CampaignPicker({ onOpenCharter }: { onOpenCharter: () => void }) {
   // "Found a new campaign" (issue #87): the menu item swaps for an inline
   // title input. One RPC creates the campaign with the caller as DM, then
   // adoptCampaign switches to it (the charter-landing flag makes the
-  // remounting AppLoaded open on the charter).
-  const [founding, setFounding] = useState(false);
-  const [foundTitle, setFoundTitle] = useState("");
+  // remounting AppLoaded open on the charter). null = item mode; a string
+  // (even "") = input mode with that draft — one state, no lockstep pair.
+  const [foundTitle, setFoundTitle] = useState<string | null>(null);
   const [foundBusy, setFoundBusy] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const founding = foundTitle !== null;
 
   // Closing the menu always disarms the input — reopening starts fresh.
   useEffect(() => {
-    if (!open) {
-      setFounding(false);
-      setFoundTitle("");
-    }
+    if (!open) setFoundTitle(null);
   }, [open]);
 
   const found = async () => {
-    const title = foundTitle.trim();
+    const title = foundTitle?.trim();
     if (!title || foundBusy) return;
     setFoundBusy(true);
     try {
@@ -557,21 +555,8 @@ function CampaignPicker({ onOpenCharter }: { onOpenCharter: () => void }) {
     }
   };
 
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
+  const close = useCallback(() => setOpen(false), []);
+  useDismiss(rootRef, open, close);
 
   // Editors always get the menu (it holds "found a new campaign" even when
   // only one campaign exists); pure viewers of a single campaign keep the
@@ -631,7 +616,7 @@ function CampaignPicker({ onOpenCharter }: { onOpenCharter: () => void }) {
           {canEdit && !founding && (
             <button
               className="campaign-picker-item"
-              onClick={() => setFounding(true)}
+              onClick={() => setFoundTitle("")}
             >
               <span className="dot" style={{ visibility: "hidden" }} />
               <span style={{ fontFamily: "var(--font-fell-sc)", letterSpacing: ".14em", fontSize: 11, color: "var(--ink-secondary)" }}>
@@ -644,7 +629,8 @@ function CampaignPicker({ onOpenCharter }: { onOpenCharter: () => void }) {
               <span className="dot" style={{ visibility: "hidden" }} />
               <input
                 autoFocus
-                value={foundTitle}
+                className="parchment-input"
+                value={foundTitle ?? ""}
                 disabled={foundBusy}
                 onChange={(e) => setFoundTitle(e.target.value)}
                 onKeyDown={(e) => {
@@ -655,17 +641,12 @@ function CampaignPicker({ onOpenCharter }: { onOpenCharter: () => void }) {
                     // Swallow it so the menu's document-level Escape handler
                     // doesn't also fire: first Esc disarms, second closes.
                     e.stopPropagation();
-                    setFounding(false);
-                    setFoundTitle("");
+                    setFoundTitle(null);
                   }
                 }}
                 placeholder={foundBusy ? "Founding…" : "Name the campaign, then ⏎"}
                 aria-label="New campaign title"
-                style={{
-                  fontFamily: "var(--font-fell)", fontSize: 13, color: "var(--ink)",
-                  background: "var(--vellum)", border: "1px solid var(--vellum-deep)",
-                  borderRadius: 3, padding: "4px 8px", width: "100%", minWidth: 0,
-                }}
+                style={{ fontSize: 13, borderRadius: 3, padding: "4px 8px", width: "100%", minWidth: 0 }}
               />
             </div>
           )}

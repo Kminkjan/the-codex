@@ -2468,6 +2468,21 @@ button.session-pin { line-height: 1; }
 .facet-input::placeholder { color: var(--ink-ghost); font-style: italic; }
 .facet-input:focus { outline: none; border-bottom-color: var(--ink-secondary); }
 
+/* Boxed parchment text input (issue #87: campaign founding + danger-zone
+   confirm). Unlike .facet-input this is an edit affordance, so it gets a
+   full vellum box; size/width vary per site via inline style. */
+.parchment-input {
+  font-family: var(--font-fell);
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--vellum);
+  border: 1px solid var(--vellum-deep);
+  border-radius: 4px;
+  padding: 6px 10px;
+}
+.parchment-input::placeholder { color: var(--ink-ghost); font-style: italic; }
+.parchment-input:focus { outline: none; border-color: var(--ink-secondary); }
+
 .cmdk-hint {
   display: flex; gap: 16px; justify-content: flex-end;
   padding: 8px 16px;

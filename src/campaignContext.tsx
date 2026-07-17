@@ -497,8 +497,11 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
     return () => { cancelled = true; };
   }, []);
 
-  // One code path updates the active id: picker clicks write the hash,
-  // and this listener also covers back/forward and manual URL edits.
+  // Hash is the source of truth for the active id: switchCampaign writes it
+  // and this listener applies it (also covering back/forward and manual URL
+  // edits). adopt/retireCampaign are the two exceptions — they set the id
+  // directly because their target isn't in this listener's `campaigns`
+  // closure yet/anymore (see commitActiveCampaign below).
   useEffect(() => {
     const onHashChange = () => {
       const { campaignId: id } = parseHash();
@@ -514,24 +517,31 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("hashchange", onHashChange);
   }, [campaigns, campaignId]);
 
-  const switchCampaign = useCallback((id: string) => {
-    if (id === campaignId) return;
-    writeCampaignHash(id); // hashchange listener updates campaignId
+  // The single hash-write + host-page persistence tail every navigation verb
+  // shares. `direct` also moves the React id state without waiting for the
+  // hashchange round-trip — needed when the target id isn't (adopt) or is no
+  // longer (retire) in the `campaigns` list the listener's closure knows, so
+  // the listener would reject it and rewrite the hash back. Setting list and
+  // id in the same batch means that by the time the async hashchange fires,
+  // the re-registered listener sees a known, already-active id and no-ops.
+  const commitActiveCampaign = useCallback((id: string, opts?: { direct?: boolean; replace?: boolean }) => {
+    if (opts?.direct) setCampaignId(id);
+    writeCampaignHash(id, undefined, { replace: opts?.replace });
     // Persist through the host page, never localStorage.
     window.parent.postMessage({ type: "__edit_mode_set_keys", edits: { campaignId: id } }, "*");
-  }, [campaignId]);
+  }, []);
 
-  // Founding (#87): the new campaign isn't in `campaigns` yet, so routing the
-  // switch through writeCampaignHash alone would race the hashchange listener
-  // (its closure rejects unknown ids and rewrites the hash back). List append
-  // and id move land in the same batch; by the time the async hashchange
-  // fires, the re-registered listener sees a known, already-active id.
+  const switchCampaign = useCallback((id: string) => {
+    if (id === campaignId) return;
+    commitActiveCampaign(id); // hashchange listener updates campaignId
+  }, [campaignId, commitActiveCampaign]);
+
+  // Founding (#87): append the fresh campaign to the picker list and move to
+  // it directly (see commitActiveCampaign for why not via the listener).
   const adoptCampaign = useCallback((summary: CampaignSummary) => {
     setCampaigns((list) => (list.some((c) => c.id === summary.id) ? list : [...list, summary]));
-    setCampaignId(summary.id);
-    writeCampaignHash(summary.id, undefined, { replace: false });
-    window.parent.postMessage({ type: "__edit_mode_set_keys", edits: { campaignId: summary.id } }, "*");
-  }, []);
+    commitActiveCampaign(summary.id, { direct: true });
+  }, [commitActiveCampaign]);
 
   // Archiving (#87): drop the campaign from the picker; if it was active,
   // move to the first remaining one (same fallback rank as initial load).
@@ -542,12 +552,8 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
     const remaining = campaigns.filter((c) => c.id !== id);
     if (remaining.length === 0) return;
     setCampaigns(remaining);
-    if (id === campaignId) {
-      setCampaignId(remaining[0].id);
-      writeCampaignHash(remaining[0].id, undefined, { replace: true });
-      window.parent.postMessage({ type: "__edit_mode_set_keys", edits: { campaignId: remaining[0].id } }, "*");
-    }
-  }, [campaigns, campaignId]);
+    if (id === campaignId) commitActiveCampaign(remaining[0].id, { direct: true, replace: true });
+  }, [campaigns, campaignId, commitActiveCampaign]);
 
   useEffect(() => {
     if (!campaignId) return;
