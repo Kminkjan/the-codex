@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 No test framework is set up.
 
-Supabase migrations live in [supabase/migrations/](supabase/migrations/). Apply them via the Supabase dashboard SQL editor or the Supabase MCP server (`mcp__plugin_supabase_supabase__apply_migration`). Project ref: `nsemknuzupcnvctevgfd` (URL: `https://nsemknuzupcnvctevgfd.supabase.co`).
+Supabase migrations live in [supabase/migrations/](supabase/migrations/). Apply them via the Supabase dashboard SQL editor or the Supabase MCP server (`mcp__plugin_supabase_supabase__apply_migration`). Project ref: `nsemknuzupcnvctevgfd` (URL: `https://nsemknuzupcnvctevgfd.supabase.co`). Version numbers must track the **remote migration history** — before numbering a new migration, check the highest version across this directory, the remote history, and open PRs, and never renumber a file that's already applied remotely. Two files intentionally share prefix 0014; see [supabase/migrations/README.md](supabase/migrations/README.md) for that anomaly and the `supabase migration fetch` overwrite warning.
 
 ## Architecture
 
