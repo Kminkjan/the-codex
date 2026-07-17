@@ -1,19 +1,21 @@
 # Migrations
 
-Migrations are applied to prod (`nsemknuzupcnvctevgfd`) via the Supabase **dashboard SQL editor** or the Supabase MCP server — never `supabase db push`. That means this directory and the remote migration history (`supabase migration list`) can drift, and they have; the notes below record the known divergences so nobody "fixes" them.
+Since 2026-07-16 the **Supabase GitHub integration (Branching)** is enabled on this repo: every PR gets a preview branch that rebuilds the full migration chain from scratch, and **merging a PR auto-applies its new migrations to prod** (confirmed with 0021 on PR #89 — no dashboard step needed anymore). Before that, migrations were applied by hand via the dashboard SQL editor or the Management API, which is why this directory and the remote migration history (`supabase migration list`) drifted; the notes below record the known divergences so nobody "fixes" them.
 
-## Version numbers follow the remote history
+Consequences of the integration:
 
-The remote migration history is the source of truth for version numbers. When a migration was applied to prod under a version, commit it here under that same version — renumbering a file that's already in the remote history would desync the two forever.
+- **One file per version, strictly.** The integration keys migrations by the numeric filename prefix. Two files sharing a prefix hard-fail every preview branch with `duplicate key value violates unique constraint "schema_migrations_pkey"` — this is empirical, from PR #90's branch error when a second `0014_*.sql` was added.
+- **Migrations must apply cleanly from scratch** (preview branches replay 0001→head on an empty database) and should be idempotent where possible.
+- **Never renumber a file whose version is already in the remote history** — that would desync repo and remote forever.
 
-**Picking a number for a new migration:** take the next number after the highest across (a) this directory, (b) the remote history, and (c) any open PR that adds a migration. As of 2026-07-17 that next number is **0023** (0022 is `campaign_invites`, issue #86's PR).
+**Picking a number for a new migration:** take the next number after the highest across (a) this directory, (b) the remote history, and (c) any in-flight branch or open PR that adds a migration. As of 2026-07-17 that next number is **0023** — 0022 is reserved by coordination for issue #86's in-flight `campaign_invites` work (not yet an open PR; re-verify when it lands).
 
-## Known anomaly: two migrations share version 0014
+## Known anomaly: prod's version 0014 is not this directory's 0014
 
-- `0014_foi_last_seen_and_archive.sql` — remote version **0014**. Fist-of-Ilmater board maintenance (last_seen corrections + archiving concluded arcs). Applied to prod through the migration history but originally never committed here; back-filled verbatim from the remote.
-- `0014_person_tier_status.sql` — **not in the remote history at all.** It was applied via the dashboard SQL editor (NPC roster rollout, PRs #58–#61), which doesn't register a version. It kept its filename because renaming it wouldn't fix anything (there's no remote entry to match) and would churn history.
+- The **remote history's version 0014** is `foi_last_seen_and_archive` — Fist-of-Ilmater board maintenance (last_seen corrections + archiving concluded arcs). It was applied to prod through the migration history but never committed here. Its content is preserved verbatim in [../history/0014_foi_last_seen_and_archive.sql](../history/0014_foi_last_seen_and_archive.sql); it can't live in this directory because of the one-file-per-version rule above.
+- This directory's [0014_person_tier_status.sql](0014_person_tier_status.sql) is **not in the remote history at all** — it was applied via the dashboard SQL editor (NPC roster rollout, PRs #58–#61), which doesn't register a version. The integration treats it as applied because version 0014 is registered remotely (by the foi script), so pushes skip it; preview branches apply it as their 0014, which is fine — it's idempotent, and the foi script is fendwick/foi seed-data curation a preview branch doesn't need.
 
-Both are live in prod. Order between them doesn't matter for a fresh rebuild: the foi script only touches `last_seen_session_id` (0001) and `archived` (0005), and `person_tier_status` only adds columns.
+Both scripts are live in prod. Don't renumber `0014_person_tier_status.sql` and don't move the foi file into this directory.
 
 ## `supabase migration fetch` warning
 

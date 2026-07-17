@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 No test framework is set up.
 
-Supabase migrations live in [supabase/migrations/](supabase/migrations/). Apply them via the Supabase dashboard SQL editor or the Supabase MCP server (`mcp__plugin_supabase_supabase__apply_migration`). Project ref: `nsemknuzupcnvctevgfd` (URL: `https://nsemknuzupcnvctevgfd.supabase.co`). Version numbers must track the **remote migration history** — before numbering a new migration, check the highest version across this directory, the remote history, and open PRs, and never renumber a file that's already applied remotely. Two files intentionally share prefix 0014; see [supabase/migrations/README.md](supabase/migrations/README.md) for that anomaly and the `supabase migration fetch` overwrite warning.
+Supabase migrations live in [supabase/migrations/](supabase/migrations/). The **Supabase GitHub integration auto-applies merged migrations to prod** and rebuilds the full chain on every PR's preview branch — so files must be one-per-version (duplicate numeric prefixes hard-fail the preview branch), apply cleanly from scratch, and never be renumbered once their version is in the remote history. Before numbering a new migration, check the highest version across the directory, the remote history, and in-flight PRs. Prod's remote version 0014 differs from the directory's 0014 — see [supabase/migrations/README.md](supabase/migrations/README.md) for that anomaly, the numbering rules, and the `supabase migration fetch` overwrite warning. Project ref: `nsemknuzupcnvctevgfd` (URL: `https://nsemknuzupcnvctevgfd.supabase.co`).
 
 ## Architecture
 
