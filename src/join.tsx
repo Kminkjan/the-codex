@@ -163,7 +163,7 @@ export function JoinFlow() {
               background: "var(--vellum-light)",
               boxShadow: "0 14px 50px rgba(20,10,2,.5)",
               textAlign: "center",
-              fontFamily: "var(--font-fell)",
+              fontFamily: "var(--font-body)",
             }}
           >
             <div style={{
@@ -296,7 +296,7 @@ export function JoinFlow() {
           position: "fixed", bottom: 26, left: "50%", transform: "translateX(-50%)",
           background: "var(--ink)", color: "var(--vellum-light)",
           padding: "10px 18px",
-          fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 14,
+          fontFamily: "var(--font-body)", fontStyle: "italic", fontSize: 14,
           boxShadow: "0 6px 20px rgba(40,20,5,.45)",
           zIndex: 70, borderRadius: 2,
         }}>

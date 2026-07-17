@@ -40,7 +40,7 @@ function ErrorSheet({ message }: { message: string }) {
     <div style={{
       position: "fixed", inset: 0, display: "grid", placeItems: "center",
       background: "var(--vellum)", color: "var(--ink)", padding: 40,
-      fontFamily: "var(--font-fell)",
+      fontFamily: "var(--font-body)",
     }}>
       <div style={{ maxWidth: 540, textAlign: "center" }}>
         <div style={{ fontFamily: "var(--font-fell-sc)", letterSpacing: ".3em", fontSize: 12, color: "var(--bloodred)", marginBottom: 12 }}>
@@ -66,7 +66,7 @@ function BottomToast({ background, children }: { background?: string; children: 
       position: "fixed", bottom: 26, left: "50%", transform: "translateX(-50%)",
       background: background ?? "var(--ink)", color: "var(--vellum-light)",
       padding: "10px 16px",
-      fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 14,
+      fontFamily: "var(--font-body)", fontStyle: "italic", fontSize: 14,
       boxShadow: "0 6px 20px rgba(40,20,5,.45)",
       display: "flex", alignItems: "center", gap: 10,
       zIndex: 70, borderRadius: 2,
@@ -419,7 +419,7 @@ function AppLoaded() {
                 <button className={density === "compact" ? "active" : ""} onClick={() => { setDensity("compact"); persist({ density: "compact" }); }}>Compact</button>
               </div>
             </div>
-            <div style={{ fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 12, color: "var(--ink-secondary)", textAlign: "center", marginTop: 4 }}>
+            <div style={{ fontFamily: "var(--font-body)", fontStyle: "italic", fontSize: 12, color: "var(--ink-secondary)", textAlign: "center", marginTop: 4 }}>
               "What a party writes down, the world remembers."
             </div>
           </div>

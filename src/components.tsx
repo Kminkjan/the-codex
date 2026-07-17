@@ -239,7 +239,7 @@ export function QuestCard({ quest }: { quest: any }) {
       <div className="quest-desc">{quest.desc}</div>
       <div className="quest-meta">
         <span>Reward</span>
-        <span style={{ fontFamily: "var(--font-fell)", textTransform: "none", fontSize: 12.5, letterSpacing: 0, color: "var(--ink-body)" }}>{quest.reward}</span>
+        <span style={{ fontFamily: "var(--font-body)", textTransform: "none", fontSize: 12.5, letterSpacing: 0, color: "var(--ink-body)" }}>{quest.reward}</span>
       </div>
     </div>
   );
@@ -510,7 +510,7 @@ export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, counts 
 
       <div style={{
         padding: "16px", marginTop: 12, borderTop: "1px dashed var(--vellum-deep)",
-        fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 12,
+        fontFamily: "var(--font-body)", fontStyle: "italic", fontSize: 12,
         color: "var(--ink-faded)", textAlign: "center",
       }}>
         <em>"Bound in vellum,<br />writ in iron."</em>
@@ -746,7 +746,7 @@ function SessionPin() {
           {live && (
             <button role="option" aria-selected={false} className="campaign-picker-item" onClick={() => pick(null)}>
               <span className="dot" style={{ visibility: "hidden" }} />
-              <span style={{ fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 13 }}>Stand down (not live)</span>
+              <span style={{ fontFamily: "var(--font-body)", fontStyle: "italic", fontSize: 13 }}>Stand down (not live)</span>
             </button>
           )}
           {ordered.map((s) => (
@@ -1145,7 +1145,7 @@ export function EnumSelect<T extends string>({
   const { canEdit } = useAuth();
   if (!canEdit) {
     return (
-      <span className={className} style={{ fontFamily: "var(--font-fell)", ...style }}>
+      <span className={className} style={{ fontFamily: "var(--font-body)", ...style }}>
         {value ?? "—"}
       </span>
     );
@@ -1161,7 +1161,7 @@ export function EnumSelect<T extends string>({
       style={{
         background: "transparent",
         border: "1px dashed var(--ink-faded)",
-        fontFamily: "var(--font-fell)",
+        fontFamily: "var(--font-body)",
         fontSize: "inherit",
         color: "var(--ink)",
         padding: "2px 6px",
@@ -1324,7 +1324,7 @@ export function EntityCombobox({
 
   if (!canEdit) {
     return (
-      <span className={className} style={{ fontFamily: "var(--font-fell)", ...style }}>
+      <span className={className} style={{ fontFamily: "var(--font-body)", ...style }}>
         {current?.label ?? "—"}
       </span>
     );

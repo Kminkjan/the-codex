@@ -46,7 +46,7 @@ export function EventsPage({ onOpenEntity }: { onOpenEntity: (id: string) => voi
       <div style={{ position: "relative", zIndex: 1, maxWidth: 860 }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 16, marginBottom: 8, flexWrap: "wrap" }}>
           <h1 style={{ margin: 0, fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 40, color: "var(--ink)", letterSpacing: ".01em" }}>Chronicle of Events</h1>
-          <span style={{ fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 16, color: "var(--ink-faded)" }}>
+          <span style={{ fontFamily: "var(--font-body)", fontStyle: "italic", fontSize: 16, color: "var(--ink-faded)" }}>
             {events.length} {events.length === 1 ? "moment" : "moments"} the world remembers
           </span>
           {canEdit && (
@@ -88,7 +88,7 @@ export function EventsPage({ onOpenEntity }: { onOpenEntity: (id: string) => voi
                       </span>
                     </div>
                     {summary && (
-                      <p style={{ margin: "3px 0 0", fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 14, color: "var(--ink-body)" }}>
+                      <p style={{ margin: "3px 0 0", fontFamily: "var(--font-body)", fontSize: 14, color: "var(--ink-body)" }}>
                         {summary}
                       </p>
                     )}
@@ -100,7 +100,7 @@ export function EventsPage({ onOpenEntity }: { onOpenEntity: (id: string) => voi
         ))}
 
         {events.length === 0 && (
-          <p style={{ marginTop: 30, fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 15, color: "var(--ink-faded)" }}>
+          <p style={{ marginTop: 30, fontFamily: "var(--font-body)", fontStyle: "italic", fontSize: 15, color: "var(--ink-faded)" }}>
             Nothing of note has been chronicled yet.
           </p>
         )}
