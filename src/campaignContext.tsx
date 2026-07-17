@@ -42,6 +42,11 @@ interface CampaignContextValue {
   // "View as player" (#71): pure client state, reset on campaign switch.
   viewAsPlayer: boolean;
   setViewAsPlayer: (on: boolean) => void;
+  // Manual counterpart of realtime for the one deliberately-unpublished
+  // table (issue #86): membership RPC callers bump this after a mutation and
+  // every membership consumer (isDmMember here, the charter roster) refetches.
+  membershipVersion: number;
+  refreshMembership: () => void;
 }
 
 export const CampaignContext = createContext<CampaignContextValue>({
@@ -55,6 +60,8 @@ export const CampaignContext = createContext<CampaignContextValue>({
   isRealDm: false,
   viewAsPlayer: false,
   setViewAsPlayer: () => {},
+  membershipVersion: 0,
+  refreshMembership: () => {},
 });
 
 // Map a DB row (snake_case, `desc`) to the app's object shape (camelCase).
@@ -363,11 +370,14 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
   const [campaignId, setCampaignId] = useState<string | null>(null);
   const [viewAsPlayer, setViewAsPlayer] = useState(false);
   const [isDmMember, setIsDmMember] = useState(false);
+  const [membershipVersion, setMembershipVersion] = useState(0);
+  const refreshMembership = useCallback(() => setMembershipVersion((v) => v + 1), []);
 
   // DM membership lookup (issue #73): one campaign_members row decides
-  // isRealDm. Not realtime-synced — roles are dashboard-managed, a mid-
-  // session change takes a reload. Until it resolves the DM briefly renders
-  // the player projection (no flash of hidden content the other way around).
+  // isRealDm. Not realtime-synced — campaign_members is deliberately
+  // unpublished, so membership RPCs (issue #86) bump membershipVersion to
+  // re-run this. Until it resolves the DM briefly renders the player
+  // projection (no flash of hidden content the other way around).
   useEffect(() => {
     setIsDmMember(false);
     if (!campaignId || !user || user.is_anonymous) return;
@@ -382,7 +392,7 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
         if (!cancelled) setIsDmMember((data ?? []).length > 0);
       });
     return () => { cancelled = true; };
-  }, [campaignId, user?.id, user?.is_anonymous]);
+  }, [campaignId, user?.id, user?.is_anonymous, membershipVersion]);
 
   // Load the picker list once, then resolve the active id:
   // hash → host-page tweak → first campaign by creation date.
@@ -739,7 +749,7 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
   );
 
   return (
-    <CampaignContext.Provider value={{ campaign: visibleCampaign, loading, error, campaigns, activeCampaignId: campaignId, switchCampaign, isDm, isRealDm, viewAsPlayer, setViewAsPlayer }}>
+    <CampaignContext.Provider value={{ campaign: visibleCampaign, loading, error, campaigns, activeCampaignId: campaignId, switchCampaign, isDm, isRealDm, viewAsPlayer, setViewAsPlayer, membershipVersion, refreshMembership }}>
       {children}
     </CampaignContext.Provider>
   );

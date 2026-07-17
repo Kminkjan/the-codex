@@ -14,6 +14,7 @@ import { DetailSheet } from "./detail";
 import { LivePanel } from "./livePanel";
 import { CommandPalette, useCommandPaletteHotkey } from "./commandPalette";
 import { CleanupPanel } from "./cleanupPanel";
+import { JoinFlow } from "./join";
 
 function LoadingSheet() {
   return (
@@ -353,6 +354,12 @@ function AppLoaded() {
           </button>
         </div>
       )}
+
+      {/* Invite redemption + sealed letter of summons (issue #86). Mounted
+          inside AppLoaded so the letter can name the loaded campaign; the
+          DisplayNameGate above means a fresh Discord editor names themselves
+          before redemption puts them on the roster. */}
+      <JoinFlow />
 
       {tweaksOpen && (
         <div className="tweaks-panel">

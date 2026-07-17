@@ -10,10 +10,12 @@ import { upsertMyProfile } from "./mutations";
 // from the gitignored .env — see VITE_DEV_EDITOR_* there. Call
 // window.__devSignIn() from the console (or the preview harness).
 if (import.meta.env.DEV && import.meta.env.VITE_DEV_EDITOR_EMAIL) {
-  (window as any).__devSignIn = async () => {
+  // Optional overrides let a test session flip between throwaway accounts
+  // (e.g. a DM and an invited player, issue #86) without editing .env.
+  (window as any).__devSignIn = async (email?: string, password?: string) => {
     const { data, error } = await supabase.auth.signInWithPassword({
-      email: import.meta.env.VITE_DEV_EDITOR_EMAIL as string,
-      password: import.meta.env.VITE_DEV_EDITOR_PASSWORD as string,
+      email: email ?? (import.meta.env.VITE_DEV_EDITOR_EMAIL as string),
+      password: password ?? (import.meta.env.VITE_DEV_EDITOR_PASSWORD as string),
     });
     if (error) { console.error("[dev] sign-in failed:", error.message); return error.message; }
     // Skip the DisplayNameGate for the throwaway editor by seeding a name.

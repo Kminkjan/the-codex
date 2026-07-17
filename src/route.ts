@@ -24,6 +24,19 @@ export function campaignHash(campaignId: string, entityId?: string | null): stri
   return `#/c/${encodeURIComponent(campaignId)}` + (entityId ? `/e/${encodeURIComponent(entityId)}` : "");
 }
 
+// Invite links (issue #86). The join code rides the QUERY STRING, not the
+// hash: HASH_RE wouldn't parse a suffix and the hash normalization in
+// campaignContext would rewrite it away, while both writeCampaignHash
+// branches and the auth error-strip preserve window.location.search.
+// Including #/c/<cid> lands the invited visitor viewing the right campaign
+// before they redeem (reads are world-open).
+export function inviteUrl(campaignId: string, code: string): string {
+  return (
+    window.location.origin + window.location.pathname +
+    `?join=${encodeURIComponent(code)}` + campaignHash(campaignId)
+  );
+}
+
 export function writeCampaignHash(campaignId: string, entityId?: string | null, opts?: { replace?: boolean }) {
   const hash = campaignHash(campaignId, entityId);
   if (window.location.hash === hash) return;
