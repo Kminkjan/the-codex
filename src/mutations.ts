@@ -1,10 +1,36 @@
 import { supabase } from "./utils/supabase";
 import { getActiveCampaignId } from "./activeCampaign";
 import { getActiveSessionId } from "./activeSession";
-import { SHOW_MARK, type KindKey, type PartyNote, type BoardPosition, type SessionEventType } from "./data";
+import { SHOW_MARK, type KindKey, type PartyNote, type BoardPosition, type CampaignSummary, type SessionEventType } from "./data";
 
 // Realtime subscriptions in campaignContext.tsx reflect writes back into UI
 // state, so callers do not need to patch local state (fire-and-forget is fine).
+
+// ===== Write-failure surfacing (issue #87) ==================================
+// Fire-and-forget callers end in `.catch(console.error)`, so a rejected write
+// is invisible in the UI. Since 0023 scoped writes to campaign membership, a
+// non-member's writes are RLS-rejected — surface those through a single
+// module-level handler (App.tsx renders it as a toast) instead of threading a
+// callback through every call site. Two failure shapes:
+//   * INSERTs violate WITH CHECK and error loudly (42501) → raiseWriteError.
+//   * RLS-*filtered* UPDATE/DELETEs match 0 rows with NO error → the
+//     row-targeted paths (updateEntity / deleteEntity) select the touched ids
+//     and raise when nothing came back. Expected 0-row sweeps (DM-only
+//     staging/dm_notes cleanup in deleteEntity) stay silent on purpose.
+
+let writeErrorHandler: ((message: string) => void) | null = null;
+
+export function onWriteError(handler: ((message: string) => void) | null) {
+  writeErrorHandler = handler;
+}
+
+const NOT_SAVED = "That change wasn't saved — you may not be a member of this campaign.";
+
+// Notify the UI, then rethrow so callers' .catch(console.error) still logs.
+function raiseWriteError(error: { code?: string; message?: string }): never {
+  writeErrorHandler?.(error.code === "42501" ? NOT_SAVED : (error.message || NOT_SAVED));
+  throw error;
+}
 
 // UI field → DB column for each kind. Only renamed fields are listed;
 // others pass through unchanged (name, title, text, desc, hooks, status, kind, etc.).
@@ -72,7 +98,7 @@ export async function insertPartyNote(entityId: string, note: PartyNote) {
     text: note.text,
     hand: note.hand,
   });
-  if (error) throw error;
+  if (error) raiseWriteError(error);
 }
 
 // ===== Board positions ======================================================
@@ -95,7 +121,7 @@ export async function upsertBoardPosition(entityId: string, pos: BoardPosition) 
       },
       { onConflict: "campaign_id,entity_id" },
     );
-  if (error) throw error;
+  if (error) raiseWriteError(error);
 }
 
 // Batch upsert used by "Tidy board" — one round-trip instead of N. Same row
@@ -118,7 +144,7 @@ export async function bulkUpsertBoardPositions(
   const { error } = await supabase
     .from("board_positions")
     .upsert(rows, { onConflict: "campaign_id,entity_id" });
-  if (error) throw error;
+  if (error) raiseWriteError(error);
 }
 
 export async function deleteBoardPosition(entityId: string) {
@@ -139,7 +165,7 @@ export async function insertConnection(fromId: string, toId: string, label: stri
     to_id: toId,
     label,
   });
-  if (error) throw error;
+  if (error) raiseWriteError(error);
 }
 
 export async function deleteConnection(fromId: string, toId: string, label: string) {
@@ -150,7 +176,7 @@ export async function deleteConnection(fromId: string, toId: string, label: stri
     .eq("from_id", fromId)
     .eq("to_id", toId)
     .eq("label", label);
-  if (error) throw error;
+  if (error) raiseWriteError(error);
 }
 
 async function deleteConnectionsFor(entityId: string) {
@@ -172,7 +198,7 @@ export async function addEventParticipant(eventId: string, personId: string) {
     event_id: eventId,
     person_id: personId,
   });
-  if (error) throw error;
+  if (error) raiseWriteError(error);
 }
 
 export async function removeEventParticipant(eventId: string, personId: string) {
@@ -182,7 +208,7 @@ export async function removeEventParticipant(eventId: string, personId: string) 
     .eq("campaign_id", getActiveCampaignId())
     .eq("event_id", eventId)
     .eq("person_id", personId);
-  if (error) throw error;
+  if (error) raiseWriteError(error);
 }
 
 // ===== Active session & seen ================================================
@@ -212,6 +238,37 @@ export async function updateCampaign(patch: { title?: string; subtitle?: string;
     .update(row)
     .eq("id", getActiveCampaignId());
   if (error) throw error;
+}
+
+// ===== Campaign CRUD (M6 issue #87) =========================================
+// Awaited like the membership RPCs below, not fire-and-forget: campaigns-list
+// changes have UI consequences the caller must sequence (switching to the new
+// campaign, retiring the archived one from the picker).
+
+// One RPC founds the campaign AND makes the caller its DM (0023) — the two
+// rows commit together, so the creator can never end up DM-less. The picker
+// row is synthesized from the inputs; the campaigns realtime channel isn't
+// wired to list membership (the picker list loads once per session).
+export async function createCampaign(title: string): Promise<CampaignSummary> {
+  const id = crypto.randomUUID();
+  const trimmed = title.trim();
+  const { error } = await supabase.rpc("create_campaign", { cid: id, ctitle: trimmed });
+  if (error) throw error;
+  return { id, title: trimmed, subtitle: null };
+}
+
+// Soft archive through 0020's DM-only UPDATE policy (0023 adds the column).
+// Nulls the live pin in the same statement — no session stays "live" on an
+// archived campaign. .select("id") turns the non-DM 0-row no-op into a loud
+// error; the affordance is isDm-gated, so hitting this means a stale gate.
+export async function archiveCampaign(): Promise<void> {
+  const { data, error } = await supabase
+    .from("campaigns")
+    .update({ archived_at: new Date().toISOString(), active_session_id: null })
+    .eq("id", getActiveCampaignId())
+    .select("id");
+  if (error) throw error;
+  if ((data ?? []).length === 0) throw new Error("Archive failed — only the DM can archive a campaign.");
 }
 
 // User-scoped, not campaign-scoped (no getActiveCampaignId): mirrors the
@@ -245,7 +302,7 @@ export async function markSeen(personId: string) {
     },
     { onConflict: "session_id,person_id", ignoreDuplicates: true },
   );
-  if (error) throw error;
+  if (error) raiseWriteError(error);
 }
 
 export async function unmarkSeen(personId: string) {
@@ -307,7 +364,7 @@ export async function insertSessionEvent(ev: {
     entity_id: ev.entityId ?? null,
     text: ev.text ?? null,
   });
-  if (error) throw error;
+  if (error) raiseWriteError(error);
 }
 
 // ===== Live session: one-click release + start/end markers (PR 3, #67/#68) =
@@ -469,7 +526,7 @@ export async function createEntity(
     if (activeSession) row.session_id = activeSession;
   }
   const { error } = await supabase.from(kind).insert(row);
-  if (error) throw error;
+  if (error) raiseWriteError(error);
 }
 
 export async function updateEntity(
@@ -477,12 +534,18 @@ export async function updateEntity(
   id: string,
   patch: Record<string, unknown>,
 ) {
-  const { error } = await supabase
+  // .select("id"): an RLS-filtered UPDATE matches 0 rows without erroring.
+  // The target row is known to exist in the loaded campaign, so an empty
+  // return means blocked-by-RLS (non-member since 0023) or concurrently
+  // deleted — either way the edit vanished and the user should hear it.
+  const { data, error } = await supabase
     .from(kind)
     .update(toRow(kind, patch))
     .eq("id", id)
-    .eq("campaign_id", getActiveCampaignId());
-  if (error) throw error;
+    .eq("campaign_id", getActiveCampaignId())
+    .select("id");
+  if (error) raiseWriteError(error);
+  if ((data ?? []).length === 0) raiseWriteError({ message: NOT_SAVED });
 }
 
 async function deletePartyNotesFor(entityId: string) {
@@ -607,10 +670,15 @@ export async function deleteEntity(kind: KindKey, id: string) {
     deleteSessionStagingFor(id),
     deleteDmNotesFor(id),
   ]);
-  const { error } = await supabase
+  // Same 0-row doctrine as updateEntity: the sweeps above tolerate empty
+  // matches (some are DM-only by design), but the entity row itself is known
+  // to exist — nothing back means the strike was RLS-filtered away.
+  const { data, error } = await supabase
     .from(kind)
     .delete()
     .eq("id", id)
-    .eq("campaign_id", getActiveCampaignId());
-  if (error) throw error;
+    .eq("campaign_id", getActiveCampaignId())
+    .select("id");
+  if (error) raiseWriteError(error);
+  if ((data ?? []).length === 0) raiseWriteError({ message: NOT_SAVED });
 }

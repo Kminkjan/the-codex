@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "./utils/supabase";
 import { sessionLabel } from "./data";
-import { useCampaign, useIsDm, useKinds, useMembershipRefresh, usePresence } from "./hooks";
+import { useCampaign, useCampaignSwitcher, useIsDm, useKinds, useMembershipRefresh, usePresence } from "./hooks";
 import { useAuth } from "./auth";
 import { EditableText, EnumSelect } from "./components";
 import {
-  updateCampaign, removeMember, setMemberRole,
+  updateCampaign, archiveCampaign, removeMember, setMemberRole,
   listCampaignInvites, createCampaignInvite, revokeCampaignInvite,
   type CampaignInvite,
 } from "./mutations";
@@ -284,6 +284,81 @@ function InviteCard() {
         </div>
       )}
     </div>
+  );
+}
+
+// DM-only danger zone (issue #87): soft-archive the campaign. Archive, not
+// delete — the row and every entity stay in the DB (world-readable, even),
+// the picker just stops listing it; un-archive is dashboard-only for now.
+// Type-the-title confirmation gates the button, and the only campaign can't
+// be archived (the provider would be stranded on "No campaigns found").
+// Mounted only under isDm — archiveCampaign rides 0020's DM-only UPDATE.
+function DangerZoneCard() {
+  const campaign = useCampaign();
+  const { campaigns, retireCampaign } = useCampaignSwitcher();
+  const [confirmText, setConfirmText] = useState("");
+  const [archiving, setArchiving] = useState(false);
+  const onlyCampaign = campaigns.length <= 1;
+  const armed = confirmText.trim() === campaign.title;
+
+  const archive = async () => {
+    if (!armed || onlyCampaign || archiving) return;
+    setArchiving(true);
+    try {
+      await archiveCampaign();
+      // Switches to the first remaining campaign, unmounting this card —
+      // no state updates after this line.
+      retireCampaign(campaign.id);
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : String(e));
+      setArchiving(false);
+    }
+  };
+
+  return (
+    <>
+      <SectionHeading>THE FINAL PAGE</SectionHeading>
+      <div style={{
+        padding: "14px 18px",
+        background: "var(--paper-cream)", border: "1px solid var(--bloodred)",
+        borderRadius: 6,
+      }}>
+        <div style={{
+          fontFamily: "var(--font-fell-sc)", letterSpacing: ".18em", fontSize: 11,
+          color: "var(--bloodred)",
+        }}>
+          SHELVE THIS CAMPAIGN
+        </div>
+        <div style={{ fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 13, color: "var(--ink-secondary)", marginTop: 8 }}>
+          {onlyCampaign
+            ? "The last campaign in the codex cannot be shelved — found another first."
+            : "Shelving removes this campaign from the picker for everyone. Nothing is burned: its pages remain and a keeper of the archive can restore it. To proceed, write the campaign's full title."}
+        </div>
+        {!onlyCampaign && (
+          <div style={{ display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap", alignItems: "center" }}>
+            <input
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              placeholder={campaign.title}
+              aria-label="Type the campaign title to confirm"
+              style={{
+                fontFamily: "var(--font-fell)", fontSize: 14, color: "var(--ink)",
+                background: "var(--vellum)", border: "1px solid var(--vellum-deep)",
+                borderRadius: 4, padding: "6px 10px", minWidth: 220,
+              }}
+            />
+            <button
+              className="cleanup-link-btn"
+              disabled={!armed || archiving}
+              onClick={() => void archive()}
+              style={{ color: "var(--bloodred)", opacity: armed ? 1 : 0.5 }}
+            >
+              {archiving ? "shelving…" : "archive this campaign"}
+            </button>
+          </div>
+        )}
+      </div>
+    </>
   );
 }
 
@@ -672,6 +747,8 @@ export function CampaignCharterPage({ onOpenEntity }: { onOpenEntity: (id: strin
             )}
           </>
         )}
+
+        {isDm && <DangerZoneCard />}
       </div>
     </div>
   );

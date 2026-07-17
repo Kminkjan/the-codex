@@ -3,7 +3,8 @@ import { CampaignProvider } from "./campaignContext";
 import { AuthProvider, DisplayNameGate } from "./auth";
 import { useCampaign, useCampaignStatus, useFindEntity, useIsDm, useKinds, useViewAsPlayer } from "./hooks";
 import { entityLabel, isShowEvent, stripShowMark } from "./data";
-import { campaignHash, parseHash, writeCampaignHash } from "./route";
+import { onWriteError } from "./mutations";
+import { campaignHash, consumeCharterRequest, parseHash, writeCampaignHash } from "./route";
 import { Icon } from "./icons";
 import { Sidebar, Topbar } from "./components";
 import { NoticeBoard, KindList } from "./board";
@@ -64,7 +65,10 @@ function AppLoaded() {
   const [theme, setTheme] = useState<string>(window.__TWEAKS__.theme || "cartographer");
   const [showPresence, setShowPresence] = useState<boolean>(window.__TWEAKS__.showPresence);
   const [density, setDensity] = useState<string>(window.__TWEAKS__.density || "cozy");
-  const [view, setView] = useState("board");
+  // Founding a campaign (#87) lands on its charter: the picker raised the
+  // one-shot flag, the switch remounted this component, the initializer
+  // consumes it. Every other mount starts on the board as before.
+  const [view, setView] = useState(() => (consumeCharterRequest() ? "campaign" : "board"));
   // Entity deep link: #/c/:campaignId/e/:entityId opens the detail sheet on
   // load; an id that doesn't resolve in this campaign is silently dropped.
   const [openId, setOpenId] = useState<string | null>(() => {
@@ -73,6 +77,11 @@ function AppLoaded() {
   });
   const [tweaksOpen, setTweaksOpen] = useState(false);
   const [shareToast, setShareToast] = useState(false);
+  // Rejected-write toast (#87): mutations are fire-and-forget, so an RLS
+  // rejection (non-member since 0023) would otherwise die in the console.
+  // seq keys the auto-dismiss timer so a repeat of the same message restarts it.
+  const [writeErrorToast, setWriteErrorToast] = useState<{ message: string; seq: number } | null>(null);
+  const writeErrorSeq = useRef(0);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [cleanupOpen, setCleanupOpen] = useState(false);
   // Ephemeral "jump to this card on the board" intent, raised by the command
@@ -173,6 +182,16 @@ function AppLoaded() {
     const t = window.setTimeout(() => setRevealToast(null), 6000);
     return () => window.clearTimeout(t);
   }, [revealToast?.eventId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    onWriteError((message) => setWriteErrorToast({ message, seq: ++writeErrorSeq.current }));
+    return () => onWriteError(null);
+  }, []);
+  useEffect(() => {
+    if (!writeErrorToast) return;
+    const t = window.setTimeout(() => setWriteErrorToast(null), 5000);
+    return () => window.clearTimeout(t);
+  }, [writeErrorToast?.seq]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const togglePalette = useCallback(() => setPaletteOpen((o) => !o), []);
   useCommandPaletteHotkey(togglePalette);
@@ -295,6 +314,22 @@ function AppLoaded() {
           zIndex: 70, borderRadius: 2,
         }}>
           <Icon name="check" size={14} /> Share link copied — anyone with the link may read.
+        </div>
+      )}
+
+      {/* Rejected write (#87) — same dress as the share toast but bloodred:
+          this one reports a failure. Single slot, newest message wins. */}
+      {writeErrorToast && (
+        <div style={{
+          position: "fixed", bottom: 26, left: "50%", transform: "translateX(-50%)",
+          background: "var(--bloodred)", color: "var(--vellum-light)",
+          padding: "10px 18px 10px 14px",
+          fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 14,
+          boxShadow: "0 6px 20px rgba(40,20,5,.45)",
+          display: "flex", alignItems: "center", gap: 10,
+          zIndex: 70, borderRadius: 2,
+        }}>
+          <span aria-hidden>✕</span> {writeErrorToast.message}
         </div>
       )}
 
