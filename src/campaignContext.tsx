@@ -43,6 +43,11 @@ interface CampaignContextValue {
   // "View as player" (#71): pure client state, reset on campaign switch.
   viewAsPlayer: boolean;
   setViewAsPlayer: (on: boolean) => void;
+  // Manual counterpart of realtime for the one deliberately-unpublished
+  // table (issue #86): membership RPC callers bump this after a mutation and
+  // every membership consumer (isDmMember here, the charter roster) refetches.
+  membershipVersion: number;
+  refreshMembership: () => void;
   // Who's at the table right now (issue #74) — channel presence on the
   // campaign realtime channel, one entry per signed-in named editor.
   // Occupancy only: the "session is live" fact stays active_session_id.
@@ -60,6 +65,8 @@ export const CampaignContext = createContext<CampaignContextValue>({
   isRealDm: false,
   viewAsPlayer: false,
   setViewAsPlayer: () => {},
+  membershipVersion: 0,
+  refreshMembership: () => {},
   presenceUsers: [],
 });
 
@@ -388,6 +395,8 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
   const [campaignId, setCampaignId] = useState<string | null>(null);
   const [viewAsPlayer, setViewAsPlayer] = useState(false);
   const [isDmMember, setIsDmMember] = useState(false);
+  const [membershipVersion, setMembershipVersion] = useState(0);
+  const refreshMembership = useCallback(() => setMembershipVersion((v) => v + 1), []);
   const [presenceUsers, setPresenceUsers] = useState<PresenceUser[]>([]);
 
   // Channel presence (issue #74). The channel lives inside the campaign
@@ -421,9 +430,10 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
   }, [user?.id, displayName, canEdit, syncPresence]);
 
   // DM membership lookup (issue #73): one campaign_members row decides
-  // isRealDm. Not realtime-synced — roles are dashboard-managed, a mid-
-  // session change takes a reload. Until it resolves the DM briefly renders
-  // the player projection (no flash of hidden content the other way around).
+  // isRealDm. Not realtime-synced — campaign_members is deliberately
+  // unpublished, so membership RPCs (issue #86) bump membershipVersion to
+  // re-run this. Until it resolves the DM briefly renders the player
+  // projection (no flash of hidden content the other way around).
   useEffect(() => {
     setIsDmMember(false);
     if (!campaignId || !user || user.is_anonymous) return;
@@ -438,7 +448,7 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
         if (!cancelled) setIsDmMember((data ?? []).length > 0);
       });
     return () => { cancelled = true; };
-  }, [campaignId, user?.id, user?.is_anonymous]);
+  }, [campaignId, user?.id, user?.is_anonymous, membershipVersion]);
 
   // Load the picker list once, then resolve the active id:
   // hash → host-page tweak → first campaign by creation date.
@@ -811,7 +821,7 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
   );
 
   return (
-    <CampaignContext.Provider value={{ campaign: visibleCampaign, loading, error, campaigns, activeCampaignId: campaignId, switchCampaign, isDm, isRealDm, viewAsPlayer, setViewAsPlayer, presenceUsers }}>
+    <CampaignContext.Provider value={{ campaign: visibleCampaign, loading, error, campaigns, activeCampaignId: campaignId, switchCampaign, isDm, isRealDm, viewAsPlayer, setViewAsPlayer, membershipVersion, refreshMembership, presenceUsers }}>
       {children}
     </CampaignContext.Provider>
   );

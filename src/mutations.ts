@@ -502,6 +502,95 @@ export async function bulkArchive(entries: Array<{ kind: KindKey; id: string }>)
   );
 }
 
+// ===== Membership: invites + roster (M6 issue #86) ==========================
+// All writes go through SECURITY DEFINER RPCs (0022): campaign_members and
+// campaign_invites have no client write policies. These depart from the
+// fire-and-forget doctrine above on purpose — membership has no realtime
+// echo (deliberately unpublished since 0018) and the errors are user-facing
+// ("cannot demote the last DM"), so callers must await, surface failures,
+// and refetch the roster + context membership themselves.
+
+export interface CampaignInvite {
+  code: string;
+  role: "player" | "dm";
+  createdAt: string;
+  revokedAt: string | null;
+}
+
+function mapInvite(row: any): CampaignInvite {
+  return {
+    code: row.code,
+    role: row.role,
+    createdAt: row.created_at,
+    revokedAt: row.revoked_at ?? null,
+  };
+}
+
+// Direct select, not an RPC: 0022's DM-only SELECT policy is the auth.
+// Active (unrevoked) invites only — revoked codes are dead, not archived UI.
+export async function listCampaignInvites(): Promise<CampaignInvite[]> {
+  const { data, error } = await supabase
+    .from("campaign_invites")
+    .select("code,role,created_at,revoked_at")
+    .eq("campaign_id", getActiveCampaignId())
+    .is("revoked_at", null)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(mapInvite);
+}
+
+export async function createCampaignInvite(): Promise<CampaignInvite> {
+  const { data, error } = await supabase.rpc("create_campaign_invite", {
+    cid: getActiveCampaignId(),
+  });
+  if (error) throw error;
+  return mapInvite(data);
+}
+
+export async function revokeCampaignInvite(code: string): Promise<void> {
+  const { error } = await supabase.rpc("revoke_campaign_invite", {
+    invite_code: code,
+  });
+  if (error) throw error;
+}
+
+// NOT campaign-scoped: the code carries the campaign, and redemption is how
+// the client learns which campaign to switch to after an OAuth round-trip
+// lands it back on the bare origin.
+export async function redeemCampaignInvite(code: string): Promise<{
+  campaignId: string;
+  role: "player" | "dm";
+  alreadyMember: boolean;
+}> {
+  const { data, error } = await supabase.rpc("redeem_campaign_invite", {
+    invite_code: code,
+  });
+  if (error) throw error;
+  return {
+    campaignId: data.campaign_id,
+    role: data.role,
+    alreadyMember: data.already_member,
+  };
+}
+
+export async function setMemberRole(userId: string, role: "dm" | "player"): Promise<void> {
+  const { error } = await supabase.rpc("set_member_role", {
+    cid: getActiveCampaignId(),
+    uid: userId,
+    new_role: role,
+  });
+  if (error) throw error;
+}
+
+// DM removes anyone; any member removes themselves ("leave campaign").
+export async function removeMember(userId: string): Promise<void> {
+  const { error } = await supabase.rpc("remove_member", {
+    cid: getActiveCampaignId(),
+    uid: userId,
+  });
+  if (error) throw error;
+}
+
 export async function deleteEntity(kind: KindKey, id: string) {
   // Sweeps are independent and must all finish before the entity row itself
   // is deleted, so realtime consumers see the cleanup before the parent vanishes.

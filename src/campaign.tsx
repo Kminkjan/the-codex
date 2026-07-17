@@ -1,9 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "./utils/supabase";
 import { sessionLabel } from "./data";
-import { useCampaign, useIsDm, useKinds, usePresence } from "./hooks";
-import { EditableText } from "./components";
-import { updateCampaign } from "./mutations";
+import { useCampaign, useIsDm, useKinds, useMembershipRefresh, usePresence } from "./hooks";
+import { useAuth } from "./auth";
+import { EditableText, EnumSelect } from "./components";
+import {
+  updateCampaign, removeMember, setMemberRole,
+  listCampaignInvites, createCampaignInvite, revokeCampaignInvite,
+  type CampaignInvite,
+} from "./mutations";
+import { inviteUrl } from "./route";
 import { uploadEntityImage } from "./upload";
 import { excerpt } from "./arcs";
 
@@ -36,7 +42,8 @@ function sealInitials(title: string): string {
 // Procedural wax-seal crest — the default when no image is uploaded. Wax
 // colors are hardcoded like the .wax-seal class (it's wax, not text on card
 // stock); the ornament ring's dash pattern and rotation vary by title hash.
-function CrestSeal({ title, size }: { title: string; size: number }) {
+// Exported for the sealed letter of summons (join.tsx, issue #86).
+export function CrestSeal({ title, size }: { title: string; size: number }) {
   const h = hashString(title);
   const dash = 3 + (h % 4);
   const gap = 2 + ((h >> 3) % 4);
@@ -171,6 +178,115 @@ function SectionHeading({ children }: { children: string }) {
   );
 }
 
+// DM-only invite ledger (issue #86): forge a link, copy it, revoke it.
+// Mounted only under isDm, so the campaign_invites SELECT (DM-only RLS)
+// never fires for anyone it would return [] for. Local list state instead
+// of realtime: invites are deliberately unpublished, and every mutation
+// returns enough to patch the list in place.
+function InviteCard() {
+  const campaign = useCampaign();
+  const [invites, setInvites] = useState<CampaignInvite[] | null>(null);
+  const [forging, setForging] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    listCampaignInvites()
+      .then((list) => { if (!cancelled) setInvites(list); })
+      .catch((e) => { console.error(e); if (!cancelled) setInvites([]); });
+    return () => { cancelled = true; };
+  }, [campaign.id]);
+
+  const forge = async () => {
+    setForging(true);
+    try {
+      const invite = await createCampaignInvite();
+      setInvites((prev) => [invite, ...(prev ?? [])]);
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : String(e));
+    } finally {
+      setForging(false);
+    }
+  };
+
+  const copy = async (code: string) => {
+    const url = inviteUrl(campaign.id, code);
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(code);
+      setTimeout(() => setCopied((c) => (c === code ? null : c)), 2000);
+    } catch {
+      // Clipboard needs a secure context — fall back to showing the link.
+      window.prompt("Copy the invite link:", url);
+    }
+  };
+
+  const revoke = async (code: string) => {
+    if (!window.confirm("Revoke this invitation? Its link will stop working.")) return;
+    try {
+      await revokeCampaignInvite(code);
+      setInvites((prev) => (prev ?? []).filter((i) => i.code !== code));
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  return (
+    <div style={{
+      marginTop: 18, padding: "14px 18px",
+      background: "var(--paper-cream)", border: "1px solid var(--vellum-deep)",
+      borderRadius: 6,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+        <span style={{
+          fontFamily: "var(--font-fell-sc)", letterSpacing: ".18em", fontSize: 11,
+          color: "var(--ink-secondary)",
+        }}>
+          LETTERS OF INVITATION
+        </span>
+        <button className="cleanup-link-btn" onClick={() => void forge()} disabled={forging}>
+          {forging ? "forging…" : "forge an invite link"}
+        </button>
+      </div>
+      {invites === null ? (
+        <div style={{ fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 13, color: "var(--ink-secondary)", marginTop: 10 }}>
+          Unfurling the ledger…
+        </div>
+      ) : invites.length === 0 ? (
+        <div style={{ fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 13, color: "var(--ink-secondary)", marginTop: 10 }}>
+          No invitations are outstanding. Forge a link and share it with your players.
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 10 }}>
+          {invites.map((inv) => (
+            <div key={inv.code} style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
+              <span style={{ fontFamily: "var(--font-fell)", fontSize: 13, color: "var(--ink-secondary)", whiteSpace: "nowrap" }}>
+                {new Date(inv.createdAt).toLocaleDateString()}
+              </span>
+              <span
+                title={inviteUrl(campaign.id, inv.code)}
+                style={{
+                  fontFamily: "var(--font-fell)", fontSize: 13, color: "var(--ink)",
+                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                  maxWidth: 260, flexShrink: 1,
+                }}
+              >
+                …?join={inv.code.slice(0, 8)}…
+              </span>
+              <button className="cleanup-link-btn" onClick={() => void copy(inv.code)}>
+                {copied === inv.code ? "copied ✓" : "copy link"}
+              </button>
+              <button className="cleanup-link-btn" onClick={() => void revoke(inv.code)}>
+                revoke
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface RosterEntry {
   userId: string;
   role: "dm" | "player";
@@ -182,46 +298,67 @@ export function CampaignCharterPage({ onOpenEntity }: { onOpenEntity: (id: strin
   const campaign = useCampaign();
   const isDm = useIsDm();
   const kinds = useKinds();
+  const { user, canEdit } = useAuth();
+  const { membershipVersion, refreshMembership } = useMembershipRefresh();
   const [roster, setRoster] = useState<RosterEntry[] | null>(null);
   const [ledgerExpanded, setLedgerExpanded] = useState(false);
+  // Sequence counter instead of an effect-scoped cancelled flag: loadRoster
+  // is also called outside the effect (after membership RPCs), and only the
+  // newest in-flight fetch may write state.
+  const rosterSeq = useRef(0);
 
   // Party roster: campaign_members joined with profiles in JS (no FK
-  // between them, so no PostgREST embed). Members are dashboard-managed and
-  // not realtime-published; profiles staleness is accepted for v1 — the
-  // fetch reruns per charter mount / campaign switch.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const { data: members, error } = await supabase
-        .from("campaign_members")
-        .select("user_id,role")
-        .eq("campaign_id", campaign.id);
-      if (cancelled) return;
-      if (error) { console.error(error); setRoster([]); return; }
-      const ids = (members ?? []).map((m: any) => m.user_id as string);
-      const profiles = new Map<string, { display_name: string | null; avatar_url: string | null }>();
-      if (ids.length > 0) {
-        const { data: profs, error: pErr } = await supabase
-          .from("profiles")
-          .select("user_id,display_name,avatar_url")
-          .in("user_id", ids);
-        if (cancelled) return;
-        if (pErr) console.error(pErr);
-        (profs ?? []).forEach((p: any) => profiles.set(p.user_id, p));
-      }
-      const entries: RosterEntry[] = (members ?? []).map((m: any) => ({
-        userId: m.user_id,
-        role: m.role,
-        name: profiles.get(m.user_id)?.display_name ?? null,
-        avatarUrl: profiles.get(m.user_id)?.avatar_url ?? null,
-      }));
-      // DM first, then named members alphabetically, unnamed last.
-      entries.sort((a, b) =>
-        a.role !== b.role ? (a.role === "dm" ? -1 : 1) : (a.name ?? "￿").localeCompare(b.name ?? "￿"));
-      setRoster(entries);
-    })();
-    return () => { cancelled = true; };
+  // between them, so no PostgREST embed). Not realtime-published — reruns
+  // per charter mount / campaign switch, and on membershipVersion bumps
+  // after membership RPCs (issue #86). Profiles staleness is accepted.
+  const loadRoster = useCallback(async () => {
+    const seq = ++rosterSeq.current;
+    const { data: members, error } = await supabase
+      .from("campaign_members")
+      .select("user_id,role")
+      .eq("campaign_id", campaign.id);
+    if (seq !== rosterSeq.current) return;
+    if (error) { console.error(error); setRoster([]); return; }
+    const ids = (members ?? []).map((m: any) => m.user_id as string);
+    const profiles = new Map<string, { display_name: string | null; avatar_url: string | null }>();
+    if (ids.length > 0) {
+      const { data: profs, error: pErr } = await supabase
+        .from("profiles")
+        .select("user_id,display_name,avatar_url")
+        .in("user_id", ids);
+      if (seq !== rosterSeq.current) return;
+      if (pErr) console.error(pErr);
+      (profs ?? []).forEach((p: any) => profiles.set(p.user_id, p));
+    }
+    const entries: RosterEntry[] = (members ?? []).map((m: any) => ({
+      userId: m.user_id,
+      role: m.role,
+      name: profiles.get(m.user_id)?.display_name ?? null,
+      avatarUrl: profiles.get(m.user_id)?.avatar_url ?? null,
+    }));
+    // DM first, then named members alphabetically, unnamed last.
+    entries.sort((a, b) =>
+      a.role !== b.role ? (a.role === "dm" ? -1 : 1) : (a.name ?? "￿").localeCompare(b.name ?? "￿"));
+    setRoster(entries);
   }, [campaign.id]);
+
+  useEffect(() => {
+    loadRoster();
+  }, [loadRoster, membershipVersion]);
+
+  // One funnel for every membership mutation: await the RPC, surface its
+  // error (last-DM guard messages are user-facing), then bump
+  // membershipVersion — the effect above refetches the roster and the
+  // context refetches isDmMember, so a self-demote drops the DM affordances
+  // without a reload.
+  const mutateMembership = async (fn: () => Promise<void>) => {
+    try {
+      await fn();
+      refreshMembership();
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : String(e));
+    }
+  };
 
   const liveSession = campaign.sessions.find((s) => s.id === campaign.activeSessionId);
   const epigraph = chronicleEpigraph(campaign.sessions);
@@ -328,7 +465,9 @@ export function CampaignCharterPage({ onOpenEntity }: { onOpenEntity: (id: strin
           })}
         </div>
 
-        {/* The Party — read-only in this phase; management is issue #86. */}
+        {/* The Party — self-service management (issue #86). The isDm wrapper
+            around the controls is load-bearing like the identity plate's:
+            it hides guaranteed-to-fail RPC calls and folds view-as-player in. */}
         <SectionHeading>THE PARTY</SectionHeading>
         {roster === null ? (
           <div style={{ fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 14, color: "var(--ink-secondary)" }}>
@@ -340,54 +479,102 @@ export function CampaignCharterPage({ onOpenEntity }: { onOpenEntity: (id: strin
           </div>
         ) : (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 14 }}>
-            {roster.map((m) => (
-              <div
-                key={m.userId}
-                style={{
-                  position: "relative",
-                  display: "flex", alignItems: "center", gap: 10,
-                  padding: "8px 14px",
-                  background: "var(--paper-cream)",
-                  border: "1px solid var(--vellum-deep)",
-                  borderRadius: 22,
-                  boxShadow: "0 1px 2px rgba(40,20,5,.12)",
-                }}
-              >
-                {m.avatarUrl ? (
-                  <img
-                    src={m.avatarUrl}
-                    alt=""
-                    style={{ width: 28, height: 28, borderRadius: "50%", objectFit: "cover", border: "1px solid var(--vellum-deep)" }}
-                  />
-                ) : (
-                  <span style={{
-                    width: 28, height: 28, borderRadius: "50%", background: "var(--vellum-deep)",
-                    display: "grid", placeItems: "center",
-                    fontFamily: "var(--font-fell-sc)", fontSize: 12, color: "var(--ink-secondary)",
-                  }}>
-                    {(m.name?.[0] ?? "?").toUpperCase()}
-                  </span>
-                )}
-                {m.name ? (
-                  <span style={{ fontFamily: "var(--font-fell)", fontSize: 14, color: "var(--ink)" }}>{m.name}</span>
-                ) : (
-                  <span style={{ fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 14, color: "var(--ink-faded)" }}>
-                    an unnamed adventurer
-                  </span>
-                )}
-                {m.role === "dm" && (
-                  <span
-                    className="wax-seal"
-                    title="Dungeon Master"
-                    style={{ top: -9, right: -9, width: 26, height: 26, fontSize: 9 }}
+            {(() => {
+              const dmCount = roster.filter((r) => r.role === "dm").length;
+              return roster.map((m) => {
+                // The server's last-DM guard is authoritative; this only
+                // prevents a guaranteed-to-fail click.
+                const lastDm = m.role === "dm" && dmCount === 1;
+                const label = m.name ?? "this adventurer";
+                return (
+                  <div
+                    key={m.userId}
+                    style={{
+                      position: "relative",
+                      display: "flex", alignItems: "center", gap: 10,
+                      padding: "8px 14px",
+                      background: "var(--paper-cream)",
+                      border: "1px solid var(--vellum-deep)",
+                      borderRadius: 22,
+                      boxShadow: "0 1px 2px rgba(40,20,5,.12)",
+                    }}
                   >
-                    DM
-                  </span>
-                )}
-              </div>
-            ))}
+                    {m.avatarUrl ? (
+                      <img
+                        src={m.avatarUrl}
+                        alt=""
+                        style={{ width: 28, height: 28, borderRadius: "50%", objectFit: "cover", border: "1px solid var(--vellum-deep)" }}
+                      />
+                    ) : (
+                      <span style={{
+                        width: 28, height: 28, borderRadius: "50%", background: "var(--vellum-deep)",
+                        display: "grid", placeItems: "center",
+                        fontFamily: "var(--font-fell-sc)", fontSize: 12, color: "var(--ink-secondary)",
+                      }}>
+                        {(m.name?.[0] ?? "?").toUpperCase()}
+                      </span>
+                    )}
+                    {m.name ? (
+                      <span style={{ fontFamily: "var(--font-fell)", fontSize: 14, color: "var(--ink)" }}>{m.name}</span>
+                    ) : (
+                      <span style={{ fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 14, color: "var(--ink-faded)" }}>
+                        an unnamed adventurer
+                      </span>
+                    )}
+                    {isDm && !lastDm && (
+                      <>
+                        <EnumSelect<"dm" | "player">
+                          value={m.role}
+                          options={["dm", "player"] as const}
+                          onSave={(next) => {
+                            if (!next || next === m.role) return;
+                            void mutateMembership(() => setMemberRole(m.userId, next));
+                          }}
+                          style={{ fontSize: 12 }}
+                        />
+                        <button
+                          className="cleanup-link-btn"
+                          title="Strike from the roster"
+                          onClick={() => {
+                            if (!window.confirm(`Strike ${label} from the roster?`)) return;
+                            void mutateMembership(() => removeMember(m.userId));
+                          }}
+                        >
+                          strike
+                        </button>
+                      </>
+                    )}
+                    {/* "Leave" is player-only (a co-DM demotes themselves
+                        first) — that makes leave-as-last-DM unrepresentable
+                        here, and a DM in view-as-player (isDm false, but
+                        their row says dm) never sees a leave affordance. */}
+                    {!isDm && canEdit && user?.id === m.userId && m.role === "player" && (
+                      <button
+                        className="cleanup-link-btn"
+                        onClick={() => {
+                          if (!window.confirm("Leave this campaign? The DM can invite you back later.")) return;
+                          void mutateMembership(() => removeMember(m.userId));
+                        }}
+                      >
+                        leave
+                      </button>
+                    )}
+                    {m.role === "dm" && (
+                      <span
+                        className="wax-seal"
+                        title="Dungeon Master"
+                        style={{ top: -9, right: -9, width: 26, height: 26, fontSize: 9 }}
+                      >
+                        DM
+                      </span>
+                    )}
+                  </div>
+                );
+              });
+            })()}
           </div>
         )}
+        {isDm && <InviteCard />}
         {atTheTable.length > 0 && (
           <div style={{ marginTop: 16 }}>
             <div style={{
