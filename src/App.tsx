@@ -355,12 +355,6 @@ function AppLoaded() {
         </div>
       )}
 
-      {/* Invite redemption + sealed letter of summons (issue #86). Mounted
-          inside AppLoaded so the letter can name the loaded campaign; the
-          DisplayNameGate above means a fresh Discord editor names themselves
-          before redemption puts them on the roster. */}
-      <JoinFlow />
-
       {tweaksOpen && (
         <div className="tweaks-panel">
           <header>
@@ -404,9 +398,18 @@ function AppLoaded() {
 
 function AppGate() {
   const { loading, error } = useCampaignStatus();
-  if (loading) return <LoadingSheet />;
-  if (error) return <ErrorSheet message={error} />;
-  return <AppLoaded />;
+  return (
+    <>
+      {loading ? <LoadingSheet /> : error ? <ErrorSheet message={error} /> : <AppLoaded />}
+      {/* Invite redemption + sealed letter of summons (issue #86). Mounted
+          OUTSIDE the loading gate: a redemption that switches campaigns sets
+          loading=true, and the success toast must survive that unmount (it
+          reads campaign state null-safely). The DisplayNameGate above means
+          a fresh Discord editor names themselves before redemption puts
+          them on the roster. */}
+      {!error && <JoinFlow />}
+    </>
+  );
 }
 
 export default function App() {

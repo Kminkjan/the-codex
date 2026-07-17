@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "./utils/supabase";
 import { sessionLabel } from "./data";
-import { useCampaign, useIsDm, useKinds, useMembershipRefresh } from "./hooks";
+import { useCampaign, useIsDm, useKinds, useMembershipRefresh, usePresence } from "./hooks";
 import { useAuth } from "./auth";
 import { EditableText, EnumSelect } from "./components";
 import {
@@ -366,10 +366,10 @@ export function CampaignCharterPage({ onOpenEntity }: { onOpenEntity: (id: strin
     const dated = campaign.sessions.filter((s) => s.date).sort((a, b) => b.num - a.num);
     return dated[0] ?? null;
   }, [campaign.sessions]);
-  // Presence is "who has the codex open now" — its ids don't join to
-  // campaign_members (text vs auth uuid), so this is deliberately a
-  // separate strip, not a roster decoration.
-  const atTheTable = campaign.presence.filter((p) => p.active);
+  // Presence is "who has the codex open now" — live channel occupancy
+  // (issue #74), everyone shown is online. Deliberately a separate strip,
+  // not a roster decoration, even though tracked ids are auth uuids now.
+  const atTheTable = usePresence();
   const orderedSessions = useMemo(
     () => [...campaign.sessions].sort((a, b) => b.num - a.num),
     [campaign.sessions],

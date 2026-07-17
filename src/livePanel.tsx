@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { entityLabel, isHidden, isShowEvent, stripShowMark, type KindKey, type SessionEvent } from "./data";
 import { Icon, kindIcon } from "./icons";
-import { useCampaign, useFindEntity, useIsDm } from "./hooks";
+import { useCampaign, useFindEntity, useIsDm, usePresence } from "./hooks";
 import { useAuth } from "./auth";
 import { endLiveSession, insertSessionEvent, releaseEntity, showEntity } from "./mutations";
 
@@ -165,6 +165,7 @@ function DmSection({ sessionId, onOpenEntity }: { sessionId: string; onOpenEntit
 
 export function LivePanel({ onOpenEntity }: { onOpenEntity: (id: string) => void }) {
   const campaign = useCampaign();
+  const presenceUsers = usePresence();
   const isDm = useIsDm();
   const { canEdit, displayName } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
@@ -229,6 +230,12 @@ export function LivePanel({ onOpenEntity }: { onOpenEntity: (id: string) => void
       <header className="live-head">
         <span className="pin-dot live" />
         <span style={{ flex: 1 }}>LIVE · SESSION {code}</span>
+        {/* Occupancy garnish (#74): channel presence, named editors only. */}
+        {presenceUsers.length > 0 && (
+          <span className="live-table-count" title={presenceUsers.map((u) => u.name).join(", ")}>
+            {presenceUsers.length} at the table
+          </span>
+        )}
         <button className="live-collapse" onClick={() => setCollapsed(true)} title="Collapse the session panel">
           <Icon name="chevron" size={12} />
         </button>

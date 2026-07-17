@@ -262,7 +262,19 @@ export function JoinFlow() {
                   )}
                   <button
                     className="cleanup-link-btn"
-                    onClick={() => setLetterOpen(false)}
+                    onClick={() => {
+                      // An editor declining is a real decline: drop the code
+                      // entirely, or the silent-redemption effect below would
+                      // join them the moment the letter closes. An anonymous
+                      // dismissal keeps the stash — the magic-link path and a
+                      // later Topbar sign-in still need it.
+                      if (canEdit) {
+                        autoRedeemConsumed = true;
+                        clearPendingJoin();
+                        stripJoinParam();
+                      }
+                      setLetterOpen(false);
+                    }}
                   >
                     not now — just look around
                   </button>

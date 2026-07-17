@@ -38,6 +38,12 @@ export function useMembershipRefresh() {
   return { membershipVersion, refreshMembership };
 }
 
+// Who's at the table right now (issue #74) — live channel presence, one
+// entry per signed-in named editor. Empty for a solo anonymous viewer.
+export function usePresence() {
+  return useContext(CampaignContext).presenceUsers;
+}
+
 export function useCampaignSwitcher() {
   const { campaigns, activeCampaignId, switchCampaign } = useContext(CampaignContext);
   return { campaigns, activeCampaignId, switchCampaign };

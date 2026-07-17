@@ -566,7 +566,6 @@ button.session-pin { line-height: 1; }
   background: #5a8a3a;
   border: 2px solid var(--vellum-light);
 }
-.presence .avatar.inactive::after { background: var(--ink-ghost); }
 
 .btn {
   font-family: var(--font-ui);
@@ -2542,6 +2541,13 @@ button.session-pin { line-height: 1; }
   letter-spacing: .16em;
   font-size: 11px;
   color: var(--ink-secondary);
+}
+/* Channel-presence occupancy count (#74). Inherits the header's small-caps
+   look; ink-secondary is already the 11px contrast floor. */
+.live-table-count {
+  white-space: nowrap;
+  letter-spacing: .08em;
+  cursor: default;
 }
 /* Same pulsing dot as the Topbar SessionPin — the panel echoes the ambient
    LIVE signal, it doesn't invent a new one. */
