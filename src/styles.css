@@ -2691,6 +2691,50 @@ button.session-pin { line-height: 1; }
   color: var(--ink-secondary);
   margin: 4px 0;
 }
+/* Spotlight card: the session's latest ⚡ show, pinned between the header and
+   the feed — portrait plus label, one click back into the codex. */
+.live-spotlight {
+  display: flex; align-items: center; gap: 10px;
+  flex-shrink: 0;
+  margin: 10px 12px 0;
+  padding: 8px;
+  background: color-mix(in srgb, var(--mustard) 20%, var(--vellum-light));
+  border: 1px solid var(--mustard);
+  cursor: pointer;
+}
+.live-spotlight:hover {
+  background: color-mix(in srgb, var(--mustard) 28%, var(--vellum-light));
+}
+.live-spotlight-img,
+.live-spotlight-icon {
+  width: 56px; height: 56px;
+  flex-shrink: 0;
+  border: 1px solid var(--ink);
+}
+.live-spotlight-img {
+  object-fit: cover;
+  filter: sepia(.2) contrast(.95);
+}
+.live-spotlight-icon {
+  display: flex; align-items: center; justify-content: center;
+  background: var(--vellum-dark);
+  color: var(--ink-secondary);
+}
+.live-spotlight-body { flex: 1; min-width: 0; }
+.live-spotlight-kicker {
+  font-family: var(--font-fell-sc);
+  letter-spacing: .18em;
+  font-size: 10px;
+  color: var(--ink-secondary);
+}
+.live-spotlight-label {
+  font-family: var(--font-fell-sc);
+  font-size: 15px;
+  line-height: 1.2;
+  color: var(--ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.live-spotlight .live-meta { margin-top: 3px; }
 
 /* DM's desk: tonight's staged queue + end-session control. */
 .live-dm {
