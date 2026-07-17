@@ -3,7 +3,8 @@ import { CampaignProvider } from "./campaignContext";
 import { AuthProvider, DisplayNameGate } from "./auth";
 import { useCampaign, useCampaignStatus, useFindEntity, useIsDm, useKinds, useViewAsPlayer } from "./hooks";
 import { entityLabel, isShowEvent, stripShowMark } from "./data";
-import { campaignHash, parseHash, writeCampaignHash } from "./route";
+import { onWriteError } from "./mutations";
+import { campaignHash, consumeCharterRequest, parseHash, writeCampaignHash } from "./route";
 import { Icon } from "./icons";
 import { Sidebar, Topbar } from "./components";
 import { NoticeBoard, KindList } from "./board";
@@ -56,6 +57,25 @@ function ErrorSheet({ message }: { message: string }) {
   );
 }
 
+// The one fixed-bottom toast dress (share / rejected-write / reveal share
+// it). z 70: above the detail overlay (50), below the view-as-player banner
+// (72) and ⌘K (80).
+function BottomToast({ background, children }: { background?: string; children: React.ReactNode }) {
+  return (
+    <div style={{
+      position: "fixed", bottom: 26, left: "50%", transform: "translateX(-50%)",
+      background: background ?? "var(--ink)", color: "var(--vellum-light)",
+      padding: "10px 16px",
+      fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 14,
+      boxShadow: "0 6px 20px rgba(40,20,5,.45)",
+      display: "flex", alignItems: "center", gap: 10,
+      zIndex: 70, borderRadius: 2,
+    }}>
+      {children}
+    </div>
+  );
+}
+
 function AppLoaded() {
   const kinds = useKinds();
   const campaign = useCampaign();
@@ -65,6 +85,15 @@ function AppLoaded() {
   const [showPresence, setShowPresence] = useState<boolean>(window.__TWEAKS__.showPresence);
   const [density, setDensity] = useState<string>(window.__TWEAKS__.density || "cozy");
   const [view, setView] = useState("board");
+  // Founding a campaign (#87) lands on its charter: the picker raised the
+  // one-shot flag, the switch remounted this component, and this mount
+  // effect consumes it. An effect, NOT a useState initializer — StrictMode
+  // double-invokes initializers, so the flag would be eaten by the throwaway
+  // first call. The double-run of this effect is safe: the second call finds
+  // the flag already consumed and no-ops, with view already set.
+  useEffect(() => {
+    if (consumeCharterRequest()) setView("campaign");
+  }, []);
   // Entity deep link: #/c/:campaignId/e/:entityId opens the detail sheet on
   // load; an id that doesn't resolve in this campaign is silently dropped.
   const [openId, setOpenId] = useState<string | null>(() => {
@@ -73,6 +102,11 @@ function AppLoaded() {
   });
   const [tweaksOpen, setTweaksOpen] = useState(false);
   const [shareToast, setShareToast] = useState(false);
+  // Rejected-write toast (#87): mutations are fire-and-forget, so an RLS
+  // rejection (non-member since 0023) would otherwise die in the console.
+  // Wrapped in an object so a repeat of the same message is a fresh identity
+  // and restarts the auto-dismiss timer.
+  const [writeErrorToast, setWriteErrorToast] = useState<{ message: string } | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [cleanupOpen, setCleanupOpen] = useState(false);
   // Ephemeral "jump to this card on the board" intent, raised by the command
@@ -173,6 +207,13 @@ function AppLoaded() {
     const t = window.setTimeout(() => setRevealToast(null), 6000);
     return () => window.clearTimeout(t);
   }, [revealToast?.eventId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => onWriteError((message) => setWriteErrorToast({ message })), []);
+  useEffect(() => {
+    if (!writeErrorToast) return;
+    const t = window.setTimeout(() => setWriteErrorToast(null), 5000);
+    return () => window.clearTimeout(t);
+  }, [writeErrorToast]);
 
   const togglePalette = useCallback(() => setPaletteOpen((o) => !o), []);
   useCommandPaletteHotkey(togglePalette);
@@ -285,32 +326,24 @@ function AppLoaded() {
       )}
 
       {shareToast && (
-        <div style={{
-          position: "fixed", bottom: 26, left: "50%", transform: "translateX(-50%)",
-          background: "var(--ink)", color: "var(--vellum-light)",
-          padding: "10px 18px 10px 14px",
-          fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 14,
-          boxShadow: "0 6px 20px rgba(40,20,5,.45)",
-          display: "flex", alignItems: "center", gap: 10,
-          zIndex: 70, borderRadius: 2,
-        }}>
+        <BottomToast>
           <Icon name="check" size={14} /> Share link copied — anyone with the link may read.
-        </div>
+        </BottomToast>
       )}
 
-      {/* The transient half of a reveal (issue #68) — same dress as the share
-          toast. Single slot: a newer reveal replaces this one; the feed row in
-          the live panel is the recovery path, never this toast. */}
+      {/* Rejected write (#87) — bloodred: this one reports a failure.
+          Single slot, newest message wins. */}
+      {writeErrorToast && (
+        <BottomToast background="var(--bloodred)">
+          <span aria-hidden>✕</span> {writeErrorToast.message}
+        </BottomToast>
+      )}
+
+      {/* The transient half of a reveal (issue #68). Single slot: a newer
+          reveal replaces this one; the feed row in the live panel is the
+          recovery path, never this toast. */}
       {revealToast && (
-        <div style={{
-          position: "fixed", bottom: 26, left: "50%", transform: "translateX(-50%)",
-          background: "var(--ink)", color: "var(--vellum-light)",
-          padding: "10px 14px",
-          fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 14,
-          boxShadow: "0 6px 20px rgba(40,20,5,.45)",
-          display: "flex", alignItems: "center", gap: 12,
-          zIndex: 70, borderRadius: 2,
-        }}>
+        <BottomToast>
           <span>🕯 The DM revealed <strong style={{ fontStyle: "normal" }}>{revealToast.label}</strong></span>
           <button
             onClick={() => { setOpenId(revealToast.entityId); setRevealToast(null); }}
@@ -323,7 +356,7 @@ function AppLoaded() {
           >
             VIEW
           </button>
-        </div>
+        </BottomToast>
       )}
 
       {/* Mode visibility for "view as player" (#71): the mode must be

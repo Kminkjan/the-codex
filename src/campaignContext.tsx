@@ -25,6 +25,12 @@ interface CampaignContextValue {
   campaigns: CampaignSummary[];
   activeCampaignId: string | null;
   switchCampaign: (id: string) => void;
+  // Campaign CRUD (issue #87). The picker list loads once and campaigns
+  // aren't list-realtime, so the founding/archiving client patches its own
+  // list and moves the active id directly instead of round-tripping the
+  // hashchange listener (whose closure only knows already-listed ids).
+  adoptCampaign: (summary: CampaignSummary) => void;
+  retireCampaign: (id: string) => void;
   // True when the signed-in editor holds the dm role in campaign_members
   // (issue #73 — supersedes campaigns.dm_user_id). Fetched per campaign; a
   // membership change mid-session needs a reload (campaign_members isn't in
@@ -61,6 +67,8 @@ export const CampaignContext = createContext<CampaignContextValue>({
   campaigns: [],
   activeCampaignId: null,
   switchCampaign: () => {},
+  adoptCampaign: () => {},
+  retireCampaign: () => {},
   isDm: false,
   isRealDm: false,
   viewAsPlayer: false,
@@ -457,6 +465,7 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
     supabase
       .from("campaigns")
       .select("id,title,subtitle")
+      .is("archived_at", null) // archived campaigns stay readable, just unlisted (#87)
       .order("created_at")
       .then(({ data, error }) => {
         if (cancelled) return;
@@ -488,8 +497,11 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
     return () => { cancelled = true; };
   }, []);
 
-  // One code path updates the active id: picker clicks write the hash,
-  // and this listener also covers back/forward and manual URL edits.
+  // Hash is the source of truth for the active id: switchCampaign writes it
+  // and this listener applies it (also covering back/forward and manual URL
+  // edits). adopt/retireCampaign are the two exceptions — they set the id
+  // directly because their target isn't in this listener's `campaigns`
+  // closure yet/anymore (see commitActiveCampaign below).
   useEffect(() => {
     const onHashChange = () => {
       const { campaignId: id } = parseHash();
@@ -505,12 +517,43 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("hashchange", onHashChange);
   }, [campaigns, campaignId]);
 
-  const switchCampaign = useCallback((id: string) => {
-    if (id === campaignId) return;
-    writeCampaignHash(id); // hashchange listener updates campaignId
+  // The single hash-write + host-page persistence tail every navigation verb
+  // shares. `direct` also moves the React id state without waiting for the
+  // hashchange round-trip — needed when the target id isn't (adopt) or is no
+  // longer (retire) in the `campaigns` list the listener's closure knows, so
+  // the listener would reject it and rewrite the hash back. Setting list and
+  // id in the same batch means that by the time the async hashchange fires,
+  // the re-registered listener sees a known, already-active id and no-ops.
+  const commitActiveCampaign = useCallback((id: string, opts?: { direct?: boolean; replace?: boolean }) => {
+    if (opts?.direct) setCampaignId(id);
+    writeCampaignHash(id, undefined, { replace: opts?.replace });
     // Persist through the host page, never localStorage.
     window.parent.postMessage({ type: "__edit_mode_set_keys", edits: { campaignId: id } }, "*");
-  }, [campaignId]);
+  }, []);
+
+  const switchCampaign = useCallback((id: string) => {
+    if (id === campaignId) return;
+    commitActiveCampaign(id); // hashchange listener updates campaignId
+  }, [campaignId, commitActiveCampaign]);
+
+  // Founding (#87): append the fresh campaign to the picker list and move to
+  // it directly (see commitActiveCampaign for why not via the listener).
+  const adoptCampaign = useCallback((summary: CampaignSummary) => {
+    setCampaigns((list) => (list.some((c) => c.id === summary.id) ? list : [...list, summary]));
+    commitActiveCampaign(summary.id, { direct: true });
+  }, [commitActiveCampaign]);
+
+  // Archiving (#87): drop the campaign from the picker; if it was active,
+  // move to the first remaining one (same fallback rank as initial load).
+  // The DangerZone UI blocks archiving the only campaign, so `remaining` is
+  // never empty on that path — if it somehow is, keep state untouched rather
+  // than strand the provider on a dead id.
+  const retireCampaign = useCallback((id: string) => {
+    const remaining = campaigns.filter((c) => c.id !== id);
+    if (remaining.length === 0) return;
+    setCampaigns(remaining);
+    if (id === campaignId) commitActiveCampaign(remaining[0].id, { direct: true, replace: true });
+  }, [campaigns, campaignId, commitActiveCampaign]);
 
   useEffect(() => {
     if (!campaignId) return;
@@ -821,7 +864,7 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
   );
 
   return (
-    <CampaignContext.Provider value={{ campaign: visibleCampaign, loading, error, campaigns, activeCampaignId: campaignId, switchCampaign, isDm, isRealDm, viewAsPlayer, setViewAsPlayer, membershipVersion, refreshMembership, presenceUsers }}>
+    <CampaignContext.Provider value={{ campaign: visibleCampaign, loading, error, campaigns, activeCampaignId: campaignId, switchCampaign, adoptCampaign, retireCampaign, isDm, isRealDm, viewAsPlayer, setViewAsPlayer, membershipVersion, refreshMembership, presenceUsers }}>
       {children}
     </CampaignContext.Provider>
   );

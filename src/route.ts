@@ -37,6 +37,22 @@ export function inviteUrl(campaignId: string, code: string): string {
   );
 }
 
+// One-shot charter-landing intent (issue #87): founding a campaign should
+// land on the new campaign's charter, but the view state lives in AppLoaded,
+// which unmounts during the campaign switch — so the picker raises this flag
+// and the remounting AppLoaded consumes it in its view initializer.
+let charterRequested = false;
+
+export function requestCharterOnNextLoad() {
+  charterRequested = true;
+}
+
+export function consumeCharterRequest(): boolean {
+  const requested = charterRequested;
+  charterRequested = false;
+  return requested;
+}
+
 export function writeCampaignHash(campaignId: string, entityId?: string | null, opts?: { replace?: boolean }) {
   const hash = campaignHash(campaignId, entityId);
   if (window.location.hash === hash) return;

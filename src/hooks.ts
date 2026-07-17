@@ -45,8 +45,8 @@ export function usePresence() {
 }
 
 export function useCampaignSwitcher() {
-  const { campaigns, activeCampaignId, switchCampaign } = useContext(CampaignContext);
-  return { campaigns, activeCampaignId, switchCampaign };
+  const { campaigns, activeCampaignId, switchCampaign, adoptCampaign, retireCampaign } = useContext(CampaignContext);
+  return { campaigns, activeCampaignId, switchCampaign, adoptCampaign, retireCampaign };
 }
 
 export function useKinds() {

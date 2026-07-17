@@ -5,8 +5,9 @@ import remarkGfm from "remark-gfm";
 import { sessionLabel, type KindKey, type PresenceUser } from "./data";
 import { Icon, MapScribble, kindIcon } from "./icons";
 import { rankIndex, KIND_LABEL, type Indexed } from "./entitySearch";
-import { useCampaign, useCampaignSwitcher, useKinds, usePresence, useViewAsPlayer } from "./hooks";
-import { createEntity, endLiveSession, setActiveSession, startLiveSession, switchLiveSession } from "./mutations";
+import { useCampaign, useCampaignSwitcher, useDismiss, useKinds, usePresence, useViewAsPlayer } from "./hooks";
+import { createCampaign, createEntity, endLiveSession, setActiveSession, startLiveSession, switchLiveSession } from "./mutations";
+import { requestCharterOnNextLoad } from "./route";
 import { SignInDialog, useAuth } from "./auth";
 
 interface Position {
@@ -522,27 +523,45 @@ export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, counts 
 // switching campaigns is navigation, not an edit.
 function CampaignPicker({ onOpenCharter }: { onOpenCharter: () => void }) {
   const campaign = useCampaign();
-  const { campaigns, activeCampaignId, switchCampaign } = useCampaignSwitcher();
+  const { campaigns, activeCampaignId, switchCampaign, adoptCampaign } = useCampaignSwitcher();
+  const { canEdit } = useAuth();
   const [open, setOpen] = useState(false);
+  // "Found a new campaign" (issue #87): the menu item swaps for an inline
+  // title input. One RPC creates the campaign with the caller as DM, then
+  // adoptCampaign switches to it (the charter-landing flag makes the
+  // remounting AppLoaded open on the charter). null = item mode; a string
+  // (even "") = input mode with that draft — one state, no lockstep pair.
+  const [foundTitle, setFoundTitle] = useState<string | null>(null);
+  const [foundBusy, setFoundBusy] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const founding = foundTitle !== null;
 
+  // Closing the menu always disarms the input — reopening starts fresh.
   useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
+    if (!open) setFoundTitle(null);
   }, [open]);
 
-  const canSwitch = campaigns.length > 1;
+  const found = async () => {
+    const title = foundTitle?.trim();
+    if (!title || foundBusy) return;
+    setFoundBusy(true);
+    try {
+      const summary = await createCampaign(title);
+      requestCharterOnNextLoad();
+      adoptCampaign(summary); // unmounts AppLoaded (loading flips) — nothing to reset
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : String(e));
+      setFoundBusy(false);
+    }
+  };
+
+  const close = useCallback(() => setOpen(false), []);
+  useDismiss(rootRef, open, close);
+
+  // Editors always get the menu (it holds "found a new campaign" even when
+  // only one campaign exists); pure viewers of a single campaign keep the
+  // chip's charter shortcut.
+  const canSwitch = campaigns.length > 1 || canEdit;
 
   return (
     <div className="campaign-picker" ref={rootRef}>
@@ -594,6 +613,43 @@ function CampaignPicker({ onOpenCharter }: { onOpenCharter: () => void }) {
               VIEW CHARTER
             </span>
           </button>
+          {canEdit && !founding && (
+            <button
+              className="campaign-picker-item"
+              onClick={() => setFoundTitle("")}
+            >
+              <span className="dot" style={{ visibility: "hidden" }} />
+              <span style={{ fontFamily: "var(--font-fell-sc)", letterSpacing: ".14em", fontSize: 11, color: "var(--ink-secondary)" }}>
+                ✦ FOUND A NEW CAMPAIGN
+              </span>
+            </button>
+          )}
+          {canEdit && founding && (
+            <div className="campaign-picker-item" style={{ cursor: "default" }}>
+              <span className="dot" style={{ visibility: "hidden" }} />
+              <input
+                autoFocus
+                className="parchment-input"
+                value={foundTitle ?? ""}
+                disabled={foundBusy}
+                onChange={(e) => setFoundTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void found();
+                  } else if (e.key === "Escape") {
+                    // Swallow it so the menu's document-level Escape handler
+                    // doesn't also fire: first Esc disarms, second closes.
+                    e.stopPropagation();
+                    setFoundTitle(null);
+                  }
+                }}
+                placeholder={foundBusy ? "Founding…" : "Name the campaign, then ⏎"}
+                aria-label="New campaign title"
+                style={{ fontSize: 13, borderRadius: 3, padding: "4px 8px", width: "100%", minWidth: 0 }}
+              />
+            </div>
+          )}
         </div>
       )}
     </div>
