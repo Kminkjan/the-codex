@@ -202,7 +202,7 @@ export function LivePanel({ onOpenEntity }: { onOpenEntity: (id: string) => void
       <aside className="live-panel is-collapsed">
         <button className="live-expand" onClick={() => setCollapsed(false)} title="Open the session panel">
           <span className="pin-dot live" />
-          <span className="live-vertical">✦ LIVE · SESSION {code} ✦</span>
+          <span className="live-vertical"><Fleurons>LIVE · SESSION {code}</Fleurons></span>
         </button>
       </aside>
     );

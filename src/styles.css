@@ -2872,7 +2872,10 @@ button.session-pin { line-height: 1; }
 [data-theme="modern"] .fleuron { display: none; }
 
 /* Small-caps came free from IM Fell SC; with Inter in --font-fell-sc the
-   label classes need an explicit uppercase. (User inputs are exempt.) */
+   label classes need an explicit uppercase. Free-form inputs are exempt,
+   except the short category kind-tags (.loc-type/.goal-kind/.i-label):
+   those are user-typed but render as category labels, and the other themes
+   already small-cap them via IM Fell SC — uppercase is the same treatment. */
 [data-theme="modern"] :is(.sidebar-label, .logo-title, .sb-kind, .stat-label,
   .detail-notes h3, .rail-section h4, .cmdk-kind, .live-head, .live-vertical,
   .live-dm-head, .cleanup-group-title, .quest-tag, .loc-type, .goal-kind,
@@ -3248,7 +3251,7 @@ button.session-pin { line-height: 1; }
   font-style: normal;
   font-size: 12px;
   line-height: 1.45;
-  color: var(--ink-faded);
+  color: var(--ink-secondary);
   margin-top: 3px;
 }
 [data-theme="modern"] .card-poster .reward {
@@ -3256,21 +3259,21 @@ button.session-pin { line-height: 1; }
   padding-top: 0;
   margin-top: 9px;
   font-size: 10.5px;
-  color: var(--ink-ghost);
+  color: var(--ink-secondary);
 }
 [data-theme="modern"] .card-poster .reward strong { letter-spacing: .04em; font-weight: 600; }
 
 [data-theme="modern"] .card-quest { padding: 12px 13px; }
 [data-theme="modern"] .card-quest .quest-title { font-size: 19px; }
-[data-theme="modern"] .card-quest .quest-desc { font-size: 12px; line-height: 1.45; color: var(--ink-faded); }
-[data-theme="modern"] .card-quest .quest-meta { color: var(--ink-ghost); }
+[data-theme="modern"] .card-quest .quest-desc { font-size: 12px; line-height: 1.45; color: var(--ink-secondary); }
+[data-theme="modern"] .card-quest .quest-meta { color: var(--ink-secondary); }
 
 [data-theme="modern"] .card-location .map-region { display: none; }
 [data-theme="modern"] .card-location .loc-body { padding: 12px 13px; }
-[data-theme="modern"] .card-location .loc-desc { font-size: 12px; line-height: 1.45; color: var(--ink-faded); }
+[data-theme="modern"] .card-location .loc-desc { font-size: 12px; line-height: 1.45; color: var(--ink-secondary); }
 
 [data-theme="modern"] .card-goal .goal-text { font-size: 15px; font-weight: 500; line-height: 1.35; }
-[data-theme="modern"] .card-goal .goal-owner { font-style: normal; font-size: 11px; color: var(--ink-ghost); }
+[data-theme="modern"] .card-goal .goal-owner { font-style: normal; font-size: 11px; color: var(--ink-secondary); }
 
 [data-theme="modern"] .card-faction .sigil {
   border: 1px solid var(--card-edge);
@@ -3283,11 +3286,11 @@ button.session-pin { line-height: 1; }
   font-size: 17px;
   letter-spacing: 0;
 }
-[data-theme="modern"] .card-faction .f-sub { font-size: 12px; color: var(--ink-faded); }
+[data-theme="modern"] .card-faction .f-sub { font-size: 12px; color: var(--ink-secondary); }
 
 [data-theme="modern"] .card-item .i-name { font-size: 17px; }
 [data-theme="modern"] .card-item .i-desc,
-[data-theme="modern"] .card-lore .l-text { font-size: 12px; line-height: 1.45; color: var(--ink-faded); }
+[data-theme="modern"] .card-lore .l-text { font-size: 12px; line-height: 1.45; color: var(--ink-secondary); }
 [data-theme="modern"] .card-lore .l-title {
   font-family: var(--font-display);
   font-weight: 600;
@@ -3350,7 +3353,7 @@ button.session-pin { line-height: 1; }
   color: var(--ink-secondary);
 }
 [data-theme="modern"] .sb-meta .sb-title { font-size: 38px; }
-[data-theme="modern"] .sb-meta .sb-epithet { font-size: 13.5px; color: var(--ink-faded); }
+[data-theme="modern"] .sb-meta .sb-epithet { font-size: 13.5px; color: var(--ink-secondary); }
 [data-theme="modern"] .stat {
   background: transparent;
   border: none;
@@ -3364,7 +3367,7 @@ button.session-pin { line-height: 1; }
   font-size: 13px;
   margin-top: 2px;
 }
-[data-theme="modern"] .stat .stat-sub { font-style: normal; font-size: 11px; color: var(--ink-ghost); }
+[data-theme="modern"] .stat .stat-sub { font-style: normal; font-size: 11px; color: var(--ink-secondary); }
 
 [data-theme="modern"] .detail-notes h3 { font-size: 10px; font-weight: 600; letter-spacing: .12em; color: var(--ink-ghost); }
 [data-theme="modern"] .detail-notes h3::before,
@@ -3376,7 +3379,7 @@ button.session-pin { line-height: 1; }
 [data-theme="modern"] .rail-chip:hover { transform: none; background: var(--paper-cream); }
 [data-theme="modern"] .rail-chip .rc-icon { background: var(--vellum-dark); color: var(--ink-body); font-size: 9px; font-weight: 600; }
 [data-theme="modern"] .rail-chip .rc-name { font-size: 12.5px; }
-[data-theme="modern"] .rail-chip .rc-rel { color: var(--ink-ghost); }
+[data-theme="modern"] .rail-chip .rc-rel { color: var(--ink-secondary); }
 [data-theme="modern"] .rail-chip .rc-rel .rc-tag { background: var(--vellum-dark); border-color: var(--card-edge); }
 
 [data-theme="modern"] .detail-close {
@@ -3399,7 +3402,7 @@ button.session-pin { line-height: 1; }
 [data-theme="modern"] .detail-action-btn:hover { background: var(--vellum-dark); border-color: #3d4353; color: var(--ink); }
 
 [data-theme="modern"] .note-scrap { border-radius: 8px; box-shadow: none; font-size: 13px; line-height: 1.5; color: var(--ink-body); }
-[data-theme="modern"] .note-scrap .meta { color: var(--ink-ghost); }
+[data-theme="modern"] .note-scrap .meta { color: var(--ink-secondary); }
 [data-theme="modern"] .add-note {
   border-radius: 8px;
   border-color: var(--card-edge);
@@ -3433,10 +3436,10 @@ button.session-pin { line-height: 1; }
 /* ── Live session panel ──────────────────── */
 [data-theme="modern"] .live-panel { width: 300px; box-shadow: none; }
 [data-theme="modern"] .live-head { font-size: 11px; font-weight: 600; letter-spacing: .06em; color: var(--ink); }
-[data-theme="modern"] .live-table-count { color: var(--ink-ghost); font-weight: 400; }
+[data-theme="modern"] .live-table-count { color: var(--ink-secondary); font-weight: 400; }
 [data-theme="modern"] .live-panel .pin-dot.live { box-shadow: none; animation: none; }
 [data-theme="modern"] .live-note { border-radius: 8px; box-shadow: none; font-size: 12.5px; line-height: 1.45; color: var(--ink-body); }
-[data-theme="modern"] .live-meta { color: var(--ink-ghost); }
+[data-theme="modern"] .live-meta { color: var(--ink-secondary); }
 [data-theme="modern"] .live-reveal {
   background: rgba(208,165,72,.08);
   border: 1px solid rgba(208,165,72,.35);
@@ -3446,7 +3449,7 @@ button.session-pin { line-height: 1; }
 }
 [data-theme="modern"] .live-reveal.linked:hover { background: rgba(208,165,72,.14); }
 [data-theme="modern"] .live-reveal em { font-family: var(--font-ui); font-weight: 600; color: var(--ink); letter-spacing: 0; }
-[data-theme="modern"] .live-marker { font-size: 10.5px; letter-spacing: .04em; color: var(--ink-ghost); }
+[data-theme="modern"] .live-marker { font-size: 10.5px; letter-spacing: .04em; color: var(--ink-secondary); }
 [data-theme="modern"] .live-empty { font-style: normal; font-size: 12px; color: var(--ink-ghost); }
 [data-theme="modern"] .live-dm { background: #161923; }
 [data-theme="modern"] .live-dm-head { font-size: 10.5px; font-weight: 600; letter-spacing: .08em; }
