@@ -190,6 +190,18 @@ export function CardBody({ entity, kind }: { entity: any; kind: KindKey }) {
   );
 }
 
+// Decorative ✦ flourishes around small-caps kind tags. A real span (not CSS
+// content) so the Modern Atlas theme can hide them and swap in its own dot.
+export function Fleurons({ children }: { children: React.ReactNode }) {
+  return (
+    <>
+      <span className="fleuron">✦ </span>
+      {children}
+      <span className="fleuron"> ✦</span>
+    </>
+  );
+}
+
 export function PosterCard({ person }: { person: any }) {
   const campaign = useCampaign();
   const sess = person.lastSeen ? campaign.sessions.find((s) => s.id === person.lastSeen) : null;
@@ -206,8 +218,8 @@ export function PosterCard({ person }: { person: any }) {
     <div className={`card-poster${headerless ? " headerless" : ""}`}>
       {seenLive && <span className="seen-live-dot" title="Seen this session" />}
       {!headerless && (
-        <div className="wanted">
-          {person.disposition === "hostile" ? "✦ Wanted ✦" : "✦ Of Note ✦"}
+        <div className={`wanted ${person.disposition === "hostile" ? "hostile" : "of-note"}`}>
+          <Fleurons>{person.disposition === "hostile" ? "Wanted" : "Of Note"}</Fleurons>
         </div>
       )}
       <div className="portrait">
@@ -232,7 +244,7 @@ export function QuestCard({ quest }: { quest: any }) {
   return (
     <div className="card-quest">
       <div className="quest-head">
-        <span className="quest-tag">✦ Quest ✦</span>
+        <span className="quest-tag"><Fleurons>Quest</Fleurons></span>
         <StatusChip status={quest.status} />
       </div>
       <div className="quest-title">{quest.title}</div>
@@ -252,7 +264,7 @@ export function LocationCard({ loc }: { loc: any }) {
         <MapScribble seed={loc.id.charCodeAt(1)} />
       </div>
       <div className="loc-body">
-        <div className="loc-type">✦ {loc.kind} ✦</div>
+        <div className="loc-type"><Fleurons>{loc.kind}</Fleurons></div>
         <div className="loc-name">{loc.name}</div>
         <div className="loc-desc">{loc.desc}</div>
       </div>
@@ -263,7 +275,7 @@ export function LocationCard({ loc }: { loc: any }) {
 export function GoalCard({ goal }: { goal: any }) {
   return (
     <div className="card-goal">
-      <div className="goal-kind">✦ {goal.kind} Goal ✦</div>
+      <div className="goal-kind"><Fleurons>{goal.kind} Goal</Fleurons></div>
       <div className="goal-text">{goal.text}</div>
       <div className="goal-owner">— {goal.owner}</div>
       <div style={{ marginTop: 8 }}><StatusChip status={goal.status} /></div>
@@ -286,7 +298,7 @@ export function FactionCard({ f }: { f: any }) {
 export function ItemCard({ i }: { i: any }) {
   return (
     <div className="card-item">
-      <div className="i-label">✦ {i.kind} ✦</div>
+      <div className="i-label"><Fleurons>{i.kind}</Fleurons></div>
       <div className="i-name">{i.name}</div>
       <div className="i-desc">{i.desc}</div>
     </div>
@@ -296,7 +308,7 @@ export function ItemCard({ i }: { i: any }) {
 export function LoreCard({ l }: { l: any }) {
   return (
     <div className="card-lore">
-      <div className="l-label">✦ Lore ✦</div>
+      <div className="l-label"><Fleurons>Lore</Fleurons></div>
       {l.title && <div className="l-title">{l.title}</div>}
       <div className="l-text">{l.text}</div>
     </div>
@@ -415,6 +427,9 @@ export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, counts 
             // One number per row — the archive story lives in the tooltip and
             // in "Tidy the Codex" below.
             title={c.archived > 0 ? `${c.active} active · ${c.archived} archived` : undefined}
+            // Kind hue for the icon tint — only Modern Atlas reads it; the
+            // parchment themes keep their neutral ink icons.
+            style={{ "--kind-color": k.color } as React.CSSProperties}
           >
             <span className="icon"><Icon name={kindIcon[k.key]} /></span>
             {k.label}
@@ -508,7 +523,7 @@ export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, counts 
         </div>
       )}
 
-      <div style={{
+      <div className="sidebar-quote" style={{
         padding: "16px", marginTop: 12, borderTop: "1px dashed var(--vellum-deep)",
         fontFamily: "var(--font-body)", fontStyle: "italic", fontSize: 12,
         color: "var(--ink-faded)", textAlign: "center",

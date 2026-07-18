@@ -152,24 +152,65 @@
   --hairline:      rgba(220,205,160,.14);
   --shadow-card:   0 0 0 1px rgba(232,220,181,.05), 0 1px 0 rgba(255,255,255,.06) inset, 0 10px 22px rgba(0,0,0,.6), 0 2px 3px rgba(0,0,0,.55);
 }
+/* Modern Atlas — a dark, flat, contemporary skin (design: "Codex — Modern
+   Atlas"). Inter carries all chrome and content; Cormorant Garamond is
+   reserved for display titles. Parchment metaphors (textures, torn edges,
+   pins, rotation, yarn-as-wool) are switched off in the override layer at
+   the bottom of this file. */
 [data-theme="modern"] {
-  --vellum:        #f5f1ea;
-  --vellum-light:  #fafaf5;
-  --vellum-dark:   #ebe5d8;
-  --vellum-deep:   #d6cdb9;
-  --ink:           #101010;
-  --ink-body:      #232323;
-  --ink-secondary: #3c3c3c;
-  --ink-faded:     #505050;
-  --ink-ghost:     #9a9a9a;
-  --paper-cream:   #ffffff;
-  --paper-tan:     #f0ece3;
-  --paper-grey:    #e8e4db;
-  --paper-scroll:  #f6efde;
-  --paper-note:    #fffbe8;
-  --cork:          #c8b697;
-  --cork-deep:     #a89478;
-  --board-bg:      #e8dcc4;
+  /* Surfaces */
+  --vellum:        #14161d;        /* app canvas */
+  --vellum-light:  #191c25;        /* panels: topbar, sidebar, sheets */
+  --vellum-dark:   #232734;        /* raised chrome: buttons, chips */
+  --vellum-deep:   #262a36;        /* panel borders */
+
+  /* Text tiers */
+  --ink:           #eef0f5;        /* display titles */
+  --ink-body:      #c6ccd9;        /* reading text */
+  --ink-secondary: #9aa3b5;        /* secondary text */
+  --ink-faded:     #8b93a8;        /* muted */
+  --ink-ghost:     #5a6172;        /* faint labels, placeholders */
+
+  /* Kind accents (Atlas palette) */
+  --teal-oxidized: #5fb0a0;
+  --teal-deep:     #5fb0a0;        /* locations */
+  --teal-pale:     #5fb0a0;
+  --bloodred:      #e05a4a;        /* people / live / danger */
+  --bloodred-deep: #e88d7a;        /* pale red text on dark stock */
+  --bloodred-pale: #e88d7a;
+  --mustard:       #d0a548;        /* quests / gold ceremony */
+  --mustard-pale:  #d9b870;
+  --mustard-deep:  #d0a548;
+  --gold-antique:  #b6923e;        /* items */
+  --forest:        #7fae6e;        /* goals */
+  --forest-pale:   #9db07e;        /* lore */
+  --slate:         #8b93a8;        /* factions */
+
+  /* Card stock — one flat card surface, no paper variants */
+  --paper-cream:   #1d212c;
+  --paper-tan:     #1d212c;
+  --paper-grey:    #1d212c;
+  --paper-scroll:  #1d212c;
+  --paper-note:    #1d212c;
+
+  /* Board */
+  --cork:          #14161d;
+  --cork-deep:     #14161d;
+  --board-bg:      #14161d;
+
+  /* Typography: Inter everywhere except display titles */
+  --font-body:     'Inter', system-ui, sans-serif;
+  --font-fell:     'Cormorant Garamond', serif;
+  --font-fell-sc:  'Inter', system-ui, sans-serif;
+  --font-hand:     'Inter', system-ui, sans-serif;
+  --font-script:   'Inter', system-ui, sans-serif;
+
+  /* Elevation & chrome */
+  --shadow-pin:    0 6px 16px rgba(0,0,0,.35);
+  --shadow-card:   0 12px 28px rgba(0,0,0,.4);
+  --shadow-deep:   0 30px 80px rgba(0,0,0,.6);
+  --card-edge:     #2c3140;
+  --hairline:      #262a36;
 }
 
 * { box-sizing: border-box; }
@@ -884,6 +925,23 @@ button.session-pin { line-height: 1; }
   border-image: linear-gradient(180deg, #6a4420, #4a2d14, #6a4420) 1;
   pointer-events: none;
   z-index: 5;
+}
+
+/* Campaign title plaque pinned to the board (board.tsx) */
+.board-title-plaque {
+  position: absolute;
+  top: 60px; left: 900px;
+  padding: 10px 40px;
+  background: var(--paper-scroll);
+  font-family: var(--font-fell-sc);
+  letter-spacing: .3em;
+  font-size: 14px;
+  color: var(--ink);
+  transform: rotate(-1deg);
+  box-shadow: var(--shadow-pin);
+  border: 1px solid var(--card-edge);
+  z-index: 5;
+  pointer-events: none;
 }
 
 /* Yarn/string layer */
@@ -2841,3 +2899,715 @@ button.session-pin { line-height: 1; }
 }
 /* Reuses .add-note's dress; the composer sits flush in its own footer. */
 .live-composer .live-input { margin-top: 0; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Modern Atlas overrides (design: "Codex — Modern Atlas")
+   The [data-theme="modern"] variable remap near the top of this file carries
+   the palette; the rules below switch off the parchment SHAPES — textures,
+   torn edges, pin-heads, card rotation, wool yarn — and re-dress the chrome
+   in the flat Atlas language: #1d212c cards on a #14161d dot-grid canvas,
+   6–10px radii, Inter labels in letterspaced uppercase, Cormorant Garamond
+   reserved for display titles.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Foundations ─────────────────────────── */
+[data-theme="modern"] body { font-size: 14px; }
+/* The ✦ flourishes are parchment voice — Atlas swaps them for kind dots. */
+[data-theme="modern"] .fleuron { display: none; }
+
+/* Small-caps came free from IM Fell SC; with Inter in --font-fell-sc the
+   label classes need an explicit uppercase. Free-form inputs are exempt,
+   except the short category kind-tags (.loc-type/.goal-kind/.i-label):
+   those are user-typed but render as category labels, and the other themes
+   already small-cap them via IM Fell SC — uppercase is the same treatment. */
+[data-theme="modern"] :is(.sidebar-label, .logo-title, .sb-kind, .stat-label,
+  .detail-notes h3, .rail-section h4, .cmdk-kind, .live-head, .live-vertical,
+  .live-dm-head, .cleanup-group-title, .quest-tag, .loc-type, .goal-kind,
+  .i-label, .l-label, .card-poster .wanted, .card-poster .deceased-tag,
+  .status-chip, .seen-toggle, .veil-badge, .portrait-caption, .session-ribbon,
+  .entity-combobox-kind) {
+  text-transform: uppercase;
+}
+
+/* Textures off — flat surfaces carry the theme. */
+[data-theme="modern"] .tex-vellum { background-image: none; }
+[data-theme="modern"] .tex-vellum::before { display: none; }
+[data-theme="modern"] .tex-cork {
+  background-color: var(--vellum);
+  background-image: radial-gradient(rgba(154,163,181,.08) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+[data-theme="modern"] .tex-cork::after { display: none; }
+[data-theme="modern"] .paper { background-image: none; }
+[data-theme="modern"] .paper::before { display: none; }
+[data-theme="modern"] .deckle { -webkit-mask: none; mask: none; }
+
+[data-theme="modern"] ::-webkit-scrollbar { width: 9px; height: 9px; }
+[data-theme="modern"] ::-webkit-scrollbar-track { background: var(--vellum-light); }
+[data-theme="modern"] ::-webkit-scrollbar-thumb { background: #2c3140; border: none; border-radius: 5px; }
+[data-theme="modern"] ::-webkit-scrollbar-thumb:hover { background: #3d4353; }
+
+/* ── App shell & topbar ──────────────────── */
+[data-theme="modern"] .app { grid-template-columns: 248px 1fr auto; grid-template-rows: 48px 1fr; }
+[data-theme="modern"] .topbar {
+  background: var(--vellum-light);
+  border-bottom: 1px solid var(--vellum-deep);
+  box-shadow: none;
+  padding: 0 14px;
+}
+[data-theme="modern"] .topbar::after { display: none; }
+[data-theme="modern"] .logo { width: 226px; gap: 9px; }
+[data-theme="modern"] .logo-mark {
+  width: 24px; height: 24px;
+  border: none; border-radius: 6px;
+  background: var(--vellum-dark);
+  color: var(--ink-faded);
+}
+[data-theme="modern"] .logo-mark::before { display: none; }
+[data-theme="modern"] .logo-title {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 12.5px;
+  letter-spacing: .08em;
+  color: var(--ink);
+}
+[data-theme="modern"] .logo-sub { display: none; }
+
+[data-theme="modern"] .campaign-chip {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--ink);
+  padding: 5px 8px;
+}
+[data-theme="modern"] .campaign-chip .dot { width: 7px; height: 7px; box-shadow: none; }
+
+[data-theme="modern"] .session-pin {
+  background: var(--vellum-dark);
+  border: 1px solid var(--card-edge);
+  border-radius: 14px;
+  box-shadow: none;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--ink-body);
+}
+/* Live: the red occupancy pill from the design's topbar. */
+[data-theme="modern"] .session-pin:has(.pin-dot.live) {
+  background: rgba(224,90,74,.12);
+  border-color: transparent;
+  color: var(--bloodred-deep);
+}
+[data-theme="modern"] .session-pin .pin-dot.live { box-shadow: none; animation: none; }
+
+[data-theme="modern"] .campaign-picker-menu {
+  background: var(--paper-cream);
+  border: 1px solid var(--card-edge);
+  border-radius: 8px;
+  box-shadow: 0 14px 40px rgba(0,0,0,.5);
+}
+[data-theme="modern"] .campaign-picker-item { font-family: var(--font-ui); border-radius: 5px; color: var(--ink-body); }
+[data-theme="modern"] .campaign-picker-item:hover { background: var(--vellum-dark); }
+
+[data-theme="modern"] .btn {
+  font-size: 12.5px;
+  background: var(--vellum-dark);
+  border: 1px solid var(--card-edge);
+  border-radius: 6px;
+  color: var(--ink-body);
+  box-shadow: none;
+  padding: 6px 12px;
+}
+[data-theme="modern"] .btn:hover { transform: none; box-shadow: none; border-color: #3d4353; color: var(--ink); }
+[data-theme="modern"] .btn-primary {
+  background: var(--bloodred);
+  border-color: transparent;
+  color: #fff;
+  font-weight: 600;
+}
+[data-theme="modern"] .btn-primary:hover { background: #e8705f; border-color: transparent; color: #fff; }
+[data-theme="modern"] .btn-ghost { background: transparent; border-color: transparent; }
+[data-theme="modern"] .btn-ghost:hover { background: var(--vellum-dark); border-color: transparent; }
+
+[data-theme="modern"] .presence .avatar {
+  width: 26px; height: 26px;
+  border-color: var(--vellum-light);
+  font-family: var(--font-ui);
+  font-size: 10px; font-weight: 600;
+  box-shadow: none;
+}
+[data-theme="modern"] .presence .avatar::after { border-color: var(--vellum-light); }
+
+/* ── Sidebar ─────────────────────────────── */
+[data-theme="modern"] .sidebar {
+  background: var(--vellum-light);
+  border-right: 1px solid var(--vellum-deep);
+  box-shadow: none;
+  padding: 12px 0;
+}
+[data-theme="modern"] .sidebar-label {
+  font-size: 10px; font-weight: 600; letter-spacing: .12em;
+  color: var(--ink-ghost);
+}
+[data-theme="modern"] .sidebar-label::after { display: none; }
+[data-theme="modern"] .nav-item {
+  margin: 0 8px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  border-left: none;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: #b6bdcc;
+}
+[data-theme="modern"] .nav-item:hover { background: #20242f; color: var(--ink); }
+[data-theme="modern"] .nav-item.active { background: var(--vellum-dark); color: var(--ink); }
+/* Kind rows tint their icon with the kind hue — pulled well toward the
+   neutral ghost ink at rest so it reads as a hint, not a rainbow; hover and
+   the active row restore the full hue (the same color system as the filter
+   pills and card tags). Rows without a kind color stay neutral. */
+[data-theme="modern"] .nav-item .icon {
+  color: color-mix(in srgb, var(--kind-color, var(--ink-ghost)) 40%, var(--ink-ghost));
+}
+[data-theme="modern"] .nav-item:hover .icon,
+[data-theme="modern"] .nav-item.active .icon { color: var(--kind-color, var(--ink)); }
+[data-theme="modern"] .nav-item .count { color: var(--ink-ghost); }
+[data-theme="modern"] .session-chip {
+  margin: 0 8px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  color: #b6bdcc;
+}
+[data-theme="modern"] .session-chip:hover { background: #20242f; color: var(--ink); }
+[data-theme="modern"] .session-chip .num { font-size: 11px; color: var(--ink-ghost); flex-basis: 36px; }
+[data-theme="modern"] .session-more { font-style: normal; font-size: 12px; color: var(--ink-ghost); padding-left: 64px; }
+[data-theme="modern"] .session-roster { padding: 4px 16px 8px; }
+[data-theme="modern"] .roster-chip {
+  background: var(--vellum-dark);
+  border: 1px solid var(--card-edge);
+  color: var(--ink-body);
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+}
+[data-theme="modern"] .roster-chip:hover { border-color: #3d4353; color: var(--ink); }
+[data-theme="modern"] .session-roster-empty { font-style: normal; font-size: 12px; color: var(--ink-ghost); }
+
+/* ── Board toolbar ───────────────────────── */
+[data-theme="modern"] .board-toolbar {
+  background: var(--vellum-light);
+  border-bottom: 1px solid var(--vellum-deep);
+  padding: 9px 16px;
+}
+[data-theme="modern"] .board-toolbar h1 { font-size: 18px; }
+[data-theme="modern"] .filter-pill {
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  color: var(--ink-secondary);
+  border-radius: 14px;
+  padding: 3px 8px;
+}
+[data-theme="modern"] .filter-pill:hover { background: var(--vellum-dark); color: var(--ink); }
+[data-theme="modern"] .filter-pill.active {
+  background: var(--vellum-dark);
+  border-color: var(--card-edge);
+  box-shadow: none;
+  color: var(--ink);
+}
+[data-theme="modern"] .filter-pill .swatch { width: 7px; height: 7px; border-radius: 50%; }
+[data-theme="modern"] .session-focus { font-family: var(--font-ui); font-size: 12px; color: var(--ink-secondary); border-radius: 6px; }
+[data-theme="modern"] .filter-group.active {
+  background: var(--vellum-dark);
+  border-color: var(--card-edge);
+  border-radius: 6px;
+  box-shadow: none;
+}
+[data-theme="modern"] .view-menu {
+  background: var(--paper-cream);
+  border: 1px solid var(--card-edge);
+  border-radius: 8px;
+  box-shadow: 0 14px 40px rgba(0,0,0,.5);
+}
+[data-theme="modern"] .view-menu-row { font-family: var(--font-ui); font-size: 12.5px; color: var(--ink-body); }
+[data-theme="modern"] .view-menu-row:hover { background: var(--vellum-dark); }
+
+/* ── Notice board ────────────────────────── */
+[data-theme="modern"] .board-frame,
+[data-theme="modern"] .wax-seal,
+[data-theme="modern"] .compass,
+[data-theme="modern"] .tape,
+[data-theme="modern"] .pin-head { display: none; }
+
+/* Cards sit square — the hand-placed rotation is parchment voice. The rot
+   value arrives as an inline transform, hence the !important. */
+[data-theme="modern"] .pinned { transform: none !important; }
+[data-theme="modern"] .kind-card { transform: none !important; }
+[data-theme="modern"] .pinned:hover { filter: none; }
+[data-theme="modern"] :is(.pinned, .kind-card):hover :is(.card-poster, .card-quest, .card-location, .card-goal, .card-faction, .card-item, .card-lore) {
+  border-color: #3d4353;
+}
+[data-theme="modern"] .pinned.is-pinned,
+[data-theme="modern"] .pinned.is-pinned:hover {
+  filter: drop-shadow(0 8px 20px rgba(0,0,0,.45)) drop-shadow(0 0 14px rgba(208,165,72,.22));
+}
+/* Kind-list favorite: a plain gold star instead of the struck-brass rosette. */
+[data-theme="modern"] .kind-card.is-pinned::before { display: none; }
+[data-theme="modern"] .kind-card.is-pinned::after {
+  content: '★';
+  background-image: none;
+  width: auto; height: auto;
+  top: 8px; right: 10px;
+  transform: none;
+  filter: none;
+  color: var(--mustard);
+  font-size: 15px;
+  line-height: 1;
+}
+[data-theme="modern"] .pinned.archived::before,
+[data-theme="modern"] .kind-card.archived::before { border-radius: 4px; }
+[data-theme="modern"] .veil-badge { border-radius: 4px; }
+
+[data-theme="modern"] .board-title-plaque {
+  background: var(--paper-cream);
+  border: 1px solid var(--card-edge);
+  border-radius: 8px;
+  transform: none;
+  box-shadow: none;
+  padding: 9px 22px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .14em;
+  color: var(--ink-secondary);
+}
+
+[data-theme="modern"] .yarn-path { stroke: var(--ink-faded); stroke-width: 1.4; }
+[data-theme="modern"] .yarn.lit .yarn-path { stroke: var(--ink-secondary); stroke-width: 2; filter: none; }
+[data-theme="modern"] .yarn .yarn-shadow { display: none !important; }
+[data-theme="modern"] .yarn-label {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  fill: var(--ink-body);
+  stroke: var(--vellum);
+  stroke-width: 4;
+}
+
+[data-theme="modern"] .board-zoom {
+  flex-direction: row;
+  align-items: center;
+  background: var(--vellum-dark);
+  border: 1px solid var(--card-edge);
+  border-radius: 8px;
+  box-shadow: none;
+  overflow: hidden;
+}
+[data-theme="modern"] .board-zoom button {
+  width: 30px; height: 30px;
+  border-bottom: none;
+  color: var(--ink-body);
+  font-family: var(--font-ui);
+}
+[data-theme="modern"] .board-zoom button:hover { background: #2c3140; }
+[data-theme="modern"] .board-zoom .zoom-val { border-bottom: none; padding: 0 6px; color: var(--ink-faded); }
+
+[data-theme="modern"] .connect-mode-banner {
+  border-radius: 6px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  color: #fff;
+  box-shadow: 0 10px 30px rgba(0,0,0,.5);
+}
+
+/* ── Cards ───────────────────────────────── */
+[data-theme="modern"] :is(.card-poster, .card-quest, .card-location, .card-goal, .card-faction, .card-item, .card-lore, .card-note) {
+  border-radius: 10px;
+  clip-path: none;
+}
+[data-theme="modern"] .card-poster::before { display: none; } /* torn top edge */
+
+/* Kind tags: dot + letterspaced Inter, colored per kind. */
+[data-theme="modern"] :is(.card-quest .quest-tag, .card-location .loc-type, .card-goal .goal-kind, .card-item .i-label, .card-lore .l-label, .sb-kind) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: .06em;
+}
+[data-theme="modern"] :is(.card-quest .quest-tag, .card-location .loc-type, .card-goal .goal-kind, .card-item .i-label, .card-lore .l-label, .sb-kind)::before {
+  content: '';
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+[data-theme="modern"] .card-quest .quest-tag { color: var(--mustard); }
+[data-theme="modern"] .card-goal .goal-kind { color: var(--forest); }
+[data-theme="modern"] .card-item .i-label { color: var(--gold-antique); }
+[data-theme="modern"] .card-lore .l-label { color: var(--forest-pale); }
+
+[data-theme="modern"] .card-poster { padding: 12px 13px; }
+[data-theme="modern"] .card-poster.headerless { padding-top: 12px; }
+[data-theme="modern"] .card-poster .wanted {
+  display: inline-flex;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  padding: 2px 8px;
+  border-radius: 10px;
+  border-bottom: none;
+  margin-bottom: 8px;
+  text-align: left;
+}
+[data-theme="modern"] .card-poster .wanted.hostile { color: var(--bloodred-deep); background: rgba(224,90,74,.14); }
+[data-theme="modern"] .card-poster .wanted.of-note { color: var(--mustard); background: rgba(208,165,72,.14); }
+[data-theme="modern"] .card-poster .portrait {
+  aspect-ratio: 16 / 10;
+  background: linear-gradient(160deg, #252a38, #191c26);
+  border: none;
+  border-radius: 6px;
+  overflow: hidden;
+  color: #454c60;
+}
+[data-theme="modern"] .card-poster .portrait .silhouette { background: #454c60; opacity: .8; }
+[data-theme="modern"] .card-poster .portrait .portrait-img { filter: none; }
+[data-theme="modern"] .card-poster .name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 19px;
+  line-height: 1.1;
+  letter-spacing: 0;
+  text-align: left;
+  margin-top: 8px;
+}
+[data-theme="modern"] .card-poster .name.is-dead { text-decoration-color: var(--bloodred-deep); }
+[data-theme="modern"] .card-poster .deceased-tag {
+  text-align: left;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: .1em;
+  color: var(--bloodred-deep);
+}
+[data-theme="modern"] .card-poster .desc {
+  text-align: left;
+  font-style: normal;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-secondary);
+  margin-top: 3px;
+}
+[data-theme="modern"] .card-poster .reward {
+  border-top: none;
+  padding-top: 0;
+  margin-top: 9px;
+  font-size: 10.5px;
+  color: var(--ink-secondary);
+}
+[data-theme="modern"] .card-poster .reward strong { letter-spacing: .04em; font-weight: 600; }
+
+[data-theme="modern"] .card-quest { padding: 12px 13px; }
+[data-theme="modern"] .card-quest .quest-title { font-size: 19px; }
+[data-theme="modern"] .card-quest .quest-desc { font-size: 12px; line-height: 1.45; color: var(--ink-secondary); }
+[data-theme="modern"] .card-quest .quest-meta { color: var(--ink-secondary); }
+
+[data-theme="modern"] .card-location .map-region { display: none; }
+[data-theme="modern"] .card-location .loc-body { padding: 12px 13px; }
+[data-theme="modern"] .card-location .loc-desc { font-size: 12px; line-height: 1.45; color: var(--ink-secondary); }
+
+[data-theme="modern"] .card-goal .goal-text { font-size: 15px; font-weight: 500; line-height: 1.35; }
+[data-theme="modern"] .card-goal .goal-owner { font-style: normal; font-size: 11px; color: var(--ink-secondary); }
+
+[data-theme="modern"] .card-faction .sigil {
+  border: 1px solid var(--card-edge);
+  background: var(--vellum-dark);
+  color: var(--ink-body);
+}
+[data-theme="modern"] .card-faction .f-name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 17px;
+  letter-spacing: 0;
+}
+[data-theme="modern"] .card-faction .f-sub { font-size: 12px; color: var(--ink-secondary); }
+
+[data-theme="modern"] .card-item .i-name { font-size: 17px; }
+[data-theme="modern"] .card-item .i-desc,
+[data-theme="modern"] .card-lore .l-text { font-size: 12px; line-height: 1.45; color: var(--ink-secondary); }
+[data-theme="modern"] .card-lore .l-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 16px;
+  letter-spacing: 0;
+}
+
+[data-theme="modern"] .card-note { box-shadow: var(--shadow-card); border-color: var(--card-edge); }
+[data-theme="modern"] .card-note .n-text { font-size: 13px; line-height: 1.45; color: var(--ink-body); }
+[data-theme="modern"] .card-note .n-author { font-size: 10px; color: var(--ink-ghost); }
+
+[data-theme="modern"] .seen-live-dot { box-shadow: 0 0 0 2px var(--paper-cream); }
+
+/* ── Status chips ────────────────────────── */
+[data-theme="modern"] .status-chip {
+  border: none;
+  border-radius: 10px;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .04em;
+}
+[data-theme="modern"] .status-chip.whispered { background: rgba(95,176,160,.12); }
+[data-theme="modern"] .status-chip.pursuing { background: rgba(208,165,72,.14); }
+[data-theme="modern"] .status-chip.resolved { background: rgba(127,174,110,.12); }
+[data-theme="modern"] .status-chip.lost { background: rgba(224,90,74,.12); }
+
+/* ── Detail sheet ────────────────────────── */
+[data-theme="modern"] .detail-overlay { background: rgba(8,10,14,.65); backdrop-filter: blur(3px); }
+[data-theme="modern"] .detail-sheet {
+  background: var(--vellum-light);
+  border: 1px solid var(--card-edge);
+  border-radius: 12px;
+}
+[data-theme="modern"] .statblock {
+  background: transparent;
+  border-bottom: 1px solid var(--vellum-deep);
+  grid-template-columns: 140px 1fr;
+  padding: 24px 24px 20px;
+}
+[data-theme="modern"] .statblock::before { display: none; }
+[data-theme="modern"] .detail-sheet.is-archived .statblock::after,
+[data-theme="modern"] .detail-sheet.is-veiled .statblock::after { border-radius: 4px; }
+[data-theme="modern"] .sb-portrait {
+  width: 140px; height: 140px;
+  border: 1px solid var(--card-edge);
+  border-radius: 10px;
+  background: linear-gradient(160deg, #252a38, #191c26);
+  overflow: hidden;
+}
+[data-theme="modern"] .sb-portrait::before { display: none; }
+[data-theme="modern"] .sb-portrait .sb-portrait-img { inset: 0; width: 100%; height: 100%; filter: none; }
+[data-theme="modern"] .sb-portrait .silhouette { background: #454c60; opacity: .9; }
+[data-theme="modern"] .portrait-caption {
+  background: rgba(20,22,29,.85);
+  border-top: none;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .1em;
+  color: var(--ink-secondary);
+}
+[data-theme="modern"] .sb-meta .sb-title { font-size: 38px; }
+[data-theme="modern"] .sb-meta .sb-epithet { font-size: 13.5px; color: var(--ink-secondary); }
+[data-theme="modern"] .stat {
+  background: transparent;
+  border: none;
+  border-bottom: 1px dashed var(--card-edge);
+  padding: 0 0 4px;
+}
+[data-theme="modern"] .stat .stat-label { font-size: 9.5px; font-weight: 600; letter-spacing: .1em; color: var(--ink-ghost); }
+[data-theme="modern"] .stat .stat-value {
+  font-family: var(--font-ui);
+  font-weight: 400;
+  font-size: 13px;
+  margin-top: 2px;
+}
+[data-theme="modern"] .stat .stat-sub { font-style: normal; font-size: 11px; color: var(--ink-secondary); }
+
+[data-theme="modern"] .detail-notes h3 { font-size: 10px; font-weight: 600; letter-spacing: .12em; color: var(--ink-ghost); }
+[data-theme="modern"] .detail-notes h3::before,
+[data-theme="modern"] .detail-notes h3::after { display: none; }
+[data-theme="modern"] .long-note { font-size: 14px; line-height: 1.65; }
+[data-theme="modern"] .detail-rail { background: #171a22; border-radius: 0 0 12px 0; }
+[data-theme="modern"] .rail-section h4 { font-size: 10px; font-weight: 600; letter-spacing: .12em; color: var(--ink-ghost); }
+[data-theme="modern"] .rail-chip { background: var(--paper-cream); border-radius: 8px; }
+[data-theme="modern"] .rail-chip:hover { transform: none; background: var(--paper-cream); }
+[data-theme="modern"] .rail-chip .rc-icon { background: var(--vellum-dark); color: var(--ink-body); font-size: 9px; font-weight: 600; }
+[data-theme="modern"] .rail-chip .rc-name { font-size: 12.5px; }
+[data-theme="modern"] .rail-chip .rc-rel { color: var(--ink-secondary); }
+[data-theme="modern"] .rail-chip .rc-rel .rc-tag { background: var(--vellum-dark); border-color: var(--card-edge); }
+
+[data-theme="modern"] .detail-close {
+  background: var(--vellum-dark);
+  border: 1px solid var(--card-edge);
+  border-radius: 6px;
+  box-shadow: none;
+  color: var(--ink-body);
+}
+[data-theme="modern"] .detail-close:hover { background: var(--bloodred); border-color: transparent; color: #fff; }
+[data-theme="modern"] .detail-action-btn {
+  background: var(--vellum-dark);
+  border: 1px solid var(--card-edge);
+  border-radius: 6px;
+  color: var(--ink-body);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .06em;
+}
+[data-theme="modern"] .detail-action-btn:hover { background: var(--vellum-dark); border-color: #3d4353; color: var(--ink); }
+
+[data-theme="modern"] .note-scrap { border-radius: 8px; box-shadow: none; font-size: 13px; line-height: 1.5; color: var(--ink-body); }
+[data-theme="modern"] .note-scrap .meta { color: var(--ink-secondary); }
+[data-theme="modern"] .add-note {
+  border-radius: 8px;
+  border-color: var(--card-edge);
+  background: var(--paper-cream);
+  font-style: normal;
+  font-size: 12.5px;
+  color: var(--ink-ghost);
+}
+[data-theme="modern"] .add-note:focus {
+  background: var(--paper-cream);
+  border-color: #3d4353;
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 13px;
+}
+[data-theme="modern"] .dm-note { border-radius: 8px; border-color: #3d4353; background: rgba(154,163,181,.04); }
+[data-theme="modern"] .dm-note-head { font-size: 9.5px; font-weight: 600; letter-spacing: .12em; }
+[data-theme="modern"] .draft-recap-btn { border-radius: 5px; border-color: var(--card-edge); font-size: 10.5px; letter-spacing: .02em; }
+
+[data-theme="modern"] .seen-toggle {
+  clip-path: none;
+  border-radius: 10px;
+  border-color: #3d4353;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .06em;
+}
+[data-theme="modern"] .seen-toggle.seen { background: rgba(127,174,110,.12); border-color: transparent; color: var(--forest); }
+[data-theme="modern"] .session-ribbon { clip-path: none; border-radius: 10px; font-size: 10px; font-weight: 600; }
+
+/* ── Live session panel ──────────────────── */
+[data-theme="modern"] .live-panel { width: 300px; box-shadow: none; }
+[data-theme="modern"] .live-head { font-size: 11px; font-weight: 600; letter-spacing: .06em; color: var(--ink); }
+[data-theme="modern"] .live-table-count { color: var(--ink-secondary); font-weight: 400; }
+[data-theme="modern"] .live-panel .pin-dot.live { box-shadow: none; animation: none; }
+[data-theme="modern"] .live-note { border-radius: 8px; box-shadow: none; font-size: 12.5px; line-height: 1.45; color: var(--ink-body); }
+[data-theme="modern"] .live-meta { color: var(--ink-secondary); }
+[data-theme="modern"] .live-reveal {
+  background: rgba(208,165,72,.08);
+  border: 1px solid rgba(208,165,72,.35);
+  border-radius: 8px;
+  font-style: normal;
+  font-size: 12.5px;
+}
+[data-theme="modern"] .live-reveal.linked:hover { background: rgba(208,165,72,.14); }
+[data-theme="modern"] .live-reveal em { font-family: var(--font-ui); font-weight: 600; color: var(--ink); letter-spacing: 0; }
+[data-theme="modern"] .live-marker { font-size: 10.5px; letter-spacing: .04em; color: var(--ink-secondary); }
+[data-theme="modern"] .live-empty { font-style: normal; font-size: 12px; color: var(--ink-ghost); }
+[data-theme="modern"] .live-dm { background: #161923; }
+[data-theme="modern"] .live-dm-head { font-size: 10.5px; font-weight: 600; letter-spacing: .08em; }
+[data-theme="modern"] .live-dm-empty { font-style: normal; font-size: 12px; color: var(--ink-ghost); }
+[data-theme="modern"] .live-end-btn { border-radius: 5px; border-color: var(--card-edge); font-size: 10px; letter-spacing: .02em; }
+[data-theme="modern"] .live-stage-row { font-size: 12.5px; border-bottom-color: #232734; }
+[data-theme="modern"] .release-btn {
+  background: var(--vellum-dark);
+  border: 1px solid var(--card-edge);
+  border-radius: 5px;
+  color: var(--ink-body);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+[data-theme="modern"] .release-btn:hover:not(:disabled) { background: var(--bloodred); border-color: transparent; color: #fff; }
+[data-theme="modern"] .release-btn.show-btn {
+  background: rgba(224,90,74,.12);
+  border: 1px solid rgba(224,90,74,.4);
+  color: var(--bloodred-deep);
+}
+[data-theme="modern"] .release-btn.show-btn:hover:not(:disabled) { background: var(--bloodred); color: #fff; }
+[data-theme="modern"] .live-visible-hint { border-radius: 4px; }
+[data-theme="modern"] .live-vertical { letter-spacing: .2em; }
+
+/* ── Command palette & entity combobox ───── */
+[data-theme="modern"] .cmdk-overlay { background: rgba(8,10,14,.6); }
+[data-theme="modern"] .cmdk-panel {
+  background: var(--paper-cream);
+  border: 1px solid var(--card-edge);
+  border-radius: 10px;
+}
+[data-theme="modern"] .cmdk-input-row { border-bottom: 1px solid var(--vellum-deep); }
+[data-theme="modern"] .cmdk-input { font-style: normal; font-size: 15px; }
+[data-theme="modern"] .cmdk-input::placeholder { font-style: normal; }
+[data-theme="modern"] .cmdk-row { font-size: 13.5px; }
+[data-theme="modern"] .cmdk-row.active { background: var(--vellum-dark); }
+[data-theme="modern"] .cmdk-snippet { font-style: normal; font-size: 12px; }
+[data-theme="modern"] .cmdk-kind { font-size: 9.5px; font-weight: 600; letter-spacing: .1em; }
+[data-theme="modern"] .cmdk-hint { border-top: 1px solid var(--vellum-deep); }
+[data-theme="modern"] .cmdk-locate { border-radius: 5px; letter-spacing: .06em; }
+[data-theme="modern"] .cmdk-empty { font-style: normal; }
+[data-theme="modern"] .entity-combobox-pop {
+  background: var(--paper-cream);
+  border: 1px solid var(--card-edge);
+  border-radius: 8px;
+}
+[data-theme="modern"] .entity-combobox-input-row { border-bottom: 1px solid var(--vellum-deep); }
+[data-theme="modern"] .entity-combobox-input { font-style: normal; }
+[data-theme="modern"] .entity-combobox-input::placeholder { font-style: normal; }
+[data-theme="modern"] .entity-combobox-row.active { background: var(--vellum-dark); }
+[data-theme="modern"] .entity-combobox-trigger { border-radius: 6px; border-color: #3d4353; }
+[data-theme="modern"] .entity-combobox-value.placeholder { font-style: normal; }
+[data-theme="modern"] .entity-combobox-empty { font-style: normal; }
+
+/* ── Cleanup panel, tweaks, misc chrome ──── */
+[data-theme="modern"] .cleanup-overlay { background: rgba(8,10,14,.65); }
+[data-theme="modern"] .cleanup-panel {
+  background: var(--vellum-light);
+  border: 1px solid var(--card-edge);
+  border-radius: 12px;
+}
+[data-theme="modern"] .cleanup-header { background: transparent; border-bottom: 1px solid var(--vellum-deep); }
+[data-theme="modern"] .cleanup-header p { font-style: normal; font-size: 13px; }
+[data-theme="modern"] .cleanup-controls { background: transparent; border-bottom: 1px solid var(--vellum-deep); font-family: var(--font-ui); }
+[data-theme="modern"] .cleanup-footer { background: transparent; border-top: 1px solid var(--vellum-deep); }
+[data-theme="modern"] .cleanup-close { background: var(--vellum-dark); border: 1px solid var(--card-edge); border-radius: 6px; }
+[data-theme="modern"] .cleanup-row { font-family: var(--font-ui); font-size: 13px; }
+[data-theme="modern"] .cleanup-row:hover { background: #20242f; }
+[data-theme="modern"] .cleanup-row .cleanup-reason { font-style: normal; }
+[data-theme="modern"] .cleanup-group-title { font-size: 10px; font-weight: 600; letter-spacing: .12em; }
+[data-theme="modern"] .cleanup-empty { font-style: normal; }
+[data-theme="modern"] .cleanup-link-btn { font-style: normal; font-size: 12px; color: var(--ink-ghost); text-underline-offset: 3px; }
+[data-theme="modern"] .cleanup-link-btn:hover { color: var(--ink-secondary); }
+
+[data-theme="modern"] .tweaks-panel {
+  background: var(--paper-cream);
+  border: 1px solid var(--card-edge);
+  border-radius: 10px;
+}
+[data-theme="modern"] .tweaks-panel header {
+  background: var(--vellum-light);
+  border-bottom: 1px solid var(--vellum-deep);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .12em;
+}
+[data-theme="modern"] .tweak-row .seg { border-color: var(--card-edge); border-radius: 6px; }
+[data-theme="modern"] .tweak-row .seg button {
+  background: var(--paper-cream);
+  border-right-color: var(--card-edge);
+  color: var(--ink-faded);
+  font-family: var(--font-ui);
+}
+[data-theme="modern"] .tweak-row .seg button.active { background: var(--vellum-dark); color: var(--ink); }
+
+[data-theme="modern"] .scratch-divider { display: none; }
+[data-theme="modern"] .sidebar-quote { display: none; }
+[data-theme="modern"] .facet-input,
+[data-theme="modern"] .facet-select {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  letter-spacing: 0;
+  color: var(--ink-secondary);
+}
+[data-theme="modern"] .facet-input { border-bottom-color: var(--card-edge); }
+[data-theme="modern"] .facet-input::placeholder { font-style: normal; }
+[data-theme="modern"] .parchment-input { background: var(--vellum); border-color: var(--card-edge); border-radius: 6px; }
+[data-theme="modern"] .parchment-input::placeholder { font-style: normal; }
+
+[data-theme="modern"] .editable { border-bottom-color: #3d4353; }
+[data-theme="modern"] .ent-glyph { font-family: var(--font-ui); font-weight: 600; }
+[data-theme="modern"] .ent-glyph.quests,
+[data-theme="modern"] .ent-glyph.lore { color: #14161d; }
+[data-theme="modern"] .md-body code { background: rgba(255,255,255,.08); border-radius: 3px; }
+[data-theme="modern"] .md-body a { color: var(--mustard); }
+[data-theme="modern"] .nav-item .count-archived { font-style: normal; }

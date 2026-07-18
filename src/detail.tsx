@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { type KindKey, PERSON_STATUS_OPTIONS, PERSON_TIER_OPTIONS, entityLabel, isArchivableKind, isArchived, isHidden, isPinned, personTier, sessionFeedToMarkdown, sessionLabel } from "./data";
 import { Icon, kindIcon } from "./icons";
-import { StatusChip, EditableText, EditableMarkdown, EnumSelect, EntitySelect, EntityCombobox } from "./components";
+import { StatusChip, EditableText, EditableMarkdown, EnumSelect, EntitySelect, EntityCombobox, Fleurons } from "./components";
 import { useCampaign, useFindEntity, useIsDm } from "./hooks";
 import { useAuth } from "./auth";
 import {
@@ -776,7 +776,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
               </div>
             )}
             <div className="sb-meta">
-              <div className="sb-kind">✦ {kindTitle[kind] || kind} ✦</div>
+              <div className="sb-kind"><Fleurons>{kindTitle[kind] || kind}</Fleurons></div>
               <EditableText
                 className="sb-title"
                 value={(entity as any)[primaryField[kind]] ?? ""}
@@ -884,12 +884,12 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
               <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
                 {(entity as any).lastSeen && (
                   <span className="session-ribbon">
-                    ✦ Last seen — Session {campaign.sessions.find((s) => s.id === (entity as any).lastSeen)?.num}
+                    <span className="fleuron">✦ </span>Last seen — Session {campaign.sessions.find((s) => s.id === (entity as any).lastSeen)?.num}
                   </span>
                 )}
                 {(entity as any).session && (
                   <span className="session-ribbon">
-                    ✦ {kind === "events" ? "During" : "Introduced"} — Session {campaign.sessions.find((s) => s.id === (entity as any).session)?.num}
+                    <span className="fleuron">✦ </span>{kind === "events" ? "During" : "Introduced"} — Session {campaign.sessions.find((s) => s.id === (entity as any).session)?.num}
                   </span>
                 )}
                 {kind === "people" && canEdit && campaign.activeSessionId && (() => {
@@ -1024,7 +1024,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                   gate here is the view-as-player affordance, not security. */}
               {isDm && kind !== "arcs" && kind !== "events" && (
                 <div className="dm-note">
-                  <div className="dm-note-head">✦ DM'S EYES ONLY ✦</div>
+                  <div className="dm-note-head"><Fleurons>DM'S EYES ONLY</Fleurons></div>
                   <EditableMarkdown
                     value={campaign.dmNotes[entityId] ?? ""}
                     onSave={(v) => updateDmNotes(entityId, v).catch((e) => console.error("updateDmNotes failed", e))}
@@ -1076,7 +1076,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
 
             <div className="detail-rail">
               <div style={{ fontFamily: "var(--font-fell-sc)", fontSize: 11, letterSpacing: ".16em", color: "var(--ink-secondary)", marginBottom: 14 }}>
-                ✦ RELATIONS ✦
+                <Fleurons>RELATIONS</Fleurons>
               </div>
 
               {kind === "events" && <EventParticipantsEditor eventId={entityId} onOpen={onOpen} />}
