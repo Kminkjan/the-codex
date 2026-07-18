@@ -266,7 +266,7 @@ body {
 
 /* ── Type ─────────────────────────────────── */
 .display { font-family: var(--font-display); font-weight: 600; letter-spacing: .01em; color: var(--ink); }
-.body    { font-family: var(--font-body); color: var(--ink); }
+.type-body { font-family: var(--font-body); color: var(--ink); }
 .fell    { font-family: var(--font-fell); color: var(--ink); }
 .fell-sc { font-family: var(--font-fell-sc); letter-spacing: .08em; color: var(--ink); }
 .hand    { font-family: var(--font-hand); font-weight: 600; color: var(--ink-body); line-height: 1.15; }
