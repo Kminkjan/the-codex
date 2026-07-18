@@ -3,6 +3,7 @@ import { entityLabel, isHidden, isShowEvent, stripShowMark, type KindKey, type S
 import { Icon, kindIcon } from "./icons";
 import { useCampaign, useFindEntity, useIsDm, usePresence } from "./hooks";
 import { useAuth } from "./auth";
+import { Fleurons } from "./components";
 import { endLiveSession, insertSessionEvent, releaseEntity, showEntity } from "./mutations";
 
 // The at-the-table surface (issue #67): a docked right panel that opens when a
@@ -22,7 +23,7 @@ export function FeedRow({ ev, onOpenEntity }: { ev: SessionEvent; onOpenEntity: 
   if (ev.type === "start" || ev.type === "end") {
     return (
       <div className="live-marker">
-        ✦ the session {ev.type === "start" ? "begins" : "ends"} · {fmtTime(ev.createdAt)} ✦
+        <span className="fleuron">✦ </span>the session {ev.type === "start" ? "begins" : "ends"} · {fmtTime(ev.createdAt)}<span className="fleuron"> ✦</span>
       </div>
     );
   }
@@ -111,7 +112,7 @@ function DmSection({ sessionId, onOpenEntity }: { sessionId: string; onOpenEntit
   return (
     <div className="live-dm">
       <div className="live-dm-head">
-        <span style={{ flex: 1 }}>✦ THE DM'S DESK ✦</span>
+        <span style={{ flex: 1 }}><Fleurons>THE DM'S DESK</Fleurons></span>
         <button
           className="live-end-btn"
           title="End the session — stamps the feed and stands the pin down"

@@ -571,22 +571,10 @@ export function NoticeBoard({
           <div className="board-frame" />
           <CompassRose style={{ top: 60, right: 120, color: "var(--ink)" } as any} />
 
-          <div style={{
-            position: "absolute", top: 60, left: 900,
-            padding: "10px 40px",
-            background: "var(--paper-scroll)",
-            fontFamily: "var(--font-fell-sc)",
-            letterSpacing: ".3em", fontSize: 14,
-            color: "var(--ink)",
-            transform: "rotate(-1deg)",
-            boxShadow: "var(--shadow-pin)",
-            border: "1px solid var(--card-edge)",
-            zIndex: 5,
-            pointerEvents: "none",
-          }}>
+          <div className="board-title-plaque">
             <span className="pin-head" style={{ left: "10%" }} />
             <span className="pin-head" style={{ left: "90%" }} />
-            ✦ {campaign.title.toUpperCase()} ✦
+            <span className="fleuron">✦ </span>{campaign.title.toUpperCase()}<span className="fleuron"> ✦</span>
           </div>
 
           <svg className="yarn-layer" viewBox={`0 0 ${bounds.w} ${bounds.h}`} preserveAspectRatio="none">
