@@ -3100,7 +3100,23 @@ button.session-pin { line-height: 1; }
   border-bottom: 1px solid var(--vellum-deep);
   padding: 9px 16px;
 }
-[data-theme="modern"] .board-toolbar h1 { font-size: 18px; }
+/* Per the Atlas mock the toolbar drops the page title (the sidebar's active
+   row and the topbar already say where you are) and leads with the kind
+   pills: hiding the h1 and pulling the pills ahead of the flex spacer
+   (order:-1; the spacer is the next DOM sibling) turns the row into
+   pills → space → session · view · actions, which also stops the button
+   wrap the title's width used to force. */
+[data-theme="modern"] .board-toolbar h1 { display: none; }
+[data-theme="modern"] .board-toolbar > .filter-group:has(.filter-pill) { order: -1; }
+/* Compact session chip: the focused session's full "S02 — Title…" label
+   otherwise stretches the select; clamp and ellipsize like the mock's
+   "S191 ⌄" chip. */
+[data-theme="modern"] .session-focus {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 [data-theme="modern"] .filter-pill {
   font-family: var(--font-ui);
   font-size: 11.5px;
