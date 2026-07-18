@@ -249,24 +249,24 @@ function InviteCard() {
         </button>
       </div>
       {invites === null ? (
-        <div style={{ fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 13, color: "var(--ink-secondary)", marginTop: 10 }}>
+        <div style={{ fontFamily: "var(--font-body)", fontStyle: "italic", fontSize: 13, color: "var(--ink-secondary)", marginTop: 10 }}>
           Unfurling the ledger…
         </div>
       ) : invites.length === 0 ? (
-        <div style={{ fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 13, color: "var(--ink-secondary)", marginTop: 10 }}>
+        <div style={{ fontFamily: "var(--font-body)", fontStyle: "italic", fontSize: 13, color: "var(--ink-secondary)", marginTop: 10 }}>
           No invitations are outstanding. Forge a link and share it with your players.
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 10 }}>
           {invites.map((inv) => (
             <div key={inv.code} style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
-              <span style={{ fontFamily: "var(--font-fell)", fontSize: 13, color: "var(--ink-secondary)", whiteSpace: "nowrap" }}>
+              <span style={{ fontFamily: "var(--font-body)", fontSize: 13, color: "var(--ink-secondary)", whiteSpace: "nowrap" }}>
                 {new Date(inv.createdAt).toLocaleDateString()}
               </span>
               <span
                 title={inviteUrl(campaign.id, inv.code)}
                 style={{
-                  fontFamily: "var(--font-fell)", fontSize: 13, color: "var(--ink)",
+                  fontFamily: "var(--font-body)", fontSize: 13, color: "var(--ink)",
                   overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                   maxWidth: 260, flexShrink: 1,
                 }}
@@ -333,7 +333,7 @@ function DangerZoneCard() {
         }}>
           SHELVE THIS CAMPAIGN
         </div>
-        <div style={{ fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 13, color: "var(--ink-secondary)", marginTop: 8 }}>
+        <div style={{ fontFamily: "var(--font-body)", fontStyle: "italic", fontSize: 13, color: "var(--ink-secondary)", marginTop: 8 }}>
           {onlyCampaign
             ? "The last campaign in the codex cannot be shelved — found another first."
             : sessionLive
@@ -459,7 +459,7 @@ export function CampaignCharterPage({ onOpenEntity }: { onOpenEntity: (id: strin
     color: "var(--ink)", letterSpacing: ".01em", lineHeight: 1.15,
   };
   const subtitleStyle: React.CSSProperties = {
-    fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 17, color: "var(--ink-body)",
+    fontFamily: "var(--font-body)", fontStyle: "italic", fontSize: 17, color: "var(--ink-body)",
   };
 
   return (
@@ -504,7 +504,7 @@ export function CampaignCharterPage({ onOpenEntity }: { onOpenEntity: (id: strin
             )}
             {epigraph && (
               <div style={{
-                fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 14,
+                fontFamily: "var(--font-body)", fontStyle: "italic", fontSize: 14,
                 color: "var(--ink-secondary)", marginTop: 8,
               }}>
                 {epigraph}
@@ -548,11 +548,11 @@ export function CampaignCharterPage({ onOpenEntity }: { onOpenEntity: (id: strin
             it hides guaranteed-to-fail RPC calls and folds view-as-player in. */}
         <SectionHeading>THE PARTY</SectionHeading>
         {roster === null ? (
-          <div style={{ fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 14, color: "var(--ink-secondary)" }}>
+          <div style={{ fontFamily: "var(--font-body)", fontStyle: "italic", fontSize: 14, color: "var(--ink-secondary)" }}>
             Consulting the rolls…
           </div>
         ) : roster.length === 0 ? (
-          <div style={{ fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 14, color: "var(--ink-secondary)" }}>
+          <div style={{ fontFamily: "var(--font-body)", fontStyle: "italic", fontSize: 14, color: "var(--ink-secondary)" }}>
             No members are recorded on this charter yet.
           </div>
         ) : (
@@ -593,9 +593,9 @@ export function CampaignCharterPage({ onOpenEntity }: { onOpenEntity: (id: strin
                       </span>
                     )}
                     {m.name ? (
-                      <span style={{ fontFamily: "var(--font-fell)", fontSize: 14, color: "var(--ink)" }}>{m.name}</span>
+                      <span style={{ fontFamily: "var(--font-body)", fontSize: 14, color: "var(--ink)" }}>{m.name}</span>
                     ) : (
-                      <span style={{ fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 14, color: "var(--ink-faded)" }}>
+                      <span style={{ fontFamily: "var(--font-body)", fontStyle: "italic", fontSize: 14, color: "var(--ink-faded)" }}>
                         an unnamed adventurer
                       </span>
                     )}
@@ -670,7 +670,7 @@ export function CampaignCharterPage({ onOpenEntity }: { onOpenEntity: (id: strin
                     display: "inline-flex", alignItems: "center", gap: 7,
                     padding: "3px 10px",
                     background: "var(--paper-cream)", border: "1px solid var(--vellum-deep)",
-                    borderRadius: 12, fontFamily: "var(--font-fell)", fontSize: 12, color: "var(--ink)",
+                    borderRadius: 12, fontFamily: "var(--font-body)", fontSize: 12, color: "var(--ink)",
                   }}
                 >
                   <span style={{
@@ -692,7 +692,7 @@ export function CampaignCharterPage({ onOpenEntity }: { onOpenEntity: (id: strin
             lives on the SessionPin; the charter only reads. */}
         <SectionHeading>SESSIONS LEDGER</SectionHeading>
         {orderedSessions.length === 0 ? (
-          <div style={{ fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 14, color: "var(--ink-secondary)" }}>
+          <div style={{ fontFamily: "var(--font-body)", fontStyle: "italic", fontSize: 14, color: "var(--ink-secondary)" }}>
             The first session is yet to be written.
           </div>
         ) : (
@@ -719,7 +719,7 @@ export function CampaignCharterPage({ onOpenEntity }: { onOpenEntity: (id: strin
                       {s.title}
                     </span>
                     {s.date && (
-                      <span style={{ fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 13, color: "var(--ink-secondary)" }}>
+                      <span style={{ fontFamily: "var(--font-body)", fontStyle: "italic", fontSize: 13, color: "var(--ink-secondary)" }}>
                         {s.date}
                       </span>
                     )}
@@ -730,7 +730,7 @@ export function CampaignCharterPage({ onOpenEntity }: { onOpenEntity: (id: strin
                     )}
                   </div>
                   {snippet && (
-                    <div style={{ fontFamily: "var(--font-fell)", fontSize: 14, color: "var(--ink-body)", marginTop: 3 }}>
+                    <div style={{ fontFamily: "var(--font-body)", fontSize: 14, color: "var(--ink-body)", marginTop: 3 }}>
                       {snippet}
                     </div>
                   )}

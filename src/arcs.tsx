@@ -47,7 +47,7 @@ export function ArcsPage({ onOpenEntity }: { onOpenEntity: (id: string) => void 
       <div style={{ position: "relative", zIndex: 1, maxWidth: 860 }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 16, marginBottom: 8, flexWrap: "wrap" }}>
           <h1 style={{ margin: 0, fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 40, color: "var(--ink)", letterSpacing: ".01em" }}>Story Arcs</h1>
-          <span style={{ fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 16, color: "var(--ink-faded)" }}>
+          <span style={{ fontFamily: "var(--font-body)", fontStyle: "italic", fontSize: 16, color: "var(--ink-faded)" }}>
             {arcs.length} {arcs.length === 1 ? "arc" : "arcs"} of the chronicle
           </span>
           {canEdit && (
@@ -80,7 +80,7 @@ export function ArcsPage({ onOpenEntity }: { onOpenEntity: (id: string) => void 
                 </span>
               </div>
               {summary && (
-                <p style={{ margin: "6px 0 0", fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 14, color: "var(--ink-body)" }}>
+                <p style={{ margin: "6px 0 0", fontFamily: "var(--font-body)", fontSize: 14, color: "var(--ink-body)" }}>
                   {summary}
                 </p>
               )}
@@ -92,7 +92,7 @@ export function ArcsPage({ onOpenEntity }: { onOpenEntity: (id: string) => void 
                   </div>
                 ))}
                 {assigned.length === 0 && (
-                  <span style={{ fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 13, color: "var(--ink-ghost)" }}>
+                  <span style={{ fontFamily: "var(--font-body)", fontStyle: "italic", fontSize: 13, color: "var(--ink-ghost)" }}>
                     No sessions claimed by this arc yet.
                   </span>
                 )}
@@ -102,7 +102,7 @@ export function ArcsPage({ onOpenEntity }: { onOpenEntity: (id: string) => void 
         })}
 
         {arcs.length === 0 && (
-          <p style={{ marginTop: 30, fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 15, color: "var(--ink-faded)" }}>
+          <p style={{ marginTop: 30, fontFamily: "var(--font-body)", fontStyle: "italic", fontSize: 15, color: "var(--ink-faded)" }}>
             No arcs written yet — the chronicle is a single unbroken thread.
           </p>
         )}

@@ -190,7 +190,7 @@ function AuthNotice({ message, onDismiss }: { message: string; onDismiss: () => 
       background: "var(--vellum-light)", color: "var(--ink)",
       boxShadow: "0 6px 24px rgba(40,20,5,.3)",
       border: "1px solid var(--ink-faded)",
-      fontFamily: "var(--font-fell)", fontSize: 13,
+      fontFamily: "var(--font-body)", fontSize: 13,
     }}>
       <span style={{ fontFamily: "var(--font-fell-sc)", letterSpacing: ".2em", fontSize: 10, color: "var(--bloodred)", whiteSpace: "nowrap" }}>
         SIGN-IN FAILED
@@ -221,7 +221,7 @@ function AuthError({ message }: { message: string }) {
     <div style={{
       position: "fixed", inset: 0, display: "grid", placeItems: "center",
       background: "var(--vellum)", color: "var(--ink)", padding: 40,
-      fontFamily: "var(--font-fell)",
+      fontFamily: "var(--font-body)",
     }}>
       <div style={{ maxWidth: 560, textAlign: "center" }}>
         <div style={{ fontFamily: "var(--font-fell-sc)", letterSpacing: ".3em", fontSize: 12, color: "var(--bloodred)", marginBottom: 12 }}>
@@ -286,7 +286,7 @@ export function DisplayNameGate({ children }: { children: ReactNode }) {
         padding: "36px 32px",
         background: "var(--vellum-light)",
         boxShadow: "0 10px 40px rgba(40,20,5,.25)",
-        fontFamily: "var(--font-fell)",
+        fontFamily: "var(--font-body)",
       }}>
         <div style={{ fontFamily: "var(--font-fell-sc)", letterSpacing: ".3em", fontSize: 11, color: "var(--ink-secondary)", marginBottom: 10 }}>
           ✦ THE CODEX ASKS YOUR NAME ✦
@@ -304,7 +304,7 @@ export function DisplayNameGate({ children }: { children: ReactNode }) {
             width: "100%", padding: "10px 12px", marginBottom: 14,
             background: "transparent",
             border: "1px solid var(--ink-faded)",
-            fontFamily: "var(--font-fell)", fontSize: 15, color: "var(--ink)",
+            fontFamily: "var(--font-body)", fontSize: 15, color: "var(--ink)",
             textAlign: "center",
           }}
         />
@@ -382,7 +382,7 @@ export function SignInDialog({ onClose }: { onClose: () => void }) {
           padding: "36px 32px",
           background: "var(--vellum-light)",
           boxShadow: "0 10px 40px rgba(40,20,5,.25)",
-          fontFamily: "var(--font-fell)",
+          fontFamily: "var(--font-body)",
         }}
       >
         <div style={{ fontFamily: "var(--font-fell-sc)", letterSpacing: ".3em", fontSize: 11, color: "var(--ink-secondary)", marginBottom: 10 }}>
@@ -435,7 +435,7 @@ export function SignInDialog({ onClose }: { onClose: () => void }) {
                 width: "100%", padding: "10px 12px", marginBottom: 14,
                 background: "transparent",
                 border: "1px solid var(--ink-faded)",
-                fontFamily: "var(--font-fell)", fontSize: 15, color: "var(--ink)",
+                fontFamily: "var(--font-body)", fontSize: 15, color: "var(--ink)",
                 textAlign: "center",
               }}
             />

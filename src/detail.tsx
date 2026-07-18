@@ -236,7 +236,7 @@ function AddRelationForm({ fromId }: { fromId: string }) {
         style={{
           background: "transparent",
           border: "1px dashed var(--ink-ghost)",
-          fontFamily: "var(--font-fell)", fontSize: 12, color: "var(--ink)",
+          fontFamily: "var(--font-body)", fontSize: 13, color: "var(--ink)",
           padding: "6px 8px",
         }}
       />
@@ -311,7 +311,7 @@ function EventParticipantsEditor({ eventId, onOpen }: { eventId: string; onOpen:
         </div>
       ))}
       {participants.length === 0 && (
-        <div style={{ fontFamily: "var(--font-fell)", fontStyle: "italic", fontSize: 12, color: "var(--ink-ghost)" }}>
+        <div style={{ fontFamily: "var(--font-body)", fontStyle: "italic", fontSize: 12, color: "var(--ink-ghost)" }}>
           No one is recorded at this event.
         </div>
       )}
@@ -325,7 +325,7 @@ function EventParticipantsEditor({ eventId, onOpen }: { eventId: string; onOpen:
             marginTop: 6, width: "100%",
             background: "transparent",
             border: "1px dashed var(--ink-ghost)",
-            fontFamily: "var(--font-fell)", fontSize: 12, color: "var(--ink)",
+            fontFamily: "var(--font-body)", fontSize: 13, color: "var(--ink)",
             padding: "6px 8px", cursor: "pointer",
           }}
         >
@@ -894,7 +894,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                     value={(entity as any).summary ?? ""}
                     onSave={(v) => patch({ summary: v })}
                     placeholder="What happened this session…"
-                    style={{ fontFamily: "var(--font-fell)" }}
+                    style={{ fontFamily: "var(--font-body)" }}
                   />
                 </div>
               )}
@@ -926,7 +926,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                     value={(entity as any).summary ?? ""}
                     onSave={(v) => patch({ summary: v })}
                     placeholder="The shape of this arc…"
-                    style={{ fontFamily: "var(--font-fell)" }}
+                    style={{ fontFamily: "var(--font-body)" }}
                   />
                 </div>
               )}
@@ -937,7 +937,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                     value={(entity as any).summary ?? ""}
                     onSave={(v) => patch({ summary: v })}
                     placeholder="What came to pass…"
-                    style={{ fontFamily: "var(--font-fell)" }}
+                    style={{ fontFamily: "var(--font-body)" }}
                   />
                 </div>
               )}
@@ -950,7 +950,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                     value={(entity as any).notes ?? ""}
                     onSave={(v) => patch({ notes: v })}
                     placeholder="Write the party's record…"
-                    style={{ fontFamily: "var(--font-fell)" }}
+                    style={{ fontFamily: "var(--font-body)" }}
                   />
                 </div>
               )}
@@ -962,7 +962,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                     value={(entity as any).text ?? ""}
                     onSave={(v) => patch({ text: v })}
                     placeholder="The lore unfolds…"
-                    style={{ fontFamily: "var(--font-fell)" }}
+                    style={{ fontFamily: "var(--font-body)" }}
                   />
                 </div>
               )}
@@ -974,7 +974,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                     value={(entity as any).desc ?? ""}
                     onSave={(v) => patch({ desc: v })}
                     placeholder="Describe this…"
-                    style={{ fontFamily: "var(--font-fell)" }}
+                    style={{ fontFamily: "var(--font-body)" }}
                   />
                 </div>
               )}
@@ -1004,7 +1004,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                     value={campaign.dmNotes[entityId] ?? ""}
                     onSave={(v) => updateDmNotes(entityId, v).catch((e) => console.error("updateDmNotes failed", e))}
                     placeholder="Prep notes the party never sees…"
-                    style={{ fontFamily: "var(--font-fell)" }}
+                    style={{ fontFamily: "var(--font-body)" }}
                   />
                 </div>
               )}
@@ -1012,7 +1012,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
               <h3 style={{ marginTop: 28 }}>Party Notes</h3>
               <div className="notes-stack">
                 {notes.length === 0 && (
-                  <div style={{ fontFamily: "var(--font-fell)", fontStyle: "italic", color: "var(--ink-secondary)", fontSize: 13 }}>
+                  <div style={{ fontFamily: "var(--font-body)", fontStyle: "italic", color: "var(--ink-secondary)", fontSize: 13 }}>
                     No notes yet. The margin waits.
                   </div>
                 )}
