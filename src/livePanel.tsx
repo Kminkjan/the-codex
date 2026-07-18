@@ -165,6 +165,7 @@ function DmSection({ sessionId, onOpenEntity }: { sessionId: string; onOpenEntit
 
 export function LivePanel({ onOpenEntity }: { onOpenEntity: (id: string) => void }) {
   const campaign = useCampaign();
+  const findEntity = useFindEntity();
   const presenceUsers = usePresence();
   const isDm = useIsDm();
   const { canEdit, displayName } = useAuth();
@@ -178,6 +179,15 @@ export function LivePanel({ onOpenEntity }: { onOpenEntity: (id: string) => void
 
   const sessionId = campaign.activeSessionId ?? null;
   const events = campaign.sessionEvents.filter((e) => e.sessionId === sessionId);
+
+  // "Now showing" (this session's latest ⚡ show whose entity still resolves):
+  // pinned above the feed rather than reordering it — the feed stays a
+  // chronological chat, but the thing currently on display keeps a persistent
+  // slot with its portrait. Quiet 🕯 releases don't qualify; the takeover is
+  // the "everyone look at this" act. A re-hidden or deleted entity drops out
+  // of findEntity, so the card retires itself with the projection.
+  const lastShow = events.filter(isShowEvent).at(-1);
+  const shownEnt = lastShow ? findEntity(lastShow.entityId) : null;
 
   // Going live (or switching sessions) re-opens a collapsed panel — the state
   // change is the moment the panel earns attention again.
@@ -240,6 +250,30 @@ export function LivePanel({ onOpenEntity }: { onOpenEntity: (id: string) => void
           <Icon name="chevron" size={12} />
         </button>
       </header>
+
+      {lastShow && shownEnt && (
+        <div
+          className="live-spotlight"
+          onClick={() => onOpenEntity(shownEnt.id)}
+          title="Open in the codex"
+        >
+          {shownEnt.imageUrl ? (
+            <img className="live-spotlight-img" src={shownEnt.imageUrl} alt={entityLabel(shownEnt)} />
+          ) : (
+            <div className="live-spotlight-icon">
+              <Icon name={kindIcon[shownEnt._kind as KindKey]} size={22} />
+            </div>
+          )}
+          <div className="live-spotlight-body">
+            <div className="live-spotlight-kicker">⚡ NOW SHOWING</div>
+            <div className="live-spotlight-label">{entityLabel(shownEnt)}</div>
+            <div className="live-meta">
+              <span>{lastShow.author ? `by ${lastShow.author}` : ""}</span>
+              <span>{fmtTime(lastShow.createdAt)}</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div
         className="live-feed"
