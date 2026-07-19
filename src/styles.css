@@ -213,6 +213,18 @@
   --hairline:      #262a36;
 }
 
+/* Native <select> popups are painted by the OS/browser, not our stylesheet.
+   Without a matching color-scheme, Windows renders the dark themes' light ink
+   onto its default light popup and the options vanish. Pin option colors too
+   for engines that honor them (Chromium on Windows does). */
+:root { color-scheme: light; }
+[data-theme="grimoire"],
+[data-theme="modern"] { color-scheme: dark; }
+select option {
+  background: var(--vellum-light);
+  color: var(--ink);
+}
+
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; height: 100%; }
 body {
