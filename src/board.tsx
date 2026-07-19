@@ -300,6 +300,8 @@ export function NoticeBoard({
     if (!(filters as any)[pos.kind]) setFilters((f) => ({ ...f, [pos.kind]: true }));
     const ent = findEntity(id);
     if (ent && (ent as any).archived) setShowArchived(true);
+    if (ent && pos.kind === "people" && personTier(ent as any) === "background")
+      setShowBackground(true);
 
     const rect = canvasRef.current?.getBoundingClientRect();
     const c = centerOf(id);
