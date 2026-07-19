@@ -282,7 +282,7 @@ function AppLoaded() {
   return (
     <>
       <div className="app">
-        <Topbar onShare={onShare} onOpenCharter={() => setView("campaign")} />
+        <Topbar view={view} onShare={onShare} onOpenCharter={() => setView("campaign")} onSearch={() => setPaletteOpen(true)} />
         <Sidebar active={view} onSelect={setView} onOpenEntity={setOpenId} onOpenCleanup={() => setCleanupOpen(true)} counts={counts} />
         <main className="main">
           {view === "board" && (
