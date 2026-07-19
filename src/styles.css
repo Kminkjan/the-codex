@@ -216,7 +216,8 @@
 /* Native <select> popups are painted by the OS/browser, not our stylesheet.
    Without a matching color-scheme, Windows renders the dark themes' light ink
    onto its default light popup and the options vanish. Pin option colors too
-   for engines that honor them (Chromium on Windows does). */
+   for engines that honor them (Chromium on Windows does). Any new dark theme
+   must be added to the dark list below or its popups regress to light. */
 :root { color-scheme: light; }
 [data-theme="grimoire"],
 [data-theme="modern"] { color-scheme: dark; }
