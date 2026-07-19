@@ -11,7 +11,7 @@ import {
 import { CompassRose, Icon, kindIcon } from "./icons";
 import { useCampaign, useDismiss, useFindEntity, useKinds } from "./hooks";
 import { useAuth } from "./auth";
-import { CardBody, PinnedCard } from "./components";
+import { CardBody, PinnedCard, ThemedLabel } from "./components";
 import { entityLabel, sessionLabel } from "./data";
 import { computeTidyLayout, cardDims, findFreeSpot } from "./boardLayout";
 import { deriveRelations } from "./relations";
@@ -521,7 +521,7 @@ export function NoticeBoard({
           disabled={tidying}
           title="Auto-arrange the board: connected cards cluster, same-kind cards group, starred cards stay put"
         >
-          <Icon name="sparkle" size={14} /> {tidying ? "Tidying…" : "Tidy board"}
+          <Icon name="sparkle" size={14} /> <ThemedLabel parchment={tidying ? "Tidying…" : "Tidy board"} atlas={tidying ? "Tidying…" : "Tidy"} />
         </button>}
 
         {canEdit && <button
@@ -529,16 +529,16 @@ export function NoticeBoard({
           onClick={() => { setConnectMode((m) => !m); setConnectSource(null); }}
           title="Draw a connection between two cards"
         >
-          <Icon name="link" size={14} /> {connectMode ? "Cancel string" : "Draw string"}
+          <Icon name="link" size={14} /> <ThemedLabel parchment={connectMode ? "Cancel string" : "Draw string"} atlas={connectMode ? "Cancel" : "Connect"} />
         </button>}
 
         {canEdit && <div style={{ position: "relative" }} ref={addMenuRef}>
           <button
-            className="btn btn-primary"
+            className="btn btn-primary btn-newcard"
             onClick={() => setAddMenuOpen((o) => !o)}
             title="Pin a new card to the board"
           >
-            <Icon name="plus" size={14} /> Pin new
+            <Icon name="plus" size={14} /> <ThemedLabel parchment="Pin new" atlas="New card" />
           </button>
           {addMenuOpen && (
             <div className="view-menu" style={{ minWidth: 180 }}>

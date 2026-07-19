@@ -192,6 +192,18 @@ export function CardBody({ entity, kind }: { entity: any; kind: KindKey }) {
 
 // Decorative ✦ flourishes around small-caps kind tags. A real span (not CSS
 // content) so the Modern Atlas theme can hide them and swap in its own dot.
+// Modern Atlas speaks a terser UI voice than the parchment themes ("Tidy"
+// vs "Tidy board", "S191" vs "Session 191"). Both labels render; the theme
+// CSS shows exactly one — same override-layer pattern as the visual dress.
+export function ThemedLabel({ parchment, atlas }: { parchment: React.ReactNode; atlas: React.ReactNode }) {
+  return (
+    <>
+      <span className="label-parchment">{parchment}</span>
+      <span className="label-atlas">{atlas}</span>
+    </>
+  );
+}
+
 export function Fleurons({ children }: { children: React.ReactNode }) {
   return (
     <>
@@ -589,11 +601,11 @@ function CampaignPicker({ onOpenCharter }: { onOpenCharter: () => void }) {
         style={{ cursor: "pointer" }}
       >
         <span className="dot" />
-        <span style={{ fontFamily: "var(--font-fell-sc)", letterSpacing: ".1em", fontSize: 11 }}>CAMPAIGN</span>
-        <span>·</span>
-        <span style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 15 }}>{campaign.title}</span>
+        <span className="campaign-chip-kicker">CAMPAIGN</span>
+        <span className="campaign-chip-sep">·</span>
+        <span className="campaign-chip-title">{campaign.title}</span>
         {campaign.subtitle && (
-          <span style={{ color: "var(--ink-secondary)", fontStyle: "italic", fontSize: 12 }}>· {campaign.subtitle}</span>
+          <span className="campaign-chip-sub">· {campaign.subtitle}</span>
         )}
         {canSwitch && (
           <Icon name="chevron" size={11} style={{ transform: open ? "rotate(-90deg)" : "rotate(90deg)", color: "var(--ink-faded)", flexShrink: 0 }} />
@@ -714,9 +726,9 @@ function SessionPin() {
     return (
       <div className="session-pin">
         <span className={"pin-dot live"} />
-        <span style={{ fontFamily: "var(--font-fell-sc)", letterSpacing: ".1em", fontSize: 11 }}>LIVE</span>
-        <span>·</span>
-        <span style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 14 }}>Session {live.num}</span>
+        <span className="pin-kicker"><ThemedLabel parchment="LIVE" atlas="Live" /></span>
+        <span className="pin-sep">·</span>
+        <span className="pin-session"><ThemedLabel parchment={`Session ${live.num}`} atlas={sessionLabel(live.num)} /></span>
       </div>
     );
   }
@@ -752,8 +764,8 @@ function SessionPin() {
         title={live ? "Switch or stand down" : "Go live on a session"}
       >
         <span className={"pin-dot" + (live ? " live" : "")} />
-        <span style={{ fontFamily: "var(--font-fell-sc)", letterSpacing: ".1em", fontSize: 11 }}>{live ? "LIVE" : "GO LIVE"}</span>
-        {live && <><span>·</span><span style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 14 }}>{label}</span></>}
+        <span className="pin-kicker"><ThemedLabel parchment={live ? "LIVE" : "GO LIVE"} atlas={live ? "Live" : "Go live"} /></span>
+        {live && <><span className="pin-sep">·</span><span className="pin-session"><ThemedLabel parchment={label} atlas={sessionLabel(live.num)} /></span></>}
         <Icon name="chevron" size={11} style={{ transform: open ? "rotate(-90deg)" : "rotate(90deg)", color: "var(--ink-faded)", flexShrink: 0 }} />
       </button>
       {open && (
@@ -785,23 +797,48 @@ function SessionPin() {
   );
 }
 
-export function Topbar({ onShare, onOpenCharter }: { onShare: () => void; onOpenCharter: () => void }) {
+export function Topbar({ view, onShare, onOpenCharter, onSearch }: {
+  view: string;
+  onShare: () => void;
+  onOpenCharter: () => void;
+  onSearch: () => void;
+}) {
   const presenceUsers = usePresence();
+  const kinds = useKinds();
   const { canEdit, displayName, avatarUrl, signOut } = useAuth();
   const { isRealDm, viewAsPlayer, setViewAsPlayer } = useViewAsPlayer();
   const [signingIn, setSigningIn] = useState(false);
+  // Breadcrumb tail (Modern Atlas only, via CSS): "campaign / where you are".
+  const viewLabel =
+    view === "board" ? "Notice Board"
+    : view === "arcs" ? "Story Arcs"
+    : view === "events" ? "Events"
+    : view === "campaign" ? "Charter"
+    : kinds.find((k) => k.key === view)?.label ?? "";
   return (
     <header className="topbar">
       <div className="logo">
         <div className="logo-mark"><Icon name="compass" size={18} /></div>
         <div>
-          <div className="logo-title">THE CODEX</div>
+          <div className="logo-title"><ThemedLabel parchment="THE CODEX" atlas="Codex" /></div>
           <div className="logo-sub">a shared journal</div>
         </div>
       </div>
       <div className="topbar-center">
         <CampaignPicker onOpenCharter={onOpenCharter} />
+        {viewLabel && (
+          <>
+            <span className="topbar-crumb-sep" aria-hidden>/</span>
+            <span className="topbar-crumb">{viewLabel}</span>
+          </>
+        )}
+        <div className="topbar-center-gap" aria-hidden />
         <SessionPin />
+        <button className="topbar-search" onClick={onSearch} title="Search the codex (⌘K)">
+          <Icon name="search" size={12} />
+          <span>Search the codex…</span>
+          <kbd>⌘K</kbd>
+        </button>
       </div>
       <div className="topbar-right">
         <Presence users={presenceUsers} />
@@ -817,30 +854,31 @@ export function Topbar({ onShare, onOpenCharter }: { onShare: () => void; onOpen
             <Icon name="eye" size={14} /> View as player
           </button>
         )}
-        <button className="btn" onClick={onShare}><Icon name="share" size={14} /> Share link</button>
+        <button className="btn" onClick={onShare}><Icon name="share" size={14} /> <ThemedLabel parchment="Share link" atlas="Share" /></button>
         {canEdit ? (
           <>
-            {avatarUrl && (
+            {avatarUrl ? (
               <img
                 src={avatarUrl}
                 alt=""
                 referrerPolicy="no-referrer"
-                style={{
-                  width: 20, height: 20, borderRadius: "50%",
-                  border: "1px solid var(--ink-faded)", objectFit: "cover",
-                }}
+                className="avatar-self"
+                title={displayName || undefined}
               />
+            ) : (
+              // Atlas-only fallback (CSS-gated): the design's initial disc, so
+              // the account always has a face even without a Discord avatar.
+              <span className="avatar-self-initial" title={displayName || undefined} aria-hidden>
+                {(displayName || "?").trim().charAt(0).toUpperCase()}
+              </span>
             )}
             {/* Functional micro-text, not flavor — the UI face reads better
                 than 12px italic serif. */}
-            <span style={{
-              fontFamily: "var(--font-ui)",
-              fontSize: 12, color: "var(--ink-secondary)",
-            }}>
+            <span className="topbar-account-name">
               {displayName}
             </span>
             <button
-              className="btn"
+              className="btn topbar-signout"
               onClick={() => { signOut().catch(console.error); }}
               title="Sign out and return to read-only viewing"
             >
