@@ -9,7 +9,7 @@ import {
   isArchivableKind,
 } from "./data";
 import { CompassRose, Icon, kindIcon } from "./icons";
-import { useCampaign, useDismiss, useFindEntity, useKinds } from "./hooks";
+import { useCampaign, useDismiss, useFindEntity, useIsDm, useKinds } from "./hooks";
 import { useAuth } from "./auth";
 import { CardBody, PinnedCard, ThemedLabel } from "./components";
 import { entityLabel, sessionLabel } from "./data";
@@ -66,6 +66,7 @@ export function NoticeBoard({
   const findEntity = useFindEntity();
   const kinds = useKinds();
   const { canEdit } = useAuth();
+  const isDm = useIsDm();
 
   const positions = campaign.board;
   // Unified relationship edges: hand-drawn strings (connections table) + the
@@ -216,11 +217,19 @@ export function NoticeBoard({
   useDismiss(addMenuRef, addMenuOpen, () => setAddMenuOpen(false));
   useDismiss(viewMenuRef, viewMenuOpen, () => setViewMenuOpen(false));
 
+  // Creation-only visibility default: the DM's prep-time creations start
+  // hidden — there's no draft state, so a visible insert would broadcast the
+  // half-typed spoiler to every player. While a session is live the entity is
+  // usually "the thing the party just met", so it stays visible (and the
+  // effective isDm is false in view-as-player, where a hidden creation would
+  // vanish from the DM's own projected view).
+  const createHidden = isDm && !campaign.activeSessionId;
+
   const onCreate = async (k: Exclude<KindKey, "sessions" | "arcs" | "events">) => {
     setAddMenuOpen(false);
     const id = crypto.randomUUID();
     try {
-      await createEntity(k, id, NEW_ENTITY_DEFAULTS[k]);
+      await createEntity(k, id, { ...NEW_ENTITY_DEFAULTS[k], ...(createHidden ? { hidden: true } : {}) });
       // Creating a person while live implies they showed up this session —
       // auto-mark them seen (people have no session_id, so this is their
       // creation-only link, mirroring the events/quests default in createEntity).
@@ -690,6 +699,7 @@ export function KindList({ kind, onOpenEntity }: { kind: string; onOpenEntity: (
   const kinds = useKinds();
   const campaign = useCampaign();
   const { canEdit } = useAuth();
+  const isDm = useIsDm();
   const [showArchived, setShowArchived] = useState(false);
   // People facets: view filters, not writes — open to read-only viewers, like
   // the sidebar arc filter. Background folk hide behind a reveal by default so
@@ -763,7 +773,9 @@ export function KindList({ kind, onOpenEntity }: { kind: string; onOpenEntity: (
               title="Add a person to the codex without pinning them to the board"
               onClick={() => {
                 const id = crypto.randomUUID();
-                createEntity("people", id, NEW_ENTITY_DEFAULTS.people)
+                // Same prep-time visibility default as the board's "Pin new".
+                const hide = isDm && !campaign.activeSessionId;
+                createEntity("people", id, { ...NEW_ENTITY_DEFAULTS.people, ...(hide ? { hidden: true } : {}) })
                   .then(() => onOpenEntity(id))
                   .catch(console.error);
               }}
