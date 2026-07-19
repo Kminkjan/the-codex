@@ -105,6 +105,8 @@ export function NoticeBoard({
   // FK-derived strings (dashed) can be hidden when the board gets busy; manual
   // strings always show. This also scopes Tidy to what's visible (see onTidy).
   const [showDerived, setShowDerived] = useState(true);
+  // Background-tier folk are tucked away by default, same as the People list.
+  const [showBackground, setShowBackground] = useState(false);
   const [scale, setScale] = useState(0.9);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [panning, setPanning] = useState(false);
@@ -145,6 +147,8 @@ export function NoticeBoard({
     const ent = findEntity(id);
     if (!ent) return false;
     if (!showArchived && (ent as any).archived) return false;
+    if (!showBackground && pos.kind === "people" && personTier(ent as any) === "background")
+      return false;
     return true;
   };
 
@@ -305,6 +309,8 @@ export function NoticeBoard({
     if (!(filters as any)[pos.kind]) setFilters((f) => ({ ...f, [pos.kind]: true }));
     const ent = findEntity(id);
     if (ent && (ent as any).archived) setShowArchived(true);
+    if (ent && pos.kind === "people" && personTier(ent as any) === "background")
+      setShowBackground(true);
 
     const rect = canvasRef.current?.getBoundingClientRect();
     const c = centerOf(id);
@@ -448,7 +454,7 @@ export function NoticeBoard({
   const allKindsOn = kinds.every((k) => (filters as any)[k.key]);
   // Non-default view toggles get a dot on the View button so a filtered board
   // is never silent about it.
-  const viewNonDefault = showArchived || !showDerived;
+  const viewNonDefault = showArchived || !showDerived || showBackground;
 
   return (
     <>
@@ -497,7 +503,7 @@ export function NoticeBoard({
           <button
             className="btn btn-ghost"
             onClick={() => setViewMenuOpen((o) => !o)}
-            title="View options: archived cards, derived strings"
+            title="View options: archived cards, background people, derived strings"
           >
             <Icon name="eye" size={14} /> View
             {viewNonDefault && <span className="view-dot" title="View options changed from default" />}
@@ -511,6 +517,14 @@ export function NoticeBoard({
                   onChange={(e) => setShowArchived(e.target.checked)}
                 />
                 Show archived cards
+              </label>
+              <label className="view-menu-row" title="Include background-tier folk on the board">
+                <input
+                  type="checkbox"
+                  checked={showBackground}
+                  onChange={(e) => setShowBackground(e.target.checked)}
+                />
+                Show background people
               </label>
               <label className="view-menu-row" title="Show the dashed strings derived from relations (resides at, member of, quest giver)">
                 <input
@@ -640,10 +654,8 @@ export function NoticeBoard({
           </svg>
 
           {Object.entries(positions).map(([id, pos]) => {
-            if (!(filters as any)[pos.kind]) return null;
-            const entity = findEntity(id);
-            if (!entity) return null;
-            if (!showArchived && (entity as any).archived) return null;
+            if (!visible(id)) return null;
+            const entity = findEntity(id)!;
             const anim = tidyAnim?.[id];
             const dpos = anim ? { ...pos, x: anim.x, y: anim.y } : pos;
             return (
