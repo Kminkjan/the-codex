@@ -3090,11 +3090,20 @@ button.session-pin { line-height: 1; }
 /* Topbar buttons drop their engraving icons ("Share", not "⎋ Share link"). */
 [data-theme="modern"] .topbar .btn svg { display: none; }
 [data-theme="modern"] .topbar-right { gap: 10px; }
-[data-theme="modern"] .topbar-account-name { display: none; }
+/* Visually hidden, NOT display:none — the avatar art is aria-hidden/alt="",
+   so this span must stay in the accessibility tree to name the account. */
+[data-theme="modern"] .topbar-account-name {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 [data-theme="modern"] .topbar-signout {
   background: transparent;
   border-color: transparent;
-  color: var(--ink-ghost);
+  color: var(--ink-secondary);
   padding: 6px 8px;
 }
 [data-theme="modern"] .topbar-signout:hover { color: var(--ink); border-color: transparent; }

@@ -190,8 +190,6 @@ export function CardBody({ entity, kind }: { entity: any; kind: KindKey }) {
   );
 }
 
-// Decorative ✦ flourishes around small-caps kind tags. A real span (not CSS
-// content) so the Modern Atlas theme can hide them and swap in its own dot.
 // Modern Atlas speaks a terser UI voice than the parchment themes ("Tidy"
 // vs "Tidy board", "S191" vs "Session 191"). Both labels render; the theme
 // CSS shows exactly one — same override-layer pattern as the visual dress.
@@ -204,6 +202,8 @@ export function ThemedLabel({ parchment, atlas }: { parchment: React.ReactNode; 
   );
 }
 
+// Decorative ✦ flourishes around small-caps kind tags. A real span (not CSS
+// content) so the Modern Atlas theme can hide them and swap in its own dot.
 export function Fleurons({ children }: { children: React.ReactNode }) {
   return (
     <>
