@@ -8,7 +8,7 @@ Consequences of the integration:
 - **Migrations must apply cleanly from scratch** (preview branches replay 0001→head on an empty database) and should be idempotent where possible.
 - **Never renumber a file whose version is already in the remote history** — that would desync repo and remote forever.
 
-**Picking a number for a new migration:** take the next number after the highest across (a) this directory, (b) the remote history, and (c) any in-flight branch or open PR that adds a migration. As of 2026-07-17 that next number is **0023** — 0022 is reserved by coordination for issue #86's in-flight `campaign_invites` work (not yet an open PR; re-verify when it lands).
+**Picking a number for a new migration:** take the next number after the highest across (a) this directory, (b) the remote history, and (c) any in-flight branch or open PR that adds a migration. As of 2026-07-25 that next number is **0024** — 0023 (`campaign_crud_membership_scoping`, issue #87) is the highest here, and issue #86's `campaign_invites` has since landed as 0022.
 
 ## Known anomaly: prod's version 0014 is not this directory's 0014
 
