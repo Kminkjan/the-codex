@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { entityLabel, isHidden, isShowEvent, stripShowMark, type KindKey, type SessionEvent } from "./data";
+import { entityLabel, isHidden, isShowEvent, stripShowMark, type Entity, type KindKey, type SessionEvent } from "./data";
 import { Icon, kindIcon } from "./icons";
 import { useCampaign, useFindEntity, useIsDm, usePresence } from "./hooks";
 import { useAuth } from "./auth";
-import { Fleurons } from "./components";
+import { Fleurons, ThemedLabel } from "./components";
 import { endLiveSession, insertSessionEvent, releaseEntity, showEntity } from "./mutations";
 
 // The at-the-table surface (issue #67): a docked right panel that opens when a
@@ -41,6 +41,30 @@ export function FeedRow({ ev, onOpenEntity }: { ev: SessionEvent; onOpenEntity: 
         title={ent ? "Open in the codex" : undefined}
       >
         <div>{shown ? <>⚡ The DM showed <em>{label}</em></> : <>🕯 The DM revealed <em>{label}</em></>}</div>
+        <div className="live-meta"><span>{ev.author ? `by ${ev.author}` : ""}</span><span>{fmtTime(ev.createdAt)}</span></div>
+      </div>
+    );
+  }
+  if (ev.type === "link") {
+    // A string drawn at the table (0031). Two endpoints, either of which may
+    // dangle — and unlike a reveal there is no label snapshot to fall back on,
+    // because `text` carries the string's own label, so a deleted end degrades
+    // to the stock phrase. The card itself isn't clickable: each name is, so
+    // both ends of the string are reachable from one row.
+    const endpoint = (ent: Entity | null) => (ent
+      ? <em className="live-tie" onClick={() => onOpenEntity(ent.id)} title="Open in the codex">{entityLabel(ent)}</em>
+      : <em>something struck from the codex</em>);
+    const ea = endpoint(findEntity(ev.entityId));
+    const eb = endpoint(findEntity(ev.entityIdB));
+    return (
+      <div className="live-reveal">
+        <div>
+          ⛓ <ThemedLabel
+            parchment={<>A string now ties {ea} to {eb}</>}
+            atlas={<>Connected {ea} and {eb}</>}
+          />
+          {ev.text ? <> — “{ev.text}”</> : null}
+        </div>
         <div className="live-meta"><span>{ev.author ? `by ${ev.author}` : ""}</span><span>{fmtTime(ev.createdAt)}</span></div>
       </div>
     );

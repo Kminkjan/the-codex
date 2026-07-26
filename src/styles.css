@@ -3285,6 +3285,11 @@ button.session-pin { line-height: 1; }
   font-family: var(--font-fell-sc);
   letter-spacing: .04em;
 }
+/* A link row reuses the reveal card, but its affordance sits on each endpoint
+   name rather than the whole card (two destinations, one row), so it never
+   takes .linked. Inherits .live-reveal em for the face, in both dresses. */
+.live-tie { cursor: pointer; text-decoration: underline dotted; text-underline-offset: 2px; }
+.live-tie:hover { text-decoration-style: solid; }
 .live-reveal.linked { cursor: pointer; }
 .live-reveal.linked:hover {
   background: color-mix(in srgb, var(--mustard) 22%, var(--vellum-light));

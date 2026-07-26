@@ -208,7 +208,22 @@ export interface PartyNote {
   hand: boolean;
 }
 
-export type Connection = [string, string, string];
+// One row of the free-form `connections` table (a hand-drawn "string"). Was a
+// positional [from, to, label] tuple until 0031 added provenance; the object
+// form is what lets a reader ask WHEN a string was drawn.
+export interface Connection {
+  from: string;
+  to: string;
+  label: string;
+  // Null for every row predating 0031 — the seeded back-catalogue genuinely
+  // does not know when it was drawn (0031 deliberately did not backfill a
+  // fake timestamp). Never substitute a fallback date: "unknown" is the fact.
+  createdAt?: string;
+  // Set only when the string was drawn while a session was live; prep-time
+  // strings legitimately have none.
+  sessionId?: string;
+  author?: string;
+}
 
 // A DM-staged entity queued for a session (session_staging junction). Rows
 // with releasedAt null are "queued"; PR 3's one-click release stamps it.
@@ -218,7 +233,7 @@ export interface SessionStagingRow {
   releasedAt: string | null;
 }
 
-export type SessionEventType = "note" | "reveal" | "start" | "end";
+export type SessionEventType = "note" | "reveal" | "start" | "end" | "link";
 
 // One row of the append-only live-session feed (session_events). INSERT-only
 // by construction — rows are never edited, so one author per row and inserts
@@ -232,6 +247,11 @@ export interface SessionEvent {
   // feed is history), so this may dangle — renderers must findEntity and
   // tolerate null.
   entityId?: string;
+  // The far endpoint of a 'link' event (0031). Only link rows set it, and it
+  // dangles on entity deletion exactly like entityId. Every filter that gates
+  // on entityId's visibility must gate on this one too, or a re-hidden entity
+  // leaks back through an old link row.
+  entityIdB?: string;
   text?: string;
   createdAt: string;
 }
@@ -414,7 +434,7 @@ export function projectCampaignForViewers(c: Campaign): Campaign {
     people, locations, quests, goals, factions, items, lore, monsters,
     // DM's eyes only — emptied for the player view (issue #70/#73).
     dmNotes: {},
-    connections: c.connections.filter(([a, b]) => !hiddenIds.has(a) && !hiddenIds.has(b)),
+    connections: c.connections.filter((cn) => !hiddenIds.has(cn.from) && !hiddenIds.has(cn.to)),
     board: dropHiddenKeys(c.board),
     eventParticipants: dropHiddenValues(c.eventParticipants),
     sessionParticipants: dropHiddenValues(c.sessionParticipants),
@@ -424,8 +444,13 @@ export function projectCampaignForViewers(c: Campaign): Campaign {
     // player surface is the feed, so viewers get none of it.
     sessionStaging: [],
     // Defensive: a reveal event normally implies its entity was just unhidden,
-    // but a re-hidden entity must not leak back through old feed rows.
-    sessionEvents: c.sessionEvents.filter((e) => !e.entityId || !hiddenIds.has(e.entityId)),
+    // but a re-hidden entity must not leak back through old feed rows. Link
+    // rows (0031) carry two endpoints and BOTH have to clear, else re-hiding
+    // one end of a string still announces the other end's relationship.
+    sessionEvents: c.sessionEvents.filter(
+      (e) => (!e.entityId || !hiddenIds.has(e.entityId))
+        && (!e.entityIdB || !hiddenIds.has(e.entityIdB)),
+    ),
   };
 }
 
@@ -436,7 +461,8 @@ export function projectCampaignForViewers(c: Campaign): Campaign {
 // must mirror the projection's reveal filter: reveals of currently-hidden
 // entities (released, then re-hidden) are skipped entirely — even the label
 // snapshotted in `text` would leak. Reveals whose entity was deleted fall
-// back to that snapshot, same as the live feed's rows.
+// back to that snapshot, same as the live feed's rows. Link rows (0031) follow
+// the same rule on both of their endpoints.
 export function sessionFeedToMarkdown(
   events: SessionEvent[],
   resolveEntity: (id?: string | null) => Entity | null,
@@ -456,6 +482,18 @@ export function sessionFeedToMarkdown(
       const label = ent ? entityLabel(ent) : stripShowMark(ev.text) || "something struck from the codex";
       const verb = isShowEvent(ev) ? "⚡ **" + label + "** shown to the table" : "🕯 **" + label + "** revealed";
       lines.push(`- *${t}* — ${verb}${ev.author ? ` by ${ev.author}` : ""}`);
+    } else if (ev.type === "link") {
+      // Same hidden rule as the reveal branch, on BOTH endpoints — this digest
+      // lands in the public `summary`, so a re-hidden end must drop the row
+      // entirely. isHidden(null) is false, so a *deleted* endpoint still
+      // prints, degraded to the fallback phrase (the feed is history).
+      const ea = resolveEntity(ev.entityId);
+      const eb = resolveEntity(ev.entityIdB);
+      if (isHidden(ea) || isHidden(eb)) continue;
+      const la = ea ? entityLabel(ea) : "something struck from the codex";
+      const lb = eb ? entityLabel(eb) : "something struck from the codex";
+      const tie = ev.text ? ` — "${ev.text}"` : "";
+      lines.push(`- *${t}* — ⛓ **${la}** and **${lb}** are connected${tie}${ev.author ? ` (${ev.author})` : ""}`);
     } else {
       lines.push(`- *${t}* — ${ev.author || "Anonymous"}: ${ev.text ?? ""}`);
     }
@@ -466,6 +504,18 @@ export function sessionFeedToMarkdown(
 // Null tier reads as major: existing rows predate the column and every curated
 // person should count as major without a backfill. Always read tier through
 // this helper, never `p.tier` directly.
+// Whether a hand-drawn string between these two is something the players can
+// already make sense of: both ends visible. This is what decides whether
+// drawing one during a live session announces itself in the feed (0031) — a
+// string touching an unreleased entity is DM prep, not a story beat.
+//
+// Two deliberate edges: kinds with no `hidden` column (sessions/arcs/events)
+// always read visible, and a null entity — an id that resolves to nothing, so
+// either deleted or projected away — is NOT treated as visible.
+export function bothVisible(a: Entity | null, b: Entity | null): boolean {
+  return !!a && !!b && !isHidden(a) && !isHidden(b);
+}
+
 export function personTier(p: { tier?: PersonTier }): PersonTier {
   return p.tier ?? "major";
 }

@@ -51,7 +51,18 @@ export async function loadCampaignGraph(campaignId: string): Promise<CampaignGra
     people: rows.people.map((r) => ({ id: r.id, faction: r.faction_id ?? undefined, location: r.location_id ?? undefined })),
     quests: rows.quests.map((r) => ({ id: r.id, giver: r.giver_id ?? undefined })),
     events: rows.events.map((r) => ({ id: r.id, location: r.location_id ?? undefined })),
-    connections: rows.connections.map((r) => [r.from_id, r.to_id, r.label ?? ""] as [string, string, string]),
+    // Mirrors mapConnection in src/campaignContext.tsx. NOTE: scripts/ is
+    // outside tsconfig's "include", so nothing typechecks this — if it drifts
+    // from the Connection shape, deriveRelations silently reads undefined
+    // endpoints and reports zero manual edges instead of failing.
+    connections: rows.connections.map((r) => ({
+      from: r.from_id,
+      to: r.to_id,
+      label: r.label ?? "",
+      createdAt: r.created_at ?? undefined,
+      sessionId: r.session_id ?? undefined,
+      author: r.author ?? undefined,
+    })),
   } as any;
 
   const name = new Map<string, string>();

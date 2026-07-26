@@ -12,7 +12,7 @@ import { CompassRose, Icon, kindIcon } from "./icons";
 import { useCampaign, useDismiss, useFindEntity, useIsDm, useKinds } from "./hooks";
 import { useAuth } from "./auth";
 import { CardBody, PinnedCard, ThemedLabel } from "./components";
-import { entityLabel, isPc, sessionLabel } from "./data";
+import { bothVisible, entityLabel, isPc, sessionLabel } from "./data";
 import { computeTidyLayout, cardDims, findFreeSpot } from "./boardLayout";
 import { deriveRelations } from "./relations";
 import {
@@ -70,7 +70,7 @@ export function NoticeBoard({
   const campaign = useCampaign();
   const findEntity = useFindEntity();
   const kinds = useKinds();
-  const { canEdit } = useAuth();
+  const { canEdit, displayName } = useAuth();
   const isDm = useIsDm();
 
   const positions = campaign.board;
@@ -206,9 +206,10 @@ export function NoticeBoard({
   const handleConnectClick = (id: string) => {
     if (!connectSource) { setConnectSource(id); return; }
     if (connectSource === id) { setConnectSource(null); return; }
-    insertConnection(connectSource, id, "linked").catch((e) =>
-      console.error("insertConnection failed", e),
-    );
+    insertConnection(connectSource, id, "linked", {
+      author: displayName || undefined,
+      announce: bothVisible(findEntity(connectSource), findEntity(id)),
+    }).catch((e) => console.error("insertConnection failed", e));
     setConnectSource(null);
     setConnectMode(false);
   };
