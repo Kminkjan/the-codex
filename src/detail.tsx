@@ -419,9 +419,13 @@ function SessionPrepList({ sessionId, onOpen }: { sessionId: string; onOpen: (id
       <h3 style={{ marginTop: 28 }}>
         <ThemedLabel parchment="The DM's Preparations" atlas="Staged for this session" />
       </h3>
-      {/* Voice-neutral, so no ThemedLabel. */}
       {rows.length === 0 && (
-        <div className="live-dm-empty">Nothing staged for this session yet.</div>
+        <div className="live-dm-empty">
+          <ThemedLabel
+            parchment="Naught is staged for this session."
+            atlas="Nothing staged for this session yet."
+          />
+        </div>
       )}
       {rows.map(({ row, ent }) => (
         <div className="live-stage-row" key={row.entityId}>
