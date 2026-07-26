@@ -306,6 +306,7 @@ const mapSessionEvent = (r: any): SessionEvent => ({
   author: r.author ?? undefined,
   entityId: r.entity_id ?? undefined,
   entityIdB: r.entity_id_b ?? undefined,
+  entityLabel: r.entity_label ?? undefined,
   text: r.text ?? undefined,
   createdAt: r.created_at,
 });

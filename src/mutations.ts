@@ -1,7 +1,7 @@
 import { supabase } from "./utils/supabase";
 import { getActiveCampaignId } from "./activeCampaign";
 import { getActiveSessionId } from "./activeSession";
-import { SHOW_MARK, type KindKey, type PartyNote, type BoardPosition, type CampaignSummary, type SessionEventType, type Status } from "./data";
+import { SHOW_MARK, noteExcerpt, type KindKey, type PartyNote, type BoardPosition, type CampaignSummary, type SessionEventType, type Status } from "./data";
 
 // Realtime subscriptions in campaignContext.tsx reflect writes back into UI
 // state, so callers do not need to patch local state (fire-and-forget is fine).
@@ -113,7 +113,22 @@ function toRow(kind: KindKey, patch: Record<string, unknown>): Record<string, un
 
 // ===== Party notes ==========================================================
 
-export async function insertPartyNote(entityId: string, note: PartyNote) {
+// A note written on an entity sheet during a live session also writes an
+// `annotate` row to the feed (0032, issue #127) — the same shape as
+// releaseEntity and insertConnection, where the ceremony someone already
+// performs fills the record as a side effect rather than asking them to
+// remember a second step.
+//
+// `announce` and `entityLabel` are the CALLER's, for the same reason
+// insertConnection's are: mutations can't reach React context, so they can
+// neither check hidden-ness nor resolve an entity's display field (which varies
+// by kind — name/title/text, see primaryField in detail.tsx).
+export async function insertPartyNote(
+  entityId: string,
+  note: PartyNote,
+  opts: { announce?: boolean; entityLabel?: string } = {},
+) {
+  const sessionId = getActiveSessionId();
   const { error } = await supabase.from("party_notes").insert({
     campaign_id: getActiveCampaignId(),
     entity_id: entityId,
@@ -121,8 +136,27 @@ export async function insertPartyNote(entityId: string, note: PartyNote) {
     when_label: note.when,
     text: note.text,
     hand: note.hand,
+    // Written whether or not the note is announced: "left during session 8" is
+    // a fact about the note, while announcing it is a question about who can
+    // see the entity. created_at defaults in the DB (0001).
+    session_id: sessionId,
   });
   if (error) raiseWriteError(error);
+
+  if (!sessionId || !opts.announce) return;
+  // Silent + best-effort, exactly as insertConnection: the note above already
+  // committed, so a toast here would report a loss that didn't happen, and an
+  // environment that hasn't applied 0032 yet must not have note-taking start
+  // failing. Only an excerpt travels — the prose stays on the sheet, and this
+  // string is what the public recap digest prints.
+  insertSessionEvent({
+    type: "annotate",
+    sessionId,
+    author: note.author,
+    entityId,
+    entityLabel: opts.entityLabel,
+    text: noteExcerpt(note.text),
+  }, { silent: true }).catch((e) => console.error("annotate session event failed", e));
 }
 
 // ===== Board positions ======================================================
@@ -429,7 +463,9 @@ export async function unstageEntity(sessionId: string, entityId: string) {
 // exist on session_events). `author` is the caller's display name, same
 // signing as party_notes; `entityId` rides on reveal events, `text` carries
 // note bodies / reveal flair. `entityIdB` is the far endpoint of a link event
-// (0031) and rides only on those.
+// (0031) and rides only on those; `entityLabel` is the write-time label snapshot
+// of an annotate event's entity (0032), which needs its own slot because that
+// row's `text` is already carrying the note excerpt.
 //
 // `silent` throws WITHOUT running the write-error toast handlers, for events
 // that garnish a write which already succeeded. raiseWriteError fires the
@@ -441,6 +477,7 @@ export async function insertSessionEvent(ev: {
   author?: string;
   entityId?: string;
   entityIdB?: string;
+  entityLabel?: string;
   text?: string;
 }, opts: { silent?: boolean } = {}) {
   const { error } = await supabase.from("session_events").insert({
@@ -450,6 +487,7 @@ export async function insertSessionEvent(ev: {
     author: ev.author ?? null,
     entity_id: ev.entityId ?? null,
     entity_id_b: ev.entityIdB ?? null,
+    entity_label: ev.entityLabel ?? null,
     text: ev.text ?? null,
   });
   if (error) {

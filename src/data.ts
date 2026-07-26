@@ -233,7 +233,7 @@ export interface SessionStagingRow {
   releasedAt: string | null;
 }
 
-export type SessionEventType = "note" | "reveal" | "start" | "end" | "link";
+export type SessionEventType = "note" | "reveal" | "start" | "end" | "link" | "annotate";
 
 // One row of the append-only live-session feed (session_events). INSERT-only
 // by construction — rows are never edited, so one author per row and inserts
@@ -252,8 +252,34 @@ export interface SessionEvent {
   // on entityId's visibility must gate on this one too, or a re-hidden entity
   // leaks back through an old link row.
   entityIdB?: string;
+  // Snapshot of the entity's label at write time (0032). Set by 'annotate'
+  // rows, whose `text` is already spent on the note excerpt — so unlike a
+  // reveal, which snapshots its label INTO text, this needs its own slot. NULL
+  // on every pre-0032 row, so renderers must fall through to the stock phrase.
+  // Never trusted over a live lookup: it's the deletion fallback, not the
+  // display name.
+  entityLabel?: string;
   text?: string;
   createdAt: string;
+}
+
+// How much of a party note rides along in its feed row (0032, issue #127).
+// A pointer with enough prose to recognise the moment, not a second copy of
+// the note: the row links through to the sheet, and this excerpt is what the
+// public recap digest prints, so it stays bounded on purpose.
+const NOTE_EXCERPT_MAX = 72;
+
+export function noteExcerpt(text: string): string {
+  // Collapse first — a note is written in a contentEditable, so it arrives with
+  // newlines and runs of spaces that would blow out a one-line feed row.
+  const flat = text.replace(/\s+/g, " ").trim();
+  if (flat.length <= NOTE_EXCERPT_MAX) return flat;
+  const cut = flat.slice(0, NOTE_EXCERPT_MAX);
+  // Back off to the last word boundary so the excerpt doesn't sever a word.
+  // Guarded: a single word longer than the cap has no space to back off to, and
+  // trimming to nothing would leave a row that reads only "…".
+  const space = cut.lastIndexOf(" ");
+  return `${(space > 0 ? cut.slice(0, space) : cut).trimEnd()}…`;
 }
 
 // "Show now" (#69) rides a 'reveal' row with this sentinel prefixed to `text`:
@@ -447,6 +473,14 @@ export function projectCampaignForViewers(c: Campaign): Campaign {
     // but a re-hidden entity must not leak back through old feed rows. Link
     // rows (0031) carry two endpoints and BOTH have to clear, else re-hiding
     // one end of a string still announces the other end's relationship.
+    //
+    // This is also what covers 'annotate' rows (0032) with no change of its
+    // own: a party note has ONE endpoint, so the entityId clause already drops
+    // it. Note what that leans on — the row's `entity_label` snapshot never
+    // reaches a player, because the row itself is gone before anything reads it.
+    // Any future event type carrying an entity ref in some THIRD field has to
+    // extend this filter; the pre-0031 version read only entityId and that is
+    // exactly how the far endpoint of a link row nearly leaked.
     sessionEvents: c.sessionEvents.filter(
       (e) => (!e.entityId || !hiddenIds.has(e.entityId))
         && (!e.entityIdB || !hiddenIds.has(e.entityIdB)),
@@ -494,6 +528,23 @@ export function sessionFeedToMarkdown(
       const lb = eb ? entityLabel(eb) : "something struck from the codex";
       const tie = ev.text ? ` — "${ev.text}"` : "";
       lines.push(`- *${t}* — ⛓ **${la}** and **${lb}** are connected${tie}${ev.author ? ` (${ev.author})` : ""}`);
+    } else if (ev.type === "annotate") {
+      // A party note left on an entity sheet at the table (0032). Same hidden
+      // rule as the two branches above and for the same reason — this digest is
+      // published into `summary`, so a re-hidden entity drops the row whole.
+      const ent = resolveEntity(ev.entityId);
+      if (isHidden(ent)) continue;
+      // Live label first, then the snapshot taken at write time, then the stock
+      // phrase for pre-0032 rows that have no snapshot. The residual edge is
+      // inherited from the reveal branch rather than new: an entity re-hidden
+      // AND THEN deleted resolves to null, isHidden(null) is false, so the
+      // snapshotted label prints — exactly what reveal's stripShowMark(ev.text)
+      // fallback already does.
+      const label = ent ? entityLabel(ent) : ev.entityLabel || "something struck from the codex";
+      // `text` is the bounded excerpt, not the note — the full prose stays on
+      // the sheet, which is the whole reason this is an excerpt (issue #127).
+      const quote = ev.text ? ` — "${ev.text}"` : "";
+      lines.push(`- *${t}* — 📝 a note on **${label}**${quote}${ev.author ? ` (${ev.author})` : ""}`);
     } else {
       lines.push(`- *${t}* — ${ev.author || "Anonymous"}: ${ev.text ?? ""}`);
     }
@@ -501,21 +552,27 @@ export function sessionFeedToMarkdown(
   return `### As it happened\n\n${lines.join("\n")}`;
 }
 
-// Null tier reads as major: existing rows predate the column and every curated
-// person should count as major without a backfill. Always read tier through
-// this helper, never `p.tier` directly.
-// Whether a hand-drawn string between these two is something the players can
-// already make sense of: both ends visible. This is what decides whether
-// drawing one during a live session announces itself in the feed (0031) — a
-// string touching an unreleased entity is DM prep, not a story beat.
+// Whether this entity is something the players can already make sense of, and
+// so whether an action touching it announces itself in the live feed: a note
+// left on an unreleased entity is DM prep, not a story beat (0032).
 //
 // Two deliberate edges: kinds with no `hidden` column (sessions/arcs/events)
 // always read visible, and a null entity — an id that resolves to nothing, so
 // either deleted or projected away — is NOT treated as visible.
-export function bothVisible(a: Entity | null, b: Entity | null): boolean {
-  return !!a && !!b && !isHidden(a) && !isHidden(b);
+export function isVisible(e: Entity | null): boolean {
+  return !!e && !isHidden(e);
 }
 
+// The two-endpoint form, for a hand-drawn string (0031): both ends have to be
+// visible before it means anything to the table. Shares isVisible so the two
+// can't drift on those edge cases.
+export function bothVisible(a: Entity | null, b: Entity | null): boolean {
+  return isVisible(a) && isVisible(b);
+}
+
+// Null tier reads as major: existing rows predate the column and every curated
+// person should count as major without a backfill. Always read tier through
+// this helper, never `p.tier` directly.
 export function personTier(p: { tier?: PersonTier }): PersonTier {
   return p.tier ?? "major";
 }

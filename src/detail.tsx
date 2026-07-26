@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { type KindKey, MONSTER_THREAT_OPTIONS, PERSON_STATUS_OPTIONS, PERSON_TIER_OPTIONS, bothVisible, entityLabel, isArchivableKind, isArchived, isHidden, isPc, isPinned, personTier, sessionFeedToMarkdown, sessionLabel } from "./data";
+import { type KindKey, MONSTER_THREAT_OPTIONS, PERSON_STATUS_OPTIONS, PERSON_TIER_OPTIONS, bothVisible, entityLabel, isArchivableKind, isArchived, isHidden, isPc, isPinned, isVisible, personTier, sessionFeedToMarkdown, sessionLabel } from "./data";
 import { Icon, kindIcon } from "./icons";
 import { StatusChip, EditableText, EditableMarkdown, EnumSelect, EntitySelect, EntityCombobox, Fleurons } from "./components";
 import { useCampaign, useFindEntity, useIsDm, useProfiles } from "./hooks";
@@ -698,6 +698,13 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
         when: "Just now",
         text,
         hand: true,
+      }, {
+        // Announce it in the live feed only if the players can already see what
+        // was annotated (0032) — a note on an unreleased entity is DM prep. The
+        // label is snapshotted here because the mutation can't resolve a display
+        // field that varies by kind; it's the fallback for a later-struck entity.
+        announce: isVisible(entity),
+        entityLabel: entity ? entityLabel(entity) : undefined,
       });
       setDraft("");
       if (draftRef.current) draftRef.current.textContent = "";
