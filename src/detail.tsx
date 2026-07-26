@@ -415,12 +415,11 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
   // check is the second belt for editors that don't.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // defaultPrevented covers an inner editor that already claimed the key
+      // AND an open PlateLightbox, which claims Esc in the capture phase so the
+      // topmost overlay closes first — including the App-level plate a
+      // ⚡ SHOW NOW raises, which this component has no state for.
       if (e.key !== "Escape" || e.defaultPrevented) return;
-      // One Esc, one dismissal: with the plate up it's the plate that closes.
-      // Both listeners sit on window and this one registered first (the sheet
-      // mounts before the plate opens), so the guard has to live here rather
-      // than rely on the plate calling preventDefault.
-      if (plateOpen) return;
       const el = e.target;
       if (
         el instanceof HTMLElement &&
@@ -430,7 +429,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, plateOpen]);
+  }, [onClose]);
 
   // Navigating the rail keeps this component mounted — don't carry one
   // creature's plate over onto the next entity's sheet.

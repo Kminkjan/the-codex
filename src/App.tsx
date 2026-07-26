@@ -198,6 +198,10 @@ function AppLoaded() {
         } else {
           // Entity unresolvable (dropped UPDATE / deleted) or user mid-edit —
           // a blind setOpenId would render nothing; the toast at least tells.
+          // Clear the plate on this path too, or a previous show's artwork
+          // sits on top of the new toast — the single-slot rule above is only
+          // true if BOTH branches honour it.
+          setPlateId(null);
           setRevealToast({
             eventId: last.id,
             entityId: last.entityId!,

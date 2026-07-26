@@ -32,14 +32,22 @@ export function PlateLightbox({ monsterId, onClose }: { monsterId: string; onClo
   const campaign = useCampaign();
   const monster = campaign.monsters.find((m) => m.id === monsterId);
 
-  // Esc closes. defaultPrevented respects an inner editor that already claimed
-  // the key, matching the detail sheet's dismissal handler.
+  // Esc closes the plate — and ONLY the plate. Registered in the CAPTURE phase
+  // on purpose: the detail sheet's own Esc handler is a bubble-phase window
+  // listener that was registered first (the sheet mounts before the plate
+  // opens), so plain registration order would let the sheet close underneath us
+  // while the artwork stayed up. That's the ⚡ SHOW NOW flow exactly, which
+  // opens both at once. Capture runs before every bubble listener regardless of
+  // order, so claiming the key here and marking it handled makes "topmost
+  // overlay wins" true rather than accidental.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !e.defaultPrevented) onClose();
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      e.preventDefault();
+      onClose();
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
   }, [onClose]);
 
   // A deleted or re-hidden monster drops out of the campaign object; retire the
