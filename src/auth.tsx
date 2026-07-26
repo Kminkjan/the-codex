@@ -39,9 +39,10 @@ type AuthState = {
    *
    * AuthProvider can only know the first half; membership is per-campaign and
    * lives a layer down, so CampaignProvider re-provides this context with
-   * canEdit narrowed to `isEditorAccount && isMember`. Every consumer inside
-   * it therefore reads the honest answer, and the ~80 edit affordances stop
-   * offering writes RLS would reject.
+   * canEdit narrowed by membership (see `mayWrite` there — it fails OPEN if the
+   * membership lookup itself fails, so a network blip can't disarm a real
+   * member). Every consumer inside it therefore reads the honest answer, and
+   * the ~80 edit affordances stop offering writes RLS would reject.
    *
    * Read this to gate an edit affordance. Read isEditorAccount instead for
    * "is this a signed-in editor at all" (sign-in chrome, invite redemption,

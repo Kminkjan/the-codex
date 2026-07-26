@@ -417,10 +417,11 @@ function AppLoaded() {
       {seatless && !seatNoticeDismissed && (
         <div style={{
           position: "fixed", top: 64, left: "50%", transform: "translateX(-50%)",
-          // Wide enough to stay two lines (it sits over the kind tabs, so
-          // height is what costs the reader), narrow enough to clear the live
-          // rail at the 1280 breakpoint.
-          maxWidth: 680, width: "calc(100vw - 48px)",
+          // Wide enough to stay short (it sits over the kind tabs, so height is
+          // what costs the reader), capped so a viewport-centred banner still
+          // clears the live rail on a 1280-wide window: the parchment rail is
+          // 320px (Atlas 300px), leaving 640px between it and its mirror.
+          maxWidth: 640, width: "calc(100vw - 48px)",
           background: "var(--vellum-light)", color: "var(--ink)",
           border: "1px solid var(--bloodred)",
           padding: "10px 14px",
