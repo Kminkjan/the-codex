@@ -173,6 +173,24 @@ const halfOpen: Campaign = { ...ranged, arcs: [{ id: "sagaH", title: "Half", ord
 check("end-only range means everything up to it", sagaSessions(halfOpen, "sagaH").map((s) => s.num).join() === "1,2,3");
 const noFk: Campaign = { ...ranged, arcs: [{ id: "sagaN", title: "No FK", orderNum: 1, startSession: "ghost", endSession: "ghost" }] };
 check("unresolvable session FKs yield nothing, not everything", sagaSessions(noFk, "sagaN").length === 0);
+
+// A declared range must never annex a chapter that already names another arc.
+// Without this the range fallback pulls a neighbouring saga's chapters into the
+// roll-up — and from there into the sweep candidate set.
+const contested: Campaign = {
+  ...campaign,
+  arcs: [
+    { id: "sagaOwner", title: "Owner", orderNum: 1 },
+    { id: "sagaClaimer", title: "Claimer", orderNum: 2, startSession: "s1", endSession: "s6" },
+  ],
+  // s1–s3 belong to the other saga; s4–s6 are unclaimed.
+  sessions: campaign.sessions.map((s) => ({ ...s, arc: s.num <= 3 ? "sagaOwner" : undefined })),
+};
+const claimed = sagaSessions(contested, "sagaClaimer").map((s) => s.num);
+check("range fallback skips chapters owned by another arc", claimed.join() === "4,5,6", claimed);
+check("the owning saga still reports its own", sagaSessions(contested, "sagaOwner").map((s) => s.num).join() === "1,2,3");
+const claimerScope = sagaScope(contested, "sagaClaimer");
+check("and the annexed chapters stay out of the sweep scope", claimerScope.sessions.every((s) => s.num >= 4));
 console.log("\nsagaScope on a chapterless saga (the wizard must refuse to seal)");
 const chapterless = sagaScope(ranged, "sagaEmpty");
 check("no chapters → no cast offered", chapterless.cast.length === 0);

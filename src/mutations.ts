@@ -592,6 +592,13 @@ async function deletePartyNotesFor(entityId: string) {
 // expectRows can't be reused here: it means "one row was meant to change". A
 // batched update reports the whole affected count, so an RLS-filtered write
 // (non-member since 0023) shows up as 0 against a non-empty id list.
+// Ids are chunked because PostgREST puts `id=in.(…)` in the *query string*: at
+// ~37 chars per uuid, one statement over a few hundred ids blows past the usual
+// 8KB gateway limit and fails outright as a 414 rather than degrading. A saga's
+// active cast is dozens, but a group-select over a bulk-imported background
+// roster is not, and the per-entity version this replaced had no such ceiling.
+const BULK_ID_CHUNK = 100;
+
 async function bulkPatch(
   entries: Array<{ kind: KindKey; id: string }>,
   patch: Record<string, unknown>,
@@ -602,8 +609,14 @@ async function bulkPatch(
     if (ids) ids.push(id);
     else byKind.set(kind, [id]);
   }
+  const statements: Array<{ kind: KindKey; ids: string[] }> = [];
+  for (const [kind, ids] of byKind) {
+    for (let i = 0; i < ids.length; i += BULK_ID_CHUNK) {
+      statements.push({ kind, ids: ids.slice(i, i + BULK_ID_CHUNK) });
+    }
+  }
   await Promise.all(
-    [...byKind].map(async ([kind, ids]) => {
+    statements.map(async ({ kind, ids }) => {
       const { count, error } = await supabase
         .from(kind)
         .update(toRow(kind, patch), { count: "exact" })

@@ -70,6 +70,9 @@ export function SagaWizard({ sagaId, onClose, onOpenEntity }: SagaWizardProps) {
   const [swept, setSwept] = useState<{
     archived: Array<{ kind: KindKey; id: string }>;
     resolved: Array<{ kind: KindKey; id: string }>;
+    // False when the writes landed but the saga itself never got sealed. The
+    // receipt still has to appear in that state — it's the only route to Undo.
+    sealed: boolean;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -139,21 +142,44 @@ export function SagaWizard({ sagaId, onClose, onOpenEntity }: SagaWizardProps) {
 
   const allArchive = [...archiveEntries, ...threadArchiveEntries];
 
+  // Writes go out in stages, and a later stage failing must not strand the
+  // earlier ones: whatever actually landed is recorded as it lands, so the
+  // receipt — and with it Undo — is reachable no matter where this stops. The
+  // old version set `swept` only after every stage succeeded, which meant a
+  // failure on the final seal left dozens of entities archived with no way back
+  // and a live "Seal" button inviting a second pass.
   const commit = async () => {
     if (working) return;
     setWorking(true);
     setError(null);
+    const landed: { archived: typeof allArchive; resolved: typeof lostEntries } = {
+      archived: [],
+      resolved: [],
+    };
     try {
-      if (lostEntries.length > 0) await bulkSetStatus(lostEntries, "lost");
-      if (allArchive.length > 0) await bulkArchive(allArchive);
+      if (lostEntries.length > 0) {
+        await bulkSetStatus(lostEntries, "lost");
+        landed.resolved = lostEntries;
+      }
+      if (allArchive.length > 0) {
+        await bulkArchive(allArchive);
+        landed.archived = allArchive;
+      }
       await completeSaga(sagaId, {
         endSession: lastChapter?.id ?? null,
         summary: summary.trim() ? summary : undefined,
       });
-      setSwept({ archived: allArchive, resolved: lostEntries });
+      setSwept({ ...landed, sealed: true });
     } catch (e) {
       console.error("completeSaga failed", e);
-      setError("The sweep didn't fully land — nothing is lost, but check the codex before sealing again.");
+      if (landed.archived.length > 0 || landed.resolved.length > 0) {
+        // Partial success. Show the receipt so Undo can reverse it, and say
+        // plainly that the saga is still open.
+        setSwept({ ...landed, sealed: false });
+        setError("Those changes landed, but the saga wasn't sealed — it's still open. Undo below reverses them.");
+      } else {
+        setError("Nothing was changed. Check that you're a member of this campaign, then try again.");
+      }
     } finally {
       setWorking(false);
     }
@@ -169,7 +195,9 @@ export function SagaWizard({ sagaId, onClose, onOpenEntity }: SagaWizardProps) {
       // pursuing (resolved/lost never enter looseEnds), and "pursuing" is the
       // honest reading of a thread the DM just declined to close.
       if (swept.resolved.length > 0) await bulkSetStatus(swept.resolved, "pursuing");
-      await reopenSaga(sagaId);
+      // Only if it actually got sealed — clearing completedAt on a saga that
+      // was never closed is a pointless write against a row we know is already null.
+      if (swept.sealed) await reopenSaga(sagaId);
       setSwept(null);
     } catch (e) {
       console.error("undo sweep failed", e);
@@ -229,10 +257,17 @@ export function SagaWizard({ sagaId, onClose, onOpenEntity }: SagaWizardProps) {
           <h2>Complete {saga.title}</h2>
           <p>
             {swept ? (
-              <ThemedLabel
-                parchment="Sealed. Nothing was destroyed — everything swept is archived and one click from coming back."
-                atlas="Sealed. Everything swept is archived, not deleted — Undo restores it."
-              />
+              swept.sealed ? (
+                <ThemedLabel
+                  parchment="Sealed. Nothing was destroyed — everything swept is archived and one click from coming back."
+                  atlas="Sealed. Everything swept is archived, not deleted — Undo restores it."
+                />
+              ) : (
+                <ThemedLabel
+                  parchment="The saga is still open. What was swept is archived, not destroyed, and Undo returns it."
+                  atlas="The saga is still open. What was archived is not deleted — Undo restores it."
+                />
+              )
             ) : (
               <ThemedLabel
                 parchment="Archiving only — every entry stays readable, keeps its place on the board, and can be restored."

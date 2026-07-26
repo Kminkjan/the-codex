@@ -107,6 +107,13 @@ export function sagaSessions(campaign: Campaign, sagaId: string): Session[] {
   const hi = saga.endSession ? byId.get(saga.endSession)?.num : undefined;
   if (lo === undefined && hi === undefined) return [];
   return campaign.sessions
+    // Unclaimed chapters only. A declared range is a *guess* at which chapters
+    // belong here, so it must never annex one that already names another arc —
+    // otherwise setting First/Last Session on a fresh saga silently pulls a
+    // neighbouring saga's chapters into its roll-up, and from there into the
+    // sweep candidate set. (In this branch nothing in the subtree is assigned,
+    // so an in-subtree chapter is impossible and `!s.arc` is the whole test.)
+    .filter((s) => !s.arc)
     .filter((s) => (lo === undefined || s.num >= lo) && (hi === undefined || s.num <= hi))
     .sort((a, b) => a.num - b.num);
 }
