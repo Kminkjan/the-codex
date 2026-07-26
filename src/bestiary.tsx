@@ -40,7 +40,14 @@ export function PlateLightbox({ monsterId, onClose }: { monsterId: string; onClo
   // opens both at once. Capture runs before every bubble listener regardless of
   // order, so claiming the key here and marking it handled makes "topmost
   // overlay wins" true rather than accidental.
+  //
+  // Nothing on screen means nothing to claim: if the artwork was cleared out
+  // from under us (a realtime edit, a re-hide) this renders null below, and a
+  // capture listener still swallowing Esc would make the key do nothing —
+  // a dead key, which is the thing the codebase keeps refusing to ship.
+  const showing = !!monster?.imageUrl;
   useEffect(() => {
+    if (!showing) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || e.defaultPrevented) return;
       e.preventDefault();
@@ -48,11 +55,13 @@ export function PlateLightbox({ monsterId, onClose }: { monsterId: string; onClo
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [onClose]);
+  }, [onClose, showing]);
 
   // A deleted or re-hidden monster drops out of the campaign object; retire the
-  // overlay rather than render an empty void over the app.
-  if (!monster?.imageUrl) return null;
+  // overlay rather than render an empty void over the app. (The parent's slot
+  // state clears on its own next open — nothing here is left stuck, and with
+  // the effect above disarmed Esc reaches the sheet underneath as usual.)
+  if (!showing) return null;
 
   return createPortal(
     <div className="plate-lightbox" onMouseDown={onClose} role="dialog" aria-label={monster.name}>
