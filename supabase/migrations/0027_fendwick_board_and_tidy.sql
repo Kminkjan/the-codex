@@ -97,8 +97,14 @@ where campaign_id = 'fendwick' and id in ('p7','p8','p15');
 -- ==========================================================================
 -- 4. Colour, not cast — demote instead of archiving
 --
--- `background` tier drops a person from the board's default view AND from
--- Tidy's suggestions, without hiding them from the People page or search.
+-- `background` tier drops a person from Tidy's suggestions and from the default
+-- view of BOTH browse surfaces: the board (board.tsx `visible()`) and the People
+-- page (KindList, board.tsx — `if (!showBackground) visible = visible.filter(...)`,
+-- bypassed by picking the tier facet explicitly). Each sits behind its own
+-- reveal — "Show background people" on the board, "show N background folk" on
+-- the page — and the two toggles are separate local state, so revealing one does
+-- not reveal the other. They stay fully searchable in ⌘K, which applies no tier
+-- filter at all.
 -- ==========================================================================
 
 update public.people set tier = 'background'
