@@ -26,7 +26,10 @@ import {
 
 // Minimum required columns by kind (NOT NULL constraints in 0001_init.sql).
 // createEntity injects id + campaign_id, so only the per-kind required fields go here.
-const NEW_ENTITY_DEFAULTS: Record<Exclude<KindKey, "sessions" | "arcs" | "events">, Record<string, unknown>> = {
+// Exported because creation isn't only the board's job — the Bestiary page has
+// its own "new creature" button, and a second copy of these literals would
+// drift the moment a column changes.
+export const NEW_ENTITY_DEFAULTS: Record<Exclude<KindKey, "sessions" | "arcs" | "events">, Record<string, unknown>> = {
   people:    { name: "Unnamed wayfarer" },
   locations: { name: "Unnamed place", kind: "other" },
   quests:    { title: "Untitled quest" },

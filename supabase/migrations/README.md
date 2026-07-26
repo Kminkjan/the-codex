@@ -8,9 +8,11 @@ Consequences of the integration:
 - **Migrations must apply cleanly from scratch** (preview branches replay 0001→head on an empty database) and should be idempotent where possible.
 - **Never renumber a file whose version is already in the remote history** — that would desync repo and remote forever.
 
-**Picking a number for a new migration:** take the next number after the highest across (a) this directory, (b) the remote history, and (c) any in-flight branch or open PR that adds a migration. As of 2026-07-26 that next number is **0026** — 0025 (`arc_nesting`, sagas) is the highest here, and 0024 added the `monsters` Bestiary kind.
+**Picking a number for a new migration:** take the next number after the highest across (a) this directory, (b) the remote history, and (c) any in-flight branch or open PR that adds a migration. As of 2026-07-26 that next number is **0026** — 0025 (`arc_nesting`, saga nesting) is the highest here, and 0024 added the `monsters` Bestiary kind. Both are applied remotely; `supabase migration list --linked` shows the directory and the remote history matching through 0025.
 
-**Adding an entity kind?** 0024 is the worked example of everything a new archivable kind needs at the DB layer, including the one easy-to-miss edit: `entity_hidden()` (0018) has to learn the new table, or hidden rows of that kind leak their connections and board pins to players.
+Worked cautionary tale: `monsters` was briefly renumbered 0024 → 0026 on the theory that it was still branch-local and should land after the in-flight sagas migration. It wasn't — 0024 was already registered remotely, so the rename immediately produced a `local="" remote="0024"` orphan plus an unapplied local 0026, which is precisely the drift documented below. `supabase migration list --linked` is the cheap way to check *before* renaming, and the rule it enforces has no exceptions: **never renumber a version that is already in the remote history.**
+
+**Adding an entity kind?** [0024_monsters.sql](0024_monsters.sql) is the worked example of everything a new archivable kind needs at the DB layer, including the one easy-to-miss edit: `entity_hidden()` (0018) has to learn the new table, or hidden rows of that kind leak their connections and board pins to players.
 
 **Touching arcs?** Nesting is capped at two levels (saga → arc) by the `tg_arcs_depth` trigger in [0025_arc_nesting.sql](0025_arc_nesting.sql), which is also what makes cycles impossible. Any UI that writes `arcs.parent_id` must mirror its four rules or it will offer writes the database refuses.
 

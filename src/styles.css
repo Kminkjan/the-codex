@@ -1115,7 +1115,10 @@ button.session-pin { line-height: 1; }
 .card-goal .goal-kind,
 .card-item .i-label,
 .card-lore .l-label,
-.card-monster .m-type {
+/* Unscoped: the monsters kind wears this tag on its board card AND on its
+   bestiary plate, so binding it to .card-monster would leave the plate wall
+   unstyled. Same reason .m-threat below isn't scoped. */
+.m-type {
   font-family: var(--font-fell-sc);
   font-size: 11.5px;
   letter-spacing: .1em;
@@ -1454,28 +1457,44 @@ button.session-pin { line-height: 1; }
   filter: sepia(.25) contrast(.95);
 }
 .card-monster .m-plate-empty { color: var(--ink-faded); }
-/* On the plate, not beside it: at board zoom the band is the only thing still
-   legible, so it carries the read. */
-.card-monster .m-threat {
-  position: absolute; bottom: 0; left: 0; right: 0;
+/* Threat band. Three surfaces wear it — the board card, the bestiary plate and
+   the lightbox caption — so the type treatment and the per-level colors are
+   unscoped and only the PLACEMENT is scoped below. (Scoping the whole thing to
+   .card-monster is the bug this shape exists to prevent: the plate wall and the
+   lightbox rendered it completely unstyled.) */
+.m-threat {
   font-family: var(--font-fell-sc);
   font-size: 10px;
   letter-spacing: .18em;
   text-align: center;
-  padding: 2px 0 1px;
+  padding: 2px 8px 1px;
   background: rgba(31,22,14,.72);
-  color: var(--vellum-light);
+  /* Pinned, NOT var(--vellum-light): this chip carries its own dark background
+     on every parchment theme, so its ink has to stay pale. --vellum-light flips
+     to a dark navy on grimoire, which put dark text on the dark-red "deadly"
+     band. The usual rule (chips use theme-aware variables so they don't vanish
+     on grimoire) is about text sitting on THEME paper — this text sits on its
+     own, same as .connect-mode-banner. */
+  color: #f2e6c9;
 }
-.card-monster .m-threat.harmless  { background: rgba(61,85,54,.78); }
-.card-monster .m-threat.risky     { background: rgba(176,130,40,.8); }
-.card-monster .m-threat.deadly    { background: rgba(138,42,31,.82); }
-.card-monster .m-threat.legendary { background: rgba(90,58,99,.85); }
+.m-threat.harmless  { background: rgba(61,85,54,.78); }
+.m-threat.risky     { background: rgba(176,130,40,.8); }
+.m-threat.deadly    { background: rgba(138,42,31,.82); }
+.m-threat.legendary { background: rgba(90,58,99,.85); }
+/* Over an art well it's a ribbon across the foot of the picture: at board zoom
+   the band is the only thing still legible, so it carries the read. In the
+   lightbox caption it stays an inline pill (no rule needed — that's the base). */
+.card-monster .m-plate .m-threat,
+.plate-art .m-threat {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  padding: 2px 0 1px;
+}
 .card-monster .m-body {
   padding: 8px 12px 12px;
   margin-top: 8px;
   border-top: 1px dashed var(--ink-ghost);
 }
-.card-monster .m-type { color: var(--plum); }
+.m-type { color: var(--plum); }
 .card-monster .m-name {
   font-family: var(--font-display);
   font-weight: 600;
@@ -1502,6 +1521,142 @@ button.session-pin { line-height: 1; }
   -webkit-line-clamp: 2;
   overflow: hidden;
 }
+
+/* ── The Bestiary: plate wall + full-bleed plate ──────────────────────────
+   The monsters kind's bespoke page. Plates are field-guide leaves: artwork
+   on top, engraved caption beneath. An un-inked plate is a creature the
+   party hasn't met — see bestiary.ts on why that's presentation, not
+   secrecy. */
+.plate-wall {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 22px;
+  margin-top: 24px;
+}
+.plate {
+  background: var(--paper-scroll);
+  border: 1px solid var(--card-edge);
+  box-shadow: var(--shadow-card);
+  cursor: pointer;
+  position: relative;
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+.plate:hover { transform: translateY(-2px); box-shadow: var(--shadow-deep); }
+.plate.archived { opacity: .55; }
+.plate-art {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  margin: 12px 12px 0;
+  border: 1px solid var(--ink-faded);
+  background: linear-gradient(135deg, var(--vellum-dark) 25%, var(--vellum) 50%, var(--vellum-dark) 75%);
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--vellum-dark) 55%, var(--paper-scroll)) 25%,
+    color-mix(in srgb, var(--vellum) 45%, var(--paper-scroll)) 50%,
+    color-mix(in srgb, var(--vellum-dark) 55%, var(--paper-scroll)) 75%);
+  display: grid; place-items: center;
+  overflow: hidden;
+}
+.plate-art-img {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  filter: sepia(.25) contrast(.95);
+}
+.plate-art-empty { color: var(--ink-faded); opacity: .6; }
+/* The un-inked frame reads as a blank leaf waiting for the illustrator: the
+   art well goes flat and hatched, and the caption drops to a whisper. */
+.plate.is-uninked .plate-art {
+  background: repeating-linear-gradient(
+    45deg,
+    transparent, transparent 5px,
+    color-mix(in srgb, var(--ink-ghost) 14%, transparent) 5px,
+    color-mix(in srgb, var(--ink-ghost) 14%, transparent) 6px
+  );
+  border-style: dashed;
+}
+.plate.is-uninked .plate-name { color: var(--ink-secondary); }
+.plate-zoom {
+  position: absolute; top: 6px; right: 6px;
+  background: rgba(31,22,14,.66);
+  color: var(--vellum-light);
+  border: none;
+  width: 24px; height: 24px;
+  line-height: 1;
+  font-size: 13px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .12s ease;
+}
+.plate:hover .plate-zoom, .plate-zoom:focus-visible { opacity: 1; }
+.plate-body {
+  padding: 8px 12px 12px;
+  margin-top: 8px;
+  border-top: 1px dashed var(--ink-ghost);
+}
+.plate-name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 19px;
+  line-height: 1.1;
+  color: var(--ink);
+  margin: 2px 0 3px;
+}
+.plate-stamp {
+  font-family: var(--font-fell-sc);
+  font-size: 10.5px;
+  letter-spacing: .12em;
+  color: var(--ink-secondary);
+}
+.plate-stamp.is-uninked { color: var(--ink-ghost); font-style: italic; }
+
+/* Full-bleed plate. z 78: above the detail overlay (50), toasts (70) and the
+   view-as-player banner (72), below ⌘K (80) — the artwork owns the screen for
+   as long as it's up, and Esc always gets you out. */
+.plate-lightbox {
+  position: fixed; inset: 0;
+  z-index: 78;
+  background: rgba(12,8,4,.92);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 18px;
+  padding: 40px;
+  cursor: zoom-out;
+}
+.plate-lightbox-img {
+  max-width: min(100%, 1100px);
+  max-height: 78vh;
+  object-fit: contain;
+  box-shadow: 0 30px 90px rgba(0,0,0,.7);
+  border: 1px solid rgba(220,205,160,.25);
+  cursor: default;
+}
+.plate-lightbox-caption {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  justify-content: center;
+  cursor: default;
+}
+.plate-lightbox-type {
+  font-family: var(--font-fell-sc);
+  font-size: 12px;
+  letter-spacing: .18em;
+  color: #c9b285;
+}
+.plate-lightbox-name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 30px;
+  line-height: 1.1;
+  color: #f2e6c9;
+}
+.plate-lightbox-close {
+  position: absolute; top: 18px; right: 22px;
+  background: transparent;
+  border: none;
+  color: #c9b285;
+  cursor: pointer;
+  padding: 6px;
+}
+.plate-lightbox-close:hover { color: #f2e6c9; }
 
 .card-lore {
   width: 190px;
@@ -3284,6 +3439,7 @@ button.session-pin { line-height: 1; }
   .i-label, .l-label, .card-poster .wanted, .card-poster .deceased-tag,
   .status-chip, .seen-toggle, .veil-badge, .portrait-caption, .session-ribbon,
   .entity-combobox-kind,
+  .m-type, .m-threat, .plate-stamp, .plate-lightbox-type,
   .saga-meta, .arc-meta, .saga-seal, .saga-step, .saga-choice,
   .saga-wizard-label, .saga-wizard-facts dt, .saga-unclaimed-head,
   .cleanup-window-label) {
@@ -3714,7 +3870,7 @@ button.session-pin { line-height: 1; }
 [data-theme="modern"] .card-poster::before { display: none; } /* torn top edge */
 
 /* Kind tags: dot + letterspaced Inter, colored per kind. */
-[data-theme="modern"] :is(.card-quest .quest-tag, .card-location .loc-type, .card-goal .goal-kind, .card-item .i-label, .card-lore .l-label, .card-monster .m-type, .sb-kind) {
+[data-theme="modern"] :is(.card-quest .quest-tag, .card-location .loc-type, .card-goal .goal-kind, .card-item .i-label, .card-lore .l-label, .m-type, .sb-kind) {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -3722,7 +3878,7 @@ button.session-pin { line-height: 1; }
   font-weight: 600;
   letter-spacing: .06em;
 }
-[data-theme="modern"] :is(.card-quest .quest-tag, .card-location .loc-type, .card-goal .goal-kind, .card-item .i-label, .card-lore .l-label, .card-monster .m-type, .sb-kind)::before {
+[data-theme="modern"] :is(.card-quest .quest-tag, .card-location .loc-type, .card-goal .goal-kind, .card-item .i-label, .card-lore .l-label, .m-type, .sb-kind)::before {
   content: '';
   width: 6px; height: 6px;
   border-radius: 50%;
@@ -3733,7 +3889,7 @@ button.session-pin { line-height: 1; }
 [data-theme="modern"] .card-goal .goal-kind { color: var(--forest); }
 [data-theme="modern"] .card-item .i-label { color: var(--gold-antique); }
 [data-theme="modern"] .card-lore .l-label { color: var(--forest-pale); }
-[data-theme="modern"] .card-monster .m-type { color: var(--plum); }
+[data-theme="modern"] .m-type { color: var(--plum); }
 
 /* Bestiary plate, Atlas dress: the art becomes a flush hero image with a
    rounded top, and the threat band a pill in the corner instead of a full
@@ -3747,8 +3903,7 @@ button.session-pin { line-height: 1; }
   color: #454c60;
 }
 [data-theme="modern"] .card-monster .m-plate-img { filter: none; }
-[data-theme="modern"] .card-monster .m-threat {
-  left: auto; bottom: 8px; right: 8px;
+[data-theme="modern"] .m-threat {
   border-radius: 10px;
   padding: 2px 8px;
   font-size: 9.5px;
@@ -3757,10 +3912,15 @@ button.session-pin { line-height: 1; }
   background: rgba(20,22,29,.78);
   color: var(--ink-body);
 }
-[data-theme="modern"] .card-monster .m-threat.harmless  { color: var(--forest); }
-[data-theme="modern"] .card-monster .m-threat.risky     { color: var(--mustard); }
-[data-theme="modern"] .card-monster .m-threat.deadly    { color: var(--bloodred-deep); }
-[data-theme="modern"] .card-monster .m-threat.legendary { color: var(--plum); }
+[data-theme="modern"] .m-threat.harmless  { color: var(--forest); }
+[data-theme="modern"] .m-threat.risky     { color: var(--mustard); }
+[data-theme="modern"] .m-threat.deadly    { color: var(--bloodred-deep); }
+[data-theme="modern"] .m-threat.legendary { color: var(--plum); }
+/* Corner pill rather than a full ribbon — the parchment band reads as an
+   engraving plate label, which isn't Atlas's voice. */
+[data-theme="modern"] :is(.card-monster .m-plate, .plate-art) .m-threat {
+  left: auto; bottom: 8px; right: 8px;
+}
 [data-theme="modern"] .card-monster .m-body {
   margin-top: 0;
   border-top: none;
@@ -3769,6 +3929,45 @@ button.session-pin { line-height: 1; }
 [data-theme="modern"] .card-monster .m-name { font-size: 17px; }
 [data-theme="modern"] .card-monster .m-habitat,
 [data-theme="modern"] .card-monster .m-desc { font-style: normal; font-size: 12px; line-height: 1.45; }
+
+/* Plate wall, Atlas dress: flat cards, flush hero art, no engraving rule. */
+[data-theme="modern"] .plate {
+  border-radius: 10px;
+  background: var(--paper-cream);
+}
+[data-theme="modern"] .plate:hover { transform: none; border-color: #3d4353; }
+[data-theme="modern"] .plate-art {
+  margin: 0;
+  aspect-ratio: 16 / 10;
+  border: none;
+  border-radius: 10px 10px 0 0;
+  background: linear-gradient(160deg, #252a38, #191c26);
+  color: #454c60;
+}
+[data-theme="modern"] .plate-art-img { filter: none; }
+[data-theme="modern"] .plate.is-uninked .plate-art {
+  background: repeating-linear-gradient(
+    45deg,
+    #1b1f29, #1b1f29 6px,
+    #20242f 6px, #20242f 12px
+  );
+  border: 1px dashed var(--card-edge);
+  border-radius: 10px 10px 0 0;
+}
+[data-theme="modern"] .plate-zoom { border-radius: 6px; background: rgba(20,22,29,.78); }
+[data-theme="modern"] .plate-body {
+  margin-top: 0;
+  border-top: none;
+  padding: 11px 13px 13px;
+}
+[data-theme="modern"] .plate-name { font-size: 17px; }
+[data-theme="modern"] .plate-stamp { font-size: 10px; font-weight: 600; letter-spacing: .06em; }
+[data-theme="modern"] .plate-stamp.is-uninked { font-style: normal; }
+[data-theme="modern"] .plate-lightbox { background: rgba(10,11,15,.94); }
+[data-theme="modern"] .plate-lightbox-img { border-radius: 10px; border-color: var(--card-edge); }
+[data-theme="modern"] .plate-lightbox-type { color: var(--plum); font-weight: 600; letter-spacing: .08em; }
+[data-theme="modern"] .plate-lightbox-name { color: var(--ink); }
+[data-theme="modern"] .plate-lightbox-close { color: var(--ink-secondary); }
 
 [data-theme="modern"] .card-poster { padding: 12px 13px; }
 [data-theme="modern"] .card-poster.headerless { padding-top: 12px; }
