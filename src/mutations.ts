@@ -15,7 +15,7 @@ import { SHOW_MARK, type KindKey, type PartyNote, type BoardPosition, type Campa
 //   * INSERTs violate WITH CHECK and error loudly (42501) → raiseWriteError.
 //   * RLS-*filtered* UPDATE/DELETEs match 0 rows with NO error → paths whose
 //     target row is known to exist (updateEntity / deleteEntity /
-//     deleteConnection / removeEventParticipant) pass { count: "exact" } and
+//     deleteConnectionBetween / removeEventParticipant) pass { count: "exact" } and
 //     raise via expectRows when nothing was affected. Expected 0-row sweeps
 //     (DM-only staging/dm_notes cleanup in deleteEntity, idempotent
 //     unmark/unstage deletes) stay silent on purpose.
@@ -192,14 +192,29 @@ export async function insertConnection(fromId: string, toId: string, label: stri
 
 // User-clicked on a rendered edge, so the row is known to exist — 0 rows
 // affected means RLS filtered it (non-member), same doctrine as updateEntity.
-export async function deleteConnection(fromId: string, toId: string, label: string) {
-  const { count, error } = await supabase
+//
+// Matches BOTH orientations on purpose. One rail chip / one yarn strand stands
+// for every connections row with this label between this pair, in either
+// direction: deriveRelations dedupes manual edges on an UNORDERED pair key
+// (relations.ts:58), and the surviving orientation isn't even deterministic —
+// the connections select carries no ORDER BY. Deleting only the stored
+// orientation would leave a mirrored row behind and the "deleted" edge would
+// reappear on the next refetch, with count 1 so nothing warned. Matching the
+// whole set in one statement keeps count >= 1 whenever anything matched, so
+// expectRows keeps its RLS meaning (a retry-on-zero fallback would gut it).
+// Ids are UUIDs or seed slugs (no commas/parens) — the same assumption
+// deleteConnectionsFor's .or() already makes.
+export async function deleteConnectionBetween(a: string, b: string, label: string) {
+  let q = supabase
     .from("connections")
     .delete({ count: "exact" })
     .eq("campaign_id", getActiveCampaignId())
-    .eq("from_id", fromId)
-    .eq("to_id", toId)
-    .eq("label", label);
+    .or(`and(from_id.eq.${a},to_id.eq.${b}),and(from_id.eq.${b},to_id.eq.${a})`);
+  // connections.label is nullable (0001) and mapConnection coerces NULL → ""
+  // (campaignContext.tsx), so an empty label must match IS NULL, not = ''.
+  // Defensive only: insertConnection requires a trimmed label.
+  q = label ? q.eq("label", label) : q.is("label", null);
+  const { count, error } = await q;
   if (error) raiseWriteError(error);
   expectRows(count);
 }

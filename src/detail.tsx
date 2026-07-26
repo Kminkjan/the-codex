@@ -10,6 +10,7 @@ import {
   updateDmNotes,
   deleteEntity,
   insertConnection,
+  deleteConnectionBetween,
   addEventParticipant,
   removeEventParticipant,
   markSeen,
@@ -375,6 +376,14 @@ interface Related {
   rel: string;
   // Optional context tag shown after the relation verb (e.g. an event's session).
   tag?: string;
+  // Set ONLY for chips backed by a real `connections` row, carrying that row's
+  // stored orientation so the rail's ✕ can target it. Its presence is the
+  // single "this chip is deletable" predicate. Chips synthesized from FK
+  // columns, arc nesting, event participation or the reveal log leave it
+  // undefined and stay read-only (chevron). `label` is duplicated from `rel`
+  // on purpose: `rel` is display text five other producers also write, so a
+  // DELETE keyed on it would break the moment someone decorates it.
+  edge?: { from: string; to: string; label: string };
 }
 
 export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
@@ -512,7 +521,11 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
     // Dedupe by (entity, label): parallel manual strings between the same pair
     // with different labels ("ally of" AND "owes a debt to") must both survive.
     if (!related[k].find((r) => r.entity.id === ent.id && r.rel === e.label)) {
-      related[k].push({ entity: ent, rel: e.label });
+      related[k].push({
+        entity: ent,
+        rel: e.label,
+        edge: e.source === "manual" ? { from: e.a, to: e.b, label: e.label } : undefined,
+      });
     }
   });
   if ((entity as any).session || (entity as any).lastSeen) {
@@ -619,6 +632,19 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
     updateEntity(kind, entityId, fields).catch((e) =>
       console.error(`updateEntity(${kind}) failed`, e),
     );
+
+  // Cuts a hand-drawn string from either endpoint's sheet, so a stale relation
+  // no longer needs both cards pinned to the board to be removed. Confirmed
+  // because connections have no undo and the label is free text the DM typed —
+  // and because the ✕ sits inside a chip whose whole body navigates. The native
+  // dialog also absorbs the double-click that would otherwise re-fire the
+  // DELETE in the realtime echo gap and raise a spurious "wasn't saved" toast.
+  const removeRelation = (edge: { from: string; to: string; label: string }, otherLabel: string) => {
+    if (!window.confirm(`Cut the string "${edge.label}" to ${otherLabel}? This cannot be undone.`)) return;
+    deleteConnectionBetween(edge.from, edge.to, edge.label).catch((e) =>
+      console.error("deleteConnectionBetween failed", e),
+    );
+  };
 
   // The session's own feed (issue #72): session_events are loaded campaign-
   // wide and kept sorted, so past feeds are already in memory. Rendered
@@ -1189,8 +1215,11 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                 return (
                   <div className="rail-section" key={k}>
                     <h4>{label[k]}</h4>
-                    {list.map((r, i) => (
-                      <div key={i} className={`rail-chip ${k}`} onClick={() => onOpen(r.entity.id)}>
+                    {/* Keyed by (entity, rel) rather than index: the chip now holds a
+                        focusable button, so reconciling by position would re-render the
+                        focused node as a different relation after a delete. */}
+                    {list.map((r) => (
+                      <div key={`${r.entity.id}|${r.rel}`} className={`rail-chip ${k}`} onClick={() => onOpen(r.entity.id)}>
                         <div className="rc-icon"><Icon name={kindIcon[k]} size={14} /></div>
                         <div style={{ flex: 1 }}>
                           <div className="rc-name">{entityLabel(r.entity)}</div>
@@ -1199,7 +1228,24 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                             {r.tag && <span className="rc-tag">{r.tag}</span>}
                           </div>
                         </div>
-                        <Icon name="chevron" size={12} />
+                        {/* ✕ replaces the chevron rather than joining it: the chevron is
+                            decoration (the whole chip navigates), and two glyphs a few px
+                            apart — one harmless, one irreversible — is the worst misclick
+                            geometry. The swap also makes provenance legible: chevron =
+                            derived and read-only, ✕ = a string you drew and can cut, the
+                            same split the board makes with dashed yarn. */}
+                        {r.edge && canEdit ? (
+                          <button
+                            className="rc-unpin"
+                            title="Remove this connection"
+                            aria-label={`Remove connection: ${r.rel} — ${entityLabel(r.entity)}`}
+                            onClick={(ev) => { ev.stopPropagation(); removeRelation(r.edge!, entityLabel(r.entity)); }}
+                          >
+                            <Icon name="close" size={12} />
+                          </button>
+                        ) : (
+                          <Icon name="chevron" size={12} />
+                        )}
                       </div>
                     ))}
                   </div>
