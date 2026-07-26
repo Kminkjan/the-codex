@@ -1236,6 +1236,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                             same split the board makes with dashed yarn. */}
                         {r.edge && canEdit ? (
                           <button
+                            type="button"
                             className="rc-unpin"
                             title="Remove this connection"
                             aria-label={`Remove connection: ${r.rel} — ${entityLabel(r.entity)}`}
