@@ -20,6 +20,16 @@ export interface DerivedEdge {
   label: string;
   source: RelationSource;
   weight: number;
+  // Provenance from the connections row (0031), manual edges only — an FK edge
+  // is derived from a column, so it has no draw time, session or author.
+  // Because the dedupe below is keyed on an unordered pair, one manual edge can
+  // stand for a mirrored A→B / B→A row pair carrying two DIFFERENT timestamps;
+  // these report the earliest of that set, so "when was this first drawn" is
+  // stable no matter which orientation the (unordered) select returns first.
+  // Undefined for FK edges and for rows predating 0031.
+  createdAt?: string;
+  sessionId?: string;
+  author?: string;
 }
 
 // Weights bias both the tidy force layout (link strength) and community
@@ -54,16 +64,36 @@ const edgeKey = (pk: string, label: string) => `${pk}${SEP}${label}`;
 export function deriveRelations(campaign: Campaign): DerivedEdge[] {
   const edges: DerivedEdge[] = [];
   const manualPairs = new Set<string>(); // unordered pairs covered by any manual edge
-  const manualSeen = new Set<string>(); // (pair, label) already emitted as manual
+  const manualByKey = new Map<string, DerivedEdge>(); // (pair, label) → emitted edge
 
-  for (const [from, to, label] of campaign.connections) {
+  for (const cn of campaign.connections) {
+    const { from, to, label } = cn;
     if (!from || !to || from === to) continue;
     const pk = pairKey(from, to);
     manualPairs.add(pk);
     const key = edgeKey(pk, label);
-    if (manualSeen.has(key)) continue;
-    manualSeen.add(key);
-    edges.push({ a: from, b: to, label, source: "manual", weight: MANUAL_WEIGHT });
+    const seen = manualByKey.get(key);
+    if (seen) {
+      // A mirrored/duplicate row for an edge already emitted. Fold its
+      // provenance in rather than discarding it: keep the earliest createdAt,
+      // carrying that row's session and author with it so the three stay
+      // consistent. Date.parse, not string compare — PostgREST's timestamptz
+      // text isn't guaranteed lexicographically ordered (fractional digits
+      // vary), the same trap sortSessionEvents documents. A row with no
+      // createdAt never displaces a known one: unknown isn't earlier.
+      if (cn.createdAt && (!seen.createdAt || Date.parse(cn.createdAt) < Date.parse(seen.createdAt))) {
+        seen.createdAt = cn.createdAt;
+        seen.sessionId = cn.sessionId;
+        seen.author = cn.author;
+      }
+      continue;
+    }
+    const edge: DerivedEdge = {
+      a: from, b: to, label, source: "manual", weight: MANUAL_WEIGHT,
+      createdAt: cn.createdAt, sessionId: cn.sessionId, author: cn.author,
+    };
+    manualByKey.set(key, edge);
+    edges.push(edge);
   }
 
   const fkSeen = new Set<string>();

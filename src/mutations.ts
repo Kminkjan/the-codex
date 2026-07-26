@@ -182,14 +182,46 @@ export async function deleteBoardPosition(entityId: string) {
 
 // ===== Connections ==========================================================
 
-export async function insertConnection(fromId: string, toId: string, label: string) {
+// Drawing a string during a live session also writes a `link` row to the feed
+// (0031) — the same shape as releaseEntity, where the existing ceremony fills
+// the record as a side effect rather than asking anyone to remember.
+//
+// `announce` is the CALLER's answer to "are both endpoints already visible to
+// the players?". Mutations can't reach React context to check hidden-ness, the
+// same reason `author` is passed in and showEntity's `unhide` is caller-decided.
+// A string touching an unreleased entity is DM prep and says nothing to the
+// table, so it stays out of the feed while still being drawn.
+export async function insertConnection(
+  fromId: string,
+  toId: string,
+  label: string,
+  opts: { author?: string; announce?: boolean } = {},
+) {
+  const sessionId = getActiveSessionId();
   const { error } = await supabase.from("connections").insert({
     campaign_id: getActiveCampaignId(),
     from_id: fromId,
     to_id: toId,
     label,
+    // created_at defaults in the DB. session_id stays null for a string drawn
+    // outside a session — a fact about the string, not a gap in the data.
+    session_id: sessionId,
+    author: opts.author ?? null,
   });
   if (error) raiseWriteError(error);
+
+  if (!sessionId || !opts.announce) return;
+  // Silent + best-effort: the connection above already committed, so a toast
+  // here would report a loss that didn't happen, and an environment that
+  // hasn't applied 0031 yet must not have its board writes start failing.
+  insertSessionEvent({
+    type: "link",
+    sessionId,
+    author: opts.author,
+    entityId: fromId,
+    entityIdB: toId,
+    text: label,
+  }, { silent: true }).catch((e) => console.error("link session event failed", e));
 }
 
 // User-clicked on a rendered edge, so the row is known to exist — 0 rows
@@ -197,9 +229,11 @@ export async function insertConnection(fromId: string, toId: string, label: stri
 //
 // Matches BOTH orientations on purpose. One rail chip / one yarn strand stands
 // for every connections row with this label between this pair, in either
-// direction: deriveRelations dedupes manual edges on an UNORDERED pair key
-// (relations.ts:58), and the surviving orientation isn't even deterministic —
-// the connections select carries no ORDER BY. Deleting only the stored
+// direction: deriveRelations dedupes manual edges on an UNORDERED pair key,
+// so the edge the user clicked carries only ONE of the pair's orientations and
+// which one is an artefact of the select. (0031 gave that select an ORDER BY id,
+// so the choice is at least stable now — but stable is not the same as being
+// the only row.) Deleting only the stored
 // orientation would leave a mirrored row behind and the "deleted" edge would
 // reappear on the next refetch, with count 1 so nothing warned. Matching the
 // whole set in one statement keeps count >= 1 whenever anything matched, so
@@ -394,23 +428,34 @@ export async function unstageEntity(sessionId: string, entityId: string) {
 // The feed is append-only: INSERT is the only verb (no update/delete policies
 // exist on session_events). `author` is the caller's display name, same
 // signing as party_notes; `entityId` rides on reveal events, `text` carries
-// note bodies / reveal flair.
+// note bodies / reveal flair. `entityIdB` is the far endpoint of a link event
+// (0031) and rides only on those.
+//
+// `silent` throws WITHOUT running the write-error toast handlers, for events
+// that garnish a write which already succeeded. raiseWriteError fires the
+// toast before it throws, so a caller's .catch() cannot take it back — a
+// failed garnish would otherwise tell the user their real write was lost.
 export async function insertSessionEvent(ev: {
   type: SessionEventType;
   sessionId: string;
   author?: string;
   entityId?: string;
+  entityIdB?: string;
   text?: string;
-}) {
+}, opts: { silent?: boolean } = {}) {
   const { error } = await supabase.from("session_events").insert({
     campaign_id: getActiveCampaignId(),
     session_id: ev.sessionId,
     type: ev.type,
     author: ev.author ?? null,
     entity_id: ev.entityId ?? null,
+    entity_id_b: ev.entityIdB ?? null,
     text: ev.text ?? null,
   });
-  if (error) raiseWriteError(error);
+  if (error) {
+    if (opts.silent) throw error;
+    raiseWriteError(error);
+  }
 }
 
 // ===== Live session: one-click release + start/end markers (PR 3, #67/#68) =

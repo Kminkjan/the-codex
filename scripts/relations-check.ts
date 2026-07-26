@@ -12,6 +12,11 @@
 //     stored orientation. Narrow it back to two .eq() calls and the delete
 //     half-succeeds: count 1 so nothing warns, but the mirror survives and the
 //     edge reappears on the next refetch. Nothing else in the repo catches it.
+//   * since 0031 that same unordered dedupe has to FOLD provenance rather than
+//     drop it — the two rows of a mirrored pair carry different draw times, and
+//     the surviving edge must report the earliest with its own author/session
+//     attached, or the UI attributes a string to the wrong person on some
+//     refetches and not others.
 //
 // Synthetic on purpose: no real campaign reliably holds a mirrored duplicate
 // pair. Sibling of scripts/saga-check.ts and scripts/layout-check.ts.
@@ -46,7 +51,7 @@ console.log("\nsource: which edges the rail may offer to delete");
     people: [{ id: "p1", name: "Theothor", faction: "f1", location: "l1" } as any],
     factions: [{ id: "f1", name: "Grey Manes" } as any],
     locations: [{ id: "l1", name: "The Hall" } as any],
-    connections: [["p1", "f1", "shield of the guild"]],
+    connections: [{ from: "p1", to: "f1", label: "shield of the guild" }],
   });
   const edges = deriveRelations(c);
   const faction = edges.filter((e) => e.a === "f1" || e.b === "f1");
@@ -61,7 +66,10 @@ console.log("\nmirrored pair: why the delete must match both directions");
 {
   const c = shell({
     people: [{ id: "a", name: "A" } as any, { id: "b", name: "B" } as any],
-    connections: [["a", "b", "ally of"], ["b", "a", "ally of"]],
+    connections: [
+      { from: "a", to: "b", label: "ally of" },
+      { from: "b", to: "a", label: "ally of" },
+    ],
   });
   const edges = deriveRelations(c);
   // If this ever reports 2, the unordered dedupe changed and
@@ -73,11 +81,68 @@ console.log("\nmirrored pair: why the delete must match both directions");
     edges[0] && ((edges[0].a === "a" && edges[0].b === "b") || (edges[0].a === "b" && edges[0].b === "a")));
 }
 
+console.log("\nprovenance folds to the EARLIEST row of a mirrored pair (0031)");
+{
+  // The mirrored pair again, but with the shape 0031 actually produces: each
+  // orientation was inserted separately, so the two rows carry DIFFERENT draw
+  // times, sessions and authors. One edge stands for both, and it must report
+  // when the pair was FIRST drawn — otherwise "learned in session N" flickers
+  // between refetches depending on which row the select happened to return.
+  const people = [{ id: "a", name: "A" } as any, { id: "b", name: "B" } as any];
+  const rows = [
+    { from: "a", to: "b", label: "ally of", createdAt: "2026-07-20T21:00:00.000Z", sessionId: "s2", author: "Late" },
+    { from: "b", to: "a", label: "ally of", createdAt: "2026-07-18T19:00:00.000Z", sessionId: "s1", author: "First" },
+  ];
+  const fwd = deriveRelations(shell({ people, connections: rows }));
+  const rev = deriveRelations(shell({ people, connections: rows.slice().reverse() }));
+  check("still collapses to one edge", fwd.length === 1 && rev.length === 1, [fwd, rev]);
+  check("reports the earliest draw time", fwd[0]?.createdAt === "2026-07-18T19:00:00.000Z", fwd[0]);
+  check("...whichever order the rows arrive in", rev[0]?.createdAt === "2026-07-18T19:00:00.000Z", rev[0]);
+  // Provenance must move as a unit: showing the earliest timestamp beside the
+  // *other* row's author would attribute the string to the wrong person.
+  check("...carrying that row's session and author, not the other's",
+    fwd[0]?.sessionId === "s1" && fwd[0]?.author === "First", fwd[0]);
+  check("...consistently in both orders",
+    rev[0]?.sessionId === "s1" && rev[0]?.author === "First", rev[0]);
+}
+
+console.log("\nunstamped rows (the pre-0031 back-catalogue) don't poison the fold");
+{
+  // 0031 deliberately did NOT backfill created_at, so every string seeded by
+  // 0011/0012 has none. "Unknown" is not earlier than a known time — it must
+  // never displace one, in either row order.
+  const people = [{ id: "a", name: "A" } as any, { id: "b", name: "B" } as any];
+  const known = { from: "a", to: "b", label: "ally of", createdAt: "2026-07-18T19:00:00.000Z", author: "First" };
+  const bare = { from: "b", to: "a", label: "ally of" };
+  const knownFirst = deriveRelations(shell({ people, connections: [known, bare] }));
+  const bareFirst = deriveRelations(shell({ people, connections: [bare, known] }));
+  check("a known timestamp survives an unstamped mirror", knownFirst[0]?.createdAt === "2026-07-18T19:00:00.000Z", knownFirst[0]);
+  check("...and is adopted when the unstamped row came first", bareFirst[0]?.createdAt === "2026-07-18T19:00:00.000Z", bareFirst[0]);
+  check("...bringing its author with it", bareFirst[0]?.author === "First", bareFirst[0]);
+  check("a wholly unstamped edge reports undefined, not a fabricated date",
+    deriveRelations(shell({ people, connections: [bare] }))[0]?.createdAt === undefined);
+}
+
+console.log("\nFK edges have no provenance to show");
+{
+  // addFk pushes into the same array, so the fields must stay optional: an FK
+  // edge is derived from a column and was never "drawn" by anyone.
+  const e = deriveRelations(shell({
+    people: [{ id: "p1", name: "P", faction: "f1" } as any],
+    factions: [{ id: "f1", name: "F" } as any],
+  }))[0];
+  check("an FK edge carries no createdAt, session or author",
+    e?.source === "fk" && e.createdAt === undefined && e.sessionId === undefined && e.author === undefined, e);
+}
+
 console.log("\nparallel labels stay independently deletable");
 {
   const c = shell({
     people: [{ id: "a", name: "A" } as any, { id: "b", name: "B" } as any],
-    connections: [["a", "b", "ally of"], ["a", "b", "owes a debt to"]],
+    connections: [
+      { from: "a", to: "b", label: "ally of" },
+      { from: "a", to: "b", label: "owes a debt to" },
+    ],
   });
   const edges = deriveRelations(c);
   check("same pair, different labels → two edges", edges.length === 2, edges);
@@ -91,7 +156,7 @@ console.log("\nFK resurrection after a cut (documented, deliberate)");
   const withString = deriveRelations(shell({
     people: [{ id: "p1", name: "P", faction: "f1" } as any],
     factions: [{ id: "f1", name: "F" } as any],
-    connections: [["p1", "f1", "shield of the guild"]],
+    connections: [{ from: "p1", to: "f1", label: "shield of the guild" }],
   }));
   const afterCut = deriveRelations(shell({
     people: [{ id: "p1", name: "P", faction: "f1" } as any],
@@ -108,7 +173,11 @@ console.log("\ndegenerate rows are dropped, not rendered as undeletable chips");
 {
   const c = shell({
     people: [{ id: "a", name: "A" } as any],
-    connections: [["a", "a", "self"], ["", "a", "empty from"], ["a", "", "empty to"]],
+    connections: [
+      { from: "a", to: "a", label: "self" },
+      { from: "", to: "a", label: "empty from" },
+      { from: "a", to: "", label: "empty to" },
+    ],
   });
   check("self-links and blank endpoints yield no edges", deriveRelations(c).length === 0);
 }

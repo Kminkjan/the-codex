@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { type KindKey, MONSTER_THREAT_OPTIONS, PERSON_STATUS_OPTIONS, PERSON_TIER_OPTIONS, entityLabel, isArchivableKind, isArchived, isHidden, isPc, isPinned, personTier, sessionFeedToMarkdown, sessionLabel } from "./data";
+import { type KindKey, MONSTER_THREAT_OPTIONS, PERSON_STATUS_OPTIONS, PERSON_TIER_OPTIONS, bothVisible, entityLabel, isArchivableKind, isArchived, isHidden, isPc, isPinned, personTier, sessionFeedToMarkdown, sessionLabel } from "./data";
 import { Icon, kindIcon } from "./icons";
 import { StatusChip, EditableText, EditableMarkdown, EnumSelect, EntitySelect, EntityCombobox, Fleurons } from "./components";
 import { useCampaign, useFindEntity, useIsDm, useProfiles } from "./hooks";
@@ -214,6 +214,8 @@ function EditableNumber({ value, onSave }: { value: number; onSave: (n: number) 
 
 function AddRelationForm({ fromId }: { fromId: string }) {
   const campaign = useCampaign();
+  const findEntity = useFindEntity();
+  const { displayName } = useAuth();
   const [targetId, setTargetId] = useState("");
   const [label, setLabel] = useState("");
   const [saving, setSaving] = useState(false);
@@ -239,7 +241,10 @@ function AddRelationForm({ fromId }: { fromId: string }) {
     if (!targetId || !label.trim() || saving) return;
     setSaving(true);
     try {
-      await insertConnection(fromId, targetId, label.trim());
+      await insertConnection(fromId, targetId, label.trim(), {
+        author: displayName || undefined,
+        announce: bothVisible(findEntity(fromId), findEntity(targetId)),
+      });
       setTargetId("");
       setLabel("");
     } catch (e) {

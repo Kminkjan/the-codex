@@ -305,6 +305,7 @@ const mapSessionEvent = (r: any): SessionEvent => ({
   type: r.type,
   author: r.author ?? undefined,
   entityId: r.entity_id ?? undefined,
+  entityIdB: r.entity_id_b ?? undefined,
   text: r.text ?? undefined,
   createdAt: r.created_at,
 });
@@ -322,7 +323,16 @@ const mapBoardPosition = (r: any): [string, BoardPosition] => [
   { x: r.x, y: r.y, rot: r.rot ?? 0, kind: r.kind as KindKey },
 ];
 
-const mapConnection = (r: any): Connection => [r.from_id, r.to_id, r.label ?? ""];
+const mapConnection = (r: any): Connection => ({
+  from: r.from_id,
+  to: r.to_id,
+  label: r.label ?? "",
+  // Provenance columns arrived in 0031 and were deliberately NOT backfilled —
+  // undefined here means "this string predates the column", not missing data.
+  createdAt: r.created_at ?? undefined,
+  sessionId: r.session_id ?? undefined,
+  author: r.author ?? undefined,
+});
 
 const mapPartyNoteRow = (r: any): { entityId: string; note: PartyNote } => ({
   entityId: r.entity_id,
@@ -375,7 +385,13 @@ async function fetchCampaign(id: string): Promise<Campaign> {
     supabase.from("items").select("*").eq("campaign_id", id),
     supabase.from("lore").select("*").eq("campaign_id", id),
     supabase.from("monsters").select("*").eq("campaign_id", id),
-    supabase.from("connections").select("*").eq("campaign_id", id),
+    // ORDER BY id so this select returns a stable order at all; it never had
+    // one. deriveRelations' provenance fold does NOT depend on this (it takes
+    // the earliest createdAt either way, which relations-check asserts in both
+    // row orders) — what this pins down is which orientation of a mirrored pair
+    // becomes the surviving edge's a/b, so equal-provenance rows stop reshuffling
+    // between refetches. Orientation is still not load-bearing for deletes.
+    supabase.from("connections").select("*").eq("campaign_id", id).order("id"),
     supabase.from("board_positions").select("*").eq("campaign_id", id),
     supabase.from("party_notes").select("*").eq("campaign_id", id).order("created_at"),
   ]);
@@ -716,7 +732,7 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
         // WITHOUT any event on those tables — the rows didn't change, the
         // entity did — so the reveal event has to trigger the refetch.
         const refetchConnections = () => {
-          supabase.from("connections").select("*").eq("campaign_id", campaignId).then(({ data }) => {
+          supabase.from("connections").select("*").eq("campaign_id", campaignId).order("id").then(({ data }) => {
             if (cancelled) return;
             setCampaign((c) => c && c.id === campaignId ? { ...c, connections: (data ?? []).map(mapConnection) } : c);
           });
@@ -923,7 +939,10 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
         channel.on(
           "postgres_changes" as any,
           { event: "*", schema: "public", table: "connections", filter },
-          // Connections have no stable `id` on the client (stored as tuples). Refetch.
+          // Connections still carry no client-side `id` (mapConnection drops the
+          // bigserial), so there's nothing to splice against. Refetch. Since
+          // 0031 the row does have a stable id available — converting this to an
+          // incremental splice is possible now, just not done.
           refetchConnections,
         );
         channel.on(

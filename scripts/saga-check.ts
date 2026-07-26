@@ -104,9 +104,9 @@ const campaign: Campaign = {
   factions: [], items: [], lore: [], monsters: [],
   events: [], eventParticipants: {},
   connections: [
-    ["pSupp", "locSaga", "drinks at"],
-    ["pCarry", "locBoth", "rides"],
-    ["pLater", "locOut", "holds"],
+    { from: "pSupp", to: "locSaga", label: "drinks at" },
+    { from: "pCarry", to: "locBoth", label: "rides" },
+    { from: "pLater", to: "locOut", label: "holds" },
   ],
   sessionStaging: [], sessionEvents: [], dmNotes: {},
   board: {}, notes: {},
