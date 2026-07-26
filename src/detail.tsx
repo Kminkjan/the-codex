@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { type KindKey, MONSTER_THREAT_OPTIONS, PERSON_STATUS_OPTIONS, PERSON_TIER_OPTIONS, entityLabel, isArchivableKind, isArchived, isHidden, isPinned, personTier, sessionFeedToMarkdown, sessionLabel } from "./data";
+import { type KindKey, MONSTER_THREAT_OPTIONS, PERSON_STATUS_OPTIONS, PERSON_TIER_OPTIONS, entityLabel, isArchivableKind, isArchived, isHidden, isPc, isPinned, personTier, sessionFeedToMarkdown, sessionLabel } from "./data";
 import { Icon, kindIcon } from "./icons";
 import { StatusChip, EditableText, EditableMarkdown, EnumSelect, EntitySelect, EntityCombobox, Fleurons } from "./components";
-import { useCampaign, useFindEntity, useIsDm } from "./hooks";
+import { useCampaign, useFindEntity, useIsDm, useProfiles } from "./hooks";
 import { useAuth } from "./auth";
 import {
   insertPartyNote,
@@ -188,6 +188,11 @@ function EntityPortrait({
 
 const STATUS_OPTIONS = ["whispered", "pursuing", "resolved", "lost"] as const;
 const DISPOSITION_OPTIONS = ["ally", "neutral", "wary", "hostile"] as const;
+// people.is_pc is a boolean in the DB, but there's no boolean-toggle primitive
+// and one stat cell doesn't justify inventing one — EnumSelect over these two
+// labels, mapped back to the boolean at the call site, reads like Tier/Status
+// beside it. Voice-neutral on purpose: it renders identically in both themes.
+const PC_TYPE_OPTIONS = ["player character", "npc"] as const;
 
 // Integer-only EditableText: non-numeric input is rejected (no write, the
 // display reverts on blur), matching sessions.num being NOT NULL integer.
@@ -383,6 +388,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
   const entity = findEntity(entityId);
   const { displayName, canEdit } = useAuth();
   const isDm = useIsDm();
+  const profilesById = useProfiles();
 
   const notes = campaign.notes[entityId] || [];
 
@@ -896,6 +902,24 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                     <Stat label="Status" empty={!(entity as any).status} valueStyle={{ textTransform: "capitalize" }}><EnumSelect value={(entity as any).status} options={PERSON_STATUS_OPTIONS} allowClear onSave={(v) => patch({ status: v })} /></Stat>
                     <Stat label="Faction" empty={!(entity as any).faction} valueStyle={{ fontSize: 13 }}><EntitySelect value={(entity as any).faction} options={factionOptions} allowClear onSave={(id) => patch({ faction: id ?? "" })} /></Stat>
                     <Stat label="Location" empty={!(entity as any).location} valueStyle={{ fontSize: 13 }}><EntitySelect value={(entity as any).location} options={locationOptions} allowClear onSave={(id) => patch({ location: id ?? "" })} /></Stat>
+                    {/* PC-ness is orthogonal to Tier: tier is narrative prominence for
+                        NPC-roster triage (0014), and a retired PC is plausibly
+                        "supporting". empty when false so viewers don't read "npc" on
+                        every townsperson, while editors keep the affordance. */}
+                    <Stat label="Type" empty={!isPc(entity)} valueStyle={{ textTransform: "capitalize", fontSize: 13 }}>
+                      <EnumSelect
+                        value={isPc(entity) ? "player character" : "npc"}
+                        options={PC_TYPE_OPTIONS}
+                        onSave={(v) => { if (v && (v === "player character") !== isPc(entity)) patch({ isPc: v === "player character" }); }}
+                      />
+                    </Stat>
+                    {/* Read-only: binding a character to an account happens on the
+                        charter, which is the only screen holding the member roster. */}
+                    {isPc(entity) && (entity as any).playerUserId && (
+                      <Stat label="Played by" valueStyle={{ fontSize: 13 }}>
+                        {profilesById.get((entity as any).playerUserId)?.displayName ?? "an unnamed adventurer"}
+                      </Stat>
+                    )}
                   </>
                 )}
                 {kind === "locations" && (

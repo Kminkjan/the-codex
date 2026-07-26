@@ -59,6 +59,8 @@ const fieldAlias: Record<KindKey, Record<string, string>> = {
     faction: "faction_id",
     lastSeen: "last_seen_session_id",
     imageUrl: "image_url",
+    isPc: "is_pc",
+    playerUserId: "player_user_id",
   },
   quests: {
     giver: "giver_id",
@@ -570,6 +572,28 @@ export async function updateEntity(
     .eq("campaign_id", getActiveCampaignId());
   if (error) raiseWriteError(error);
   expectRows(count);
+}
+
+// Bind the character a member is currently playing (issue #114). Ordinary
+// people writes, not a membership RPC: the link lives on people, which already
+// has member-scoped write RLS (0023), so a player claiming their own character
+// needs no special path.
+//
+// Swapping clears the link on the character they were playing only if that
+// character is still alive. A dead PC keeps its player — the chronicle should
+// still say who played them, and that history is the whole reason the link
+// isn't a single pointer on campaign_members.
+export async function bindPlayerCharacter(
+  userId: string,
+  nextPersonId: string | null,
+  previous: { id: string; status?: string } | null,
+): Promise<void> {
+  if (previous && previous.id !== nextPersonId && previous.status !== "dead") {
+    await updateEntity("people", previous.id, { playerUserId: null });
+  }
+  if (nextPersonId) {
+    await updateEntity("people", nextPersonId, { playerUserId: userId, isPc: true });
+  }
 }
 
 async function deletePartyNotesFor(entityId: string) {
