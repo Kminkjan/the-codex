@@ -33,15 +33,35 @@ type AuthState = {
   displayName: string | null;
   /** Discord avatar for OAuth editors; null for email/anonymous sessions. */
   avatarUrl: string | null;
-  /** True for non-anonymous (magic-link or Discord) sessions; RLS rejects anonymous writes. */
+  /**
+   * True when the account may edit the ACTIVE campaign — the account tier AND
+   * a campaign_members row for it (0023 scopes writes per campaign).
+   *
+   * AuthProvider can only know the first half; membership is per-campaign and
+   * lives a layer down, so CampaignProvider re-provides this context with
+   * canEdit narrowed to `isEditorAccount && isMember`. Every consumer inside
+   * it therefore reads the honest answer, and the ~80 edit affordances stop
+   * offering writes RLS would reject.
+   *
+   * Read this to gate an edit affordance. Read isEditorAccount instead for
+   * "is this a signed-in editor at all" (sign-in chrome, invite redemption,
+   * founding a campaign) — those must work for an editor holding no seat yet.
+   */
   canEdit: boolean;
+  /**
+   * The account tier alone: non-anonymous (magic-link or Discord) session.
+   * Unlike canEdit this is campaign-independent and never narrowed.
+   */
+  isEditorAccount: boolean;
   setDisplayName: (name: string) => Promise<void>;
   signInWithEmail: (email: string) => Promise<void>;
   signInWithDiscord: () => Promise<void>;
   signOut: () => Promise<void>;
 };
 
-const AuthContext = createContext<AuthState | null>(null);
+// Exported so CampaignProvider can re-provide it with a membership-narrowed
+// canEdit (see the field's doc above). Nothing else should provide it.
+export const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -104,7 +124,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const user = session?.user ?? null;
-  const canEdit = !!user && !user.is_anonymous;
+  const isEditorAccount = !!user && !user.is_anonymous;
+  // Account tier only at this layer — CampaignProvider narrows the value it
+  // re-provides by campaign membership.
+  const canEdit = isEditorAccount;
   const displayName =
     (user?.user_metadata?.display_name as string | undefined)?.trim() ||
     (user?.email ? user.email.split("@")[0] : null);
@@ -170,7 +193,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, displayName, avatarUrl, canEdit, setDisplayName, signInWithEmail, signInWithDiscord, signOut }}
+      value={{ user, displayName, avatarUrl, canEdit, isEditorAccount, setDisplayName, signInWithEmail, signInWithDiscord, signOut }}
     >
       {children}
       {authNotice && (

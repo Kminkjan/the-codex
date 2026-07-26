@@ -1,7 +1,7 @@
 import { createContext, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "./utils/supabase";
-import { useAuth } from "./auth";
+import { AuthContext, useAuth } from "./auth";
 import { setActiveCampaignId } from "./activeCampaign";
 import { setActiveSessionId } from "./activeSession";
 import { parseHash, writeCampaignHash } from "./route";
@@ -32,9 +32,11 @@ interface CampaignContextValue {
   adoptCampaign: (summary: CampaignSummary) => void;
   retireCampaign: (id: string) => void;
   // True when the signed-in editor holds the dm role in campaign_members
-  // (issue #73 — supersedes campaigns.dm_user_id). Fetched per campaign; a
-  // membership change mid-session needs a reload (campaign_members isn't in
-  // the realtime publication — deliberate, membership is dashboard-managed).
+  // (issue #73 — supersedes campaigns.dm_user_id). Fetched per campaign;
+  // campaign_members is deliberately outside the realtime publication, so a
+  // membership change lands only when refreshMembership() is called (the RPCs
+  // in issue #86 do) or on reload. Membership is self-service since 0022 —
+  // invites and the roster RPCs, not the dashboard.
   // Since 0018 this is a UI affordance gate, not the security boundary: RLS
   // decides what actually reaches the client.
   // While viewAsPlayer is on this reads FALSE even for the real DM — it is the
@@ -46,6 +48,15 @@ interface CampaignContextValue {
   // real DM-ness (SessionPin's feed brackets) — a view toggle must never change
   // what gets persisted.
   isRealDm: boolean;
+  // Holds a campaign_members row for this campaign (any role) — since 0023 the
+  // precondition for every write. Consumers rarely need this directly: it is
+  // already folded into the canEdit that CampaignProvider re-provides.
+  isMember: boolean;
+  // A signed-in editor with no seat at this table: they'd see edit affordances
+  // that RLS refuses, so the UI explains the gap instead. False until the
+  // membership lookup resolves, and false for viewers (their read-only state
+  // needs no explaining).
+  seatless: boolean;
   // "View as player" (#71): pure client state, reset on campaign switch.
   viewAsPlayer: boolean;
   setViewAsPlayer: (on: boolean) => void;
@@ -71,6 +82,8 @@ export const CampaignContext = createContext<CampaignContextValue>({
   retireCampaign: () => {},
   isDm: false,
   isRealDm: false,
+  isMember: false,
+  seatless: false,
   viewAsPlayer: false,
   setViewAsPlayer: () => {},
   membershipVersion: 0,
@@ -412,14 +425,22 @@ function applyArrayChange<T extends { id: string | number }>(
 }
 
 export function CampaignProvider({ children }: { children: ReactNode }) {
-  const { user, canEdit, displayName } = useAuth();
+  // The whole auth value, because this provider re-provides it below with a
+  // membership-narrowed canEdit. Inside THIS component canEdit is still the
+  // account tier (the narrowing only applies to children), so read
+  // isEditorAccount explicitly here to keep that unambiguous.
+  const auth = useAuth();
+  const { user, isEditorAccount, displayName } = auth;
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [campaigns, setCampaigns] = useState<CampaignSummary[]>([]);
   const [campaignId, setCampaignId] = useState<string | null>(null);
   const [viewAsPlayer, setViewAsPlayer] = useState(false);
-  const [isDmMember, setIsDmMember] = useState(false);
+  // One campaign_members row, two facts: the role (dm affordances) and its
+  // mere existence (may write here at all). `resolved` distinguishes "looked,
+  // found no seat" from "haven't looked yet".
+  const [membership, setMembership] = useState<{ resolved: boolean; role: string | null }>({ resolved: false, role: null });
   const [membershipVersion, setMembershipVersion] = useState(0);
   const refreshMembership = useCallback(() => setMembershipVersion((v) => v + 1), []);
   const [presenceUsers, setPresenceUsers] = useState<PresenceUser[]>([]);
@@ -431,7 +452,7 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
   const channelRef = useRef<RealtimeChannel | null>(null);
   const subscribedRef = useRef(false);
   const authRef = useRef({ userId: null as string | null, displayName: null as string | null, canEdit: false });
-  authRef.current = { userId: user?.id ?? null, displayName, canEdit };
+  authRef.current = { userId: user?.id ?? null, displayName, canEdit: isEditorAccount };
 
   // Idempotent: safe to call from SUBSCRIBED (fires again on every network
   // rejoin — realtime-js does not re-track by itself) and from auth changes.
@@ -452,25 +473,39 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
   // re-track without touching the channel lifecycle.
   useEffect(() => {
     syncPresence();
-  }, [user?.id, displayName, canEdit, syncPresence]);
+  }, [user?.id, displayName, isEditorAccount, syncPresence]);
 
-  // DM membership lookup (issue #73): one campaign_members row decides
-  // isRealDm. Not realtime-synced — campaign_members is deliberately
-  // unpublished, so membership RPCs (issue #86) bump membershipVersion to
-  // re-run this. Until it resolves the DM briefly renders the player
-  // projection (no flash of hidden content the other way around).
+  // Membership lookup (issue #73 for the dm half): one campaign_members row
+  // decides BOTH isRealDm and whether this editor may write here at all —
+  // since 0023 RLS requires a membership row for the campaign, so an editor
+  // holding no seat has every write rejected. Fetching the role rather than
+  // filtering on 'dm' is what lets canEdit tell the truth (see below).
+  // Not realtime-synced — campaign_members is deliberately unpublished, so
+  // membership RPCs (issue #86) bump membershipVersion to re-run this. Until
+  // it resolves the DM briefly renders the player projection (no flash of
+  // hidden content the other way around), and `resolved` keeps the no-seat
+  // notice from flashing at an editor who does hold one.
   useEffect(() => {
-    setIsDmMember(false);
-    if (!campaignId || !user || user.is_anonymous) return;
+    setMembership({ resolved: false, role: null });
+    if (!campaignId || !user || user.is_anonymous) {
+      // No membership to fetch: resolved, seatless. An anonymous viewer is
+      // gated by the account tier anyway.
+      setMembership({ resolved: true, role: null });
+      return;
+    }
     let cancelled = false;
     supabase
       .from("campaign_members")
       .select("role")
       .eq("campaign_id", campaignId)
       .eq("user_id", user.id)
-      .eq("role", "dm")
-      .then(({ data }) => {
-        if (!cancelled) setIsDmMember((data ?? []).length > 0);
+      .then(({ data, error: memberErr }) => {
+        if (cancelled) return;
+        // A failed lookup must not lock an editor out of their own campaign:
+        // leave it unresolved so affordances stay as they were and RLS (the
+        // real boundary) keeps deciding. The toast covers a rejected write.
+        if (memberErr) { console.error(memberErr); return; }
+        setMembership({ resolved: true, role: (data?.[0]?.role as string | undefined) ?? null });
       });
     return () => { cancelled = true; };
   }, [campaignId, user?.id, user?.is_anonymous, membershipVersion]);
@@ -873,7 +908,13 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
     };
   }, [campaignId]);
 
-  const isRealDm = !!campaign && canEdit && isDmMember;
+  const isMember = membership.role !== null;
+  const isDmMember = membership.role === "dm";
+  const isRealDm = !!campaign && isEditorAccount && isDmMember;
+  // A signed-in editor holding no seat at this table: RLS will reject every
+  // write (0023). Only once the lookup has resolved — and only for editors,
+  // since a viewer's read-only state is already explained by the account tier.
+  const seatless = isEditorAccount && membership.resolved && !isMember;
   // The effective gate: "view as player" (#71) flips this one derivation and
   // the projection below plus every isDm-gated affordance follow — that single
   // choke point IS the feature. Real DM-ness is untouched, so exit is instant.
@@ -887,9 +928,21 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
     [campaign, isDm],
   );
 
+  // Re-provide auth with canEdit narrowed by membership, so every edit
+  // affordance below reflects what RLS will actually accept (see the canEdit
+  // doc in auth.tsx). Surfaces that must survive seatlessness — the Topbar's
+  // account block, founding a campaign, redeeming an invite — read
+  // isEditorAccount, which is passed through untouched.
+  const scopedAuth = useMemo(
+    () => ({ ...auth, canEdit: auth.isEditorAccount && isMember }),
+    [auth, isMember],
+  );
+
   return (
-    <CampaignContext.Provider value={{ campaign: visibleCampaign, loading, error, campaigns, activeCampaignId: campaignId, switchCampaign, adoptCampaign, retireCampaign, isDm, isRealDm, viewAsPlayer, setViewAsPlayer, membershipVersion, refreshMembership, presenceUsers }}>
-      {children}
+    <CampaignContext.Provider value={{ campaign: visibleCampaign, loading, error, campaigns, activeCampaignId: campaignId, switchCampaign, adoptCampaign, retireCampaign, isDm, isRealDm, isMember, seatless, viewAsPlayer, setViewAsPlayer, membershipVersion, refreshMembership, presenceUsers }}>
+      <AuthContext.Provider value={scopedAuth}>
+        {children}
+      </AuthContext.Provider>
     </CampaignContext.Provider>
   );
 }

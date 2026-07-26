@@ -6,7 +6,7 @@ import { sessionLabel, type KindKey, type PresenceUser } from "./data";
 import { Icon, MapScribble, kindIcon } from "./icons";
 import { rankIndex, KIND_LABEL, type Indexed } from "./entitySearch";
 import { arcSubtreeIds, sagaTree } from "./saga";
-import { useCampaign, useCampaignSwitcher, useDismiss, useKinds, usePresence, useViewAsPlayer } from "./hooks";
+import { useCampaign, useCampaignSwitcher, useDismiss, useKinds, usePresence, useSeatless, useViewAsPlayer } from "./hooks";
 import { createCampaign, createEntity, endLiveSession, setActiveSession, startLiveSession, switchLiveSession } from "./mutations";
 import { requestCharterOnNextLoad } from "./route";
 import { SignInDialog, useAuth } from "./auth";
@@ -586,7 +586,10 @@ export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, counts 
 function CampaignPicker({ onOpenCharter }: { onOpenCharter: () => void }) {
   const campaign = useCampaign();
   const { campaigns, activeCampaignId, switchCampaign, adoptCampaign } = useCampaignSwitcher();
-  const { canEdit } = useAuth();
+  // isEditorAccount, not canEdit: founding a campaign needs only the editor
+  // tier (create_campaign's assert_editor) and makes the founder its DM — so
+  // it is precisely the escape hatch for an editor holding no seat anywhere.
+  const { isEditorAccount } = useAuth();
   const [open, setOpen] = useState(false);
   // "Found a new campaign" (issue #87): the menu item swaps for an inline
   // title input. One RPC creates the campaign with the caller as DM, then
@@ -623,7 +626,7 @@ function CampaignPicker({ onOpenCharter }: { onOpenCharter: () => void }) {
   // Editors always get the menu (it holds "found a new campaign" even when
   // only one campaign exists); pure viewers of a single campaign keep the
   // chip's charter shortcut.
-  const canSwitch = campaigns.length > 1 || canEdit;
+  const canSwitch = campaigns.length > 1 || isEditorAccount;
 
   return (
     <div className="campaign-picker" ref={rootRef}>
@@ -675,7 +678,7 @@ function CampaignPicker({ onOpenCharter }: { onOpenCharter: () => void }) {
               VIEW CHARTER
             </span>
           </button>
-          {canEdit && !founding && (
+          {isEditorAccount && !founding && (
             <button
               className="campaign-picker-item"
               onClick={() => setFoundTitle("")}
@@ -686,7 +689,7 @@ function CampaignPicker({ onOpenCharter }: { onOpenCharter: () => void }) {
               </span>
             </button>
           )}
-          {canEdit && founding && (
+          {isEditorAccount && founding && (
             <div className="campaign-picker-item" style={{ cursor: "default" }}>
               <span className="dot" style={{ visibility: "hidden" }} />
               <input
@@ -840,8 +843,12 @@ export function Topbar({ view, onShare, onOpenCharter, onSearch }: {
 }) {
   const presenceUsers = usePresence();
   const kinds = useKinds();
-  const { canEdit, displayName, avatarUrl, signOut } = useAuth();
+  // isEditorAccount: the account block is about who you're signed in as, not
+  // what you may write here — a seatless editor is signed in, so offering them
+  // "Sign in to edit" again would be a lie. The NO SEAT chip carries the gap.
+  const { isEditorAccount, displayName, avatarUrl, signOut } = useAuth();
   const { isRealDm, viewAsPlayer, setViewAsPlayer } = useViewAsPlayer();
+  const seatless = useSeatless();
   const [signingIn, setSigningIn] = useState(false);
   // Breadcrumb tail (Modern Atlas only, via CSS): "campaign / where you are".
   const viewLabel =
@@ -890,8 +897,20 @@ export function Topbar({ view, onShare, onOpenCharter, onSearch }: {
           </button>
         )}
         <button className="btn" onClick={onShare}><Icon name="share" size={14} /> <ThemedLabel parchment="Share link" atlas="Share" /></button>
-        {canEdit ? (
+        {isEditorAccount ? (
           <>
+            {seatless && (
+              <span
+                title="You're signed in, but you don't hold a seat at this table yet — ask the DM for an invite link."
+                style={{
+                  fontFamily: "var(--font-fell-sc)", letterSpacing: ".14em",
+                  fontSize: 10, color: "var(--bloodred)",
+                  border: "1px dashed var(--bloodred)", padding: "3px 8px",
+                }}
+              >
+                NO SEAT
+              </span>
+            )}
             {avatarUrl ? (
               <img
                 src={avatarUrl}

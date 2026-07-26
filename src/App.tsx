@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CampaignProvider } from "./campaignContext";
 import { AuthProvider, DisplayNameGate } from "./auth";
-import { useCampaign, useCampaignStatus, useFindEntity, useIsDm, useKinds, useViewAsPlayer } from "./hooks";
+import { useCampaign, useCampaignStatus, useFindEntity, useIsDm, useKinds, useSeatless, useViewAsPlayer } from "./hooks";
 import { entityLabel, isShowEvent, stripShowMark } from "./data";
 import { onWriteError } from "./mutations";
 import { campaignHash, consumeCharterRequest, parseHash, writeCampaignHash } from "./route";
 import { Icon } from "./icons";
-import { Sidebar, Topbar } from "./components";
+import { Sidebar, ThemedLabel, Topbar } from "./components";
 import { NoticeBoard, KindList } from "./board";
 import { ArcsPage } from "./arcs";
 import { BestiaryPage, PlateLightbox } from "./bestiary";
@@ -119,6 +119,12 @@ function AppLoaded() {
   const locateSeq = useRef(0);
   const isDm = useIsDm();
   const { viewAsPlayer, setViewAsPlayer } = useViewAsPlayer();
+  // Signed in as an editor but holding no seat here (#87 follow-up): every edit
+  // affordance is correctly hidden, which without a word of explanation reads
+  // as "the app is broken for me". Dismissible — the Topbar's NO SEAT chip is
+  // the persistent reminder.
+  const seatless = useSeatless();
+  const [seatNoticeDismissed, setSeatNoticeDismissed] = useState(false);
   // Reveal reactions (issue #68): the transient push half of a release. Both
   // are UI intents derived from session_events arriving over realtime — the
   // feed row is the persistent half and always exists first (push + persist).
@@ -402,6 +408,49 @@ function AppLoaded() {
             }}
           >
             EXIT
+          </button>
+        </div>
+      )}
+
+      {/* The no-seat explanation. Below the view-as-player banner's z (72) is
+          fine — the two can't coexist: view-as-player needs a DM membership. */}
+      {seatless && !seatNoticeDismissed && (
+        <div style={{
+          position: "fixed", top: 64, left: "50%", transform: "translateX(-50%)",
+          // Wide enough to stay two lines (it sits over the kind tabs, so
+          // height is what costs the reader), narrow enough to clear the live
+          // rail at the 1280 breakpoint.
+          maxWidth: 680, width: "calc(100vw - 48px)",
+          background: "var(--vellum-light)", color: "var(--ink)",
+          border: "1px solid var(--bloodred)",
+          padding: "10px 14px",
+          fontFamily: "var(--font-body)", fontSize: 13,
+          boxShadow: "0 6px 20px rgba(40,20,5,.35)",
+          display: "flex", alignItems: "baseline", gap: 12,
+          zIndex: 71, borderRadius: 2,
+        }}>
+          <span style={{
+            fontFamily: "var(--font-fell-sc)", letterSpacing: ".16em", fontSize: 10,
+            color: "var(--bloodred)", whiteSpace: "nowrap",
+          }}>
+            <ThemedLabel parchment="NO SEAT AT THIS TABLE" atlas="NOT A MEMBER" />
+          </span>
+          <span>
+            <ThemedLabel
+              parchment="You hold a quill, but not a seat at this table — ask the DM for an invite link, or found a campaign of your own."
+              atlas="You're signed in, but you're not a member of this campaign, so you can't make changes. Ask the DM for an invite link, or create your own campaign."
+            />
+          </span>
+          <button
+            onClick={() => setSeatNoticeDismissed(true)}
+            aria-label="Dismiss"
+            style={{
+              background: "none", border: "none", cursor: "pointer",
+              color: "var(--ink-secondary)", fontSize: 14, lineHeight: 1,
+              padding: 0, marginLeft: "auto", flexShrink: 0,
+            }}
+          >
+            ✕
           </button>
         </div>
       )}
