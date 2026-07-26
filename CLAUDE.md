@@ -6,15 +6,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - `npm run dev` — Vite dev server (usually 5173, falls back if in use)
 - `npm run build` — `tsc -b && vite build`; always run this to verify a change typechecks
-- `npm run check` — `check:ui` + `check:saga`; run it alongside `build` before calling a change done
+- `npm run check` — chains every wired harness below; run it alongside `build` before calling a change done
 - `npm run preview` — serve the production build
 
-There's no test *framework*, but there are three assertion harnesses in [scripts/](scripts/), each runnable as `npx tsx scripts/<name>.ts` and exiting non-zero on failure:
+There's no test *framework*, but there are four assertion harnesses in [scripts/](scripts/), each runnable as `npx tsx scripts/<name>.ts` and exiting non-zero on failure:
 
 | harness | guards | wired into `npm run check` |
 | --- | --- | --- |
 | `saga-check.ts` | the pure derivations in [src/saga.ts](src/saga.ts) — the Complete Saga wizard's rules | yes (`check:saga`) |
 | `ui-check.ts` | theme drift (see [docs/design-atlas.md](docs/design-atlas.md)) | yes (`check:ui`) |
+| `relations-check.ts` | the read-projection in [src/relations.ts](src/relations.ts) — `source` (which decides whether a rail chip gets a delete control) and the unordered-pair dedupe that makes one edge stand for a mirrored row pair | yes (`check:relations`) |
 | `layout-check.ts` | board layout | **no — run it by hand** after touching [src/boardLayout.ts](src/boardLayout.ts) |
 
 **A harness fixture can encode the bug it should catch.** `saga-check.ts` asserted the behaviour of a broken owner-as-id check in `sagaScope`, using person ids for a free-text column — so it agreed with the bug rather than catching it, and the bug shipped (#121). When a fix flips what a harness asserts, that's a prompt to check the fixture's *model*, not just to update the expected value.
