@@ -229,9 +229,11 @@ export async function insertConnection(
 //
 // Matches BOTH orientations on purpose. One rail chip / one yarn strand stands
 // for every connections row with this label between this pair, in either
-// direction: deriveRelations dedupes manual edges on an UNORDERED pair key
-// (relations.ts:58), and the surviving orientation isn't even deterministic —
-// the connections select carries no ORDER BY. Deleting only the stored
+// direction: deriveRelations dedupes manual edges on an UNORDERED pair key,
+// so the edge the user clicked carries only ONE of the pair's orientations and
+// which one is an artefact of the select. (0031 gave that select an ORDER BY id,
+// so the choice is at least stable now — but stable is not the same as being
+// the only row.) Deleting only the stored
 // orientation would leave a mirrored row behind and the "deleted" edge would
 // reappear on the next refetch, with count 1 so nothing warned. Matching the
 // whole set in one statement keeps count >= 1 whenever anything matched, so

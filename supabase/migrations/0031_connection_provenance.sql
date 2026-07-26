@@ -41,8 +41,8 @@ create index if not exists connections_session_idx
 -- A link has two endpoints and the table had one entity_id slot. The far
 -- endpoint gets a real column rather than being encoded into `text`: the
 -- viewer projection has to filter on BOTH ends (a re-hidden entity must not
--- leak back through an old link row), and src/data.ts:239-244 already
--- documents what the SHOW_MARK sentinel cost us in renderer discipline.
+-- leak back through an old link row), and the SHOW_MARK comment in src/data.ts
+-- already documents what one data-as-flag field cost in renderer discipline.
 alter table public.session_events add column if not exists entity_id_b text;
 
 -- The CHECK is dropped by lookup rather than by name. The 0016 constraint was

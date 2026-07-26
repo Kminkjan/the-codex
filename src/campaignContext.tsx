@@ -361,9 +361,12 @@ async function fetchCampaign(id: string): Promise<Campaign> {
     supabase.from("items").select("*").eq("campaign_id", id),
     supabase.from("lore").select("*").eq("campaign_id", id),
     supabase.from("monsters").select("*").eq("campaign_id", id),
-    // ORDER BY id so the manual dedupe in deriveRelations has a deterministic
-    // input: one edge can stand for a mirrored row pair, and which row it saw
-    // first used to depend on whatever order PostgREST happened to return.
+    // ORDER BY id so this select returns a stable order at all; it never had
+    // one. deriveRelations' provenance fold does NOT depend on this (it takes
+    // the earliest createdAt either way, which relations-check asserts in both
+    // row orders) — what this pins down is which orientation of a mirrored pair
+    // becomes the surviving edge's a/b, so equal-provenance rows stop reshuffling
+    // between refetches. Orientation is still not load-bearing for deletes.
     supabase.from("connections").select("*").eq("campaign_id", id).order("id"),
     supabase.from("board_positions").select("*").eq("campaign_id", id),
     supabase.from("party_notes").select("*").eq("campaign_id", id).order("created_at"),
