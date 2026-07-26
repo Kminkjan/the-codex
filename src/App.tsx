@@ -9,6 +9,7 @@ import { Icon } from "./icons";
 import { Sidebar, Topbar } from "./components";
 import { NoticeBoard, KindList } from "./board";
 import { ArcsPage } from "./arcs";
+import { BestiaryPage, PlateLightbox } from "./bestiary";
 import { EventsPage } from "./events";
 import { CampaignCharterPage } from "./campaign";
 import { DetailSheet } from "./detail";
@@ -122,6 +123,11 @@ function AppLoaded() {
   // are UI intents derived from session_events arriving over realtime — the
   // feed row is the persistent half and always exists first (push + persist).
   const [revealToast, setRevealToast] = useState<{ eventId: number; entityId: string; label: string } | null>(null);
+  // Art-first takeover: a ⚡ SHOW NOW on an illustrated monster puts the plate
+  // full-bleed over the sheet, because for the Bestiary the picture IS the
+  // reveal. Single slot like revealToast — the newest show wins, and a show of
+  // anything else clears it rather than leaving a stale plate on top.
+  const [plateId, setPlateId] = useState<string | null>(null);
   const [revealFlash, setRevealFlash] = useState<{ id: string; seq: number } | null>(null);
   const revealSeq = useRef(0);
   // Ids of feed rows already seen, lazily seeded from the mount-time array so
@@ -186,6 +192,9 @@ function AppLoaded() {
           // One slot, never stacked: a second show replaces the first.
           setOpenId(last.entityId!);
           setRevealToast(null);
+          // The sheet still opens underneath — closing the plate lands the
+          // player on the full entry, so the ceremony degrades into reading.
+          setPlateId(ent._kind === "monsters" && (ent as any).imageUrl ? last.entityId! : null);
         } else {
           // Entity unresolvable (dropped UPDATE / deleted) or user mid-edit —
           // a blind setOpenId would render nothing; the toast at least tells.
@@ -296,9 +305,12 @@ function AppLoaded() {
           {view === "arcs" && <ArcsPage onOpenEntity={setOpenId} />}
           {view === "events" && <EventsPage onOpenEntity={setOpenId} />}
           {view === "campaign" && <CampaignCharterPage onOpenEntity={setOpenId} />}
-          {/* Catch-all treats the view as a KindKey — every non-kind view
-              must be excluded here or it double-renders a bogus KindList. */}
-          {!["board", "arcs", "events", "campaign"].includes(view) && <KindList kind={view} onOpenEntity={setOpenId} />}
+          {view === "monsters" && <BestiaryPage onOpenEntity={setOpenId} />}
+          {/* Catch-all treats the view as a KindKey — every non-kind view must
+              be excluded here or it double-renders a bogus KindList. "monsters"
+              IS a kind (it's in buildKinds, so the sidebar and counts work) but
+              it takes the bespoke Bestiary page above, so it's excluded too. */}
+          {!["board", "arcs", "events", "campaign", "monsters"].includes(view) && <KindList kind={view} onOpenEntity={setOpenId} />}
         </main>
         <LivePanel onOpenEntity={setOpenId} />
       </div>
@@ -310,6 +322,8 @@ function AppLoaded() {
           onOpen={(id) => setOpenId(id)}
         />
       )}
+
+      {plateId && <PlateLightbox monsterId={plateId} onClose={() => setPlateId(null)} />}
 
       <CommandPalette
         open={paletteOpen}

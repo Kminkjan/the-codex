@@ -22,6 +22,7 @@ import {
   deleteBoardPosition,
 } from "./mutations";
 import { findFreeSpot } from "./boardLayout";
+import { PlateLightbox } from "./bestiary";
 import { FeedRow } from "./livePanel";
 import { uploadEntityImage, type UploadableKind } from "./upload";
 import { deriveRelations } from "./relations";
@@ -78,12 +79,18 @@ function EntityPortrait({
   imageUrl,
   label,
   onSave,
+  onZoom,
 }: {
   kind: UploadableKind;
   entityId: string;
   imageUrl: string | undefined;
   label: string;
   onSave: (url: string | null) => void;
+  // Optional "see it full size" affordance. Only the Bestiary passes it — that
+  // kind exists for its artwork, so the plate has somewhere bigger to go. It
+  // rides beside Replace/✕ rather than hijacking a click on the image, which
+  // is already the editor's re-upload target.
+  onZoom?: () => void;
 }) {
   const { canEdit } = useAuth();
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -144,10 +151,26 @@ function EntityPortrait({
   return (
     <div className="sb-portrait">
       <img src={imageUrl} alt={label} className="sb-portrait-img" />
+      {/* Viewers can't edit, so for them the image itself is the zoom target;
+          editors get an explicit chip instead (a click on the image is not
+          overloaded, but the chips row is where their actions already live). */}
+      {onZoom && !canEdit && (
+        <button
+          onClick={onZoom}
+          title="Show the plate full size"
+          aria-label="Show the plate full size"
+          style={{ position: "absolute", inset: 0, background: "transparent", border: "none", cursor: "zoom-in" }}
+        />
+      )}
       {canEdit && (
         <>
           {hiddenInput}
           <div className={uploading ? "portrait-chips is-uploading" : "portrait-chips"}>
+            {onZoom && !uploading && (
+              <button onClick={onZoom} title="Show the plate full size" style={{ ...chipStyle, padding: "4px 8px", fontSize: 12 }}>
+                ⛶
+              </button>
+            )}
             <button onClick={pick} disabled={uploading} style={chipStyle}>
               {uploading ? "Uploading…" : "Replace"}
             </button>
@@ -377,6 +400,8 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
   // entity.summary is still stale. Unlike RELEASE the button doesn't unmount
   // on success, so the echo itself (summary changing) is what re-enables it.
   const [draftingRecap, setDraftingRecap] = useState(false);
+  // Bestiary plate blown up over the sheet (monsters only — see EntityPortrait).
+  const [plateOpen, setPlateOpen] = useState(false);
   const entitySummary = entity ? (entity as any).summary : undefined;
   useEffect(() => {
     setDraftingRecap(false);
@@ -391,6 +416,11 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || e.defaultPrevented) return;
+      // One Esc, one dismissal: with the plate up it's the plate that closes.
+      // Both listeners sit on window and this one registered first (the sheet
+      // mounts before the plate opens), so the guard has to live here rather
+      // than rely on the plate calling preventDefault.
+      if (plateOpen) return;
       const el = e.target;
       if (
         el instanceof HTMLElement &&
@@ -400,7 +430,11 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [onClose, plateOpen]);
+
+  // Navigating the rail keeps this component mounted — don't carry one
+  // creature's plate over onto the next entity's sheet.
+  useEffect(() => { setPlateOpen(false); }, [entityId]);
 
   // Manual strings + FK relations (resides at / member of / quest giver /
   // happened at), unioned by the same selector the board reads — so the sheet
@@ -646,6 +680,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
   };
 
   return (
+    <>
     <div className="detail-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className={`detail-sheet tex-vellum ${isArchived(entity) ? "is-archived" : ""} ${isHidden(entity) ? "is-veiled" : ""}`}>
         <button className="detail-close" onClick={onClose}><Icon name="close" size={16} /></button>
@@ -812,6 +847,9 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                 imageUrl={(entity as any).imageUrl}
                 label={entityLabel(entity)}
                 onSave={(url) => patch({ imageUrl: url })}
+                onZoom={kind === "monsters" && (entity as any).imageUrl
+                  ? () => setPlateOpen(true)
+                  : undefined}
               />
             ) : (
               <div className="sb-portrait" style={{ background: "var(--paper-tan)" }}>
@@ -1179,5 +1217,11 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
         </div>
       </div>
     </div>
+    {/* Sibling of the overlay, not a child: the lightbox portals to <body>,
+        but React events still bubble through the component tree, and keeping
+        it out of the overlay means a click on the plate can never be mistaken
+        for a backdrop click that dismisses the sheet underneath. */}
+    {plateOpen && <PlateLightbox monsterId={entityId} onClose={() => setPlateOpen(false)} />}
+    </>
   );
 }
