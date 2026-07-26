@@ -54,9 +54,14 @@
 -- rewriting all five. READ THIS BEFORE WRITING ANOTHER FENDWICK MIGRATION:
 -- session id 'fw-s8' is chapter 4.
 --
--- ARCHIVING is strict, as asked: anything the DM's notes and session 8 both
--- fail to name is archived — King Barillon Alderin, Wingleader Domar, Ol' Man
--- Ol' Fellar, The Yeasting Barrel, Jailguard BaldRick. Archiving is declutter
+-- ARCHIVING is strict, as asked: King Barillon Alderin, Wingleader Domar, Ol'
+-- Man Ol' Fellar, The Yeasting Barrel, Jailguard BaldRick. Four of those five
+-- are absent from both the DM's notes and session 8. Domar is the exception and
+-- is archived on different grounds: session 8 does name him, but the notes
+-- replace his whole function — Alivar's section was "magically informed" while
+-- on patrol, so "who told Domar?" is superseded by q3's "who sent that
+-- message?". He is archived as a spent thread, not an unnamed one. Archiving is
+-- declutter
 -- only (0027): the rows stay searchable, linkable, and keep their board
 -- positions so unarchiving restores the card.
 --
@@ -73,7 +78,10 @@
 --
 -- Idempotent: id'd inserts use ON CONFLICT DO NOTHING, bigserial connection
 -- rows are NOT EXISTS-guarded, board_positions upserts on its PK, and every
--- UPDATE and DELETE is naturally repeatable.
+-- UPDATE and DELETE is a straight assignment or a naturally repeatable filter.
+-- The one statement that could have broken that rule — the placeholder-session
+-- renumber in section 1 — assigns an absolute number derived from the id rather
+-- than incrementing, precisely so a replay lands on the same value.
 -- ===========================================================================
 
 -- ==========================================================================
@@ -86,19 +94,38 @@
 
 -- Safety net rather than an expectation: these placeholders were inserted by
 -- 0026 with no summary and nothing has pointed at them since. If a later
--- in-app edit gave one a body or a quest, it is kept and only renumbered out
--- of the way, because deleting a DM's writing to satisfy a restructure is not
--- a trade this migration gets to make.
-update public.sessions set num = num + 100
-where campaign_id = 'fendwick'
-  and id in ('fw-s4','fw-s5','fw-s6','fw-s7')
-  and (summary is not null or exists (select 1 from public.quests q where q.session_id = sessions.id));
+-- in-app edit gave one a body or attached anything to it, it is kept and only
+-- renumbered out of the way, because deleting a DM's writing to satisfy a
+-- restructure is not a trade this migration gets to make.
+--
+-- "Attached anything" has to be checked against every table that can hold
+-- session-linked state, not just the obvious two. Three of them cascade on
+-- session delete and would vanish silently: session_participants (0013),
+-- session_staging and session_events (0016) — i.e. attendance, staged reveals
+-- and the whole live-session feed. connections is worse, because from_id/to_id
+-- carry no FK at all (by design, since entity ids span eight tables), so a
+-- deleted session leaves a dangling edge that breaks the relations rail without
+-- erroring. arcs.start_session_id/end_session_id only null out, so they are not
+-- destructive and are left off this list.
+-- Delete first, renumber second. That way the guard is written once: whatever
+-- survives the delete is by definition a placeholder somebody has since used,
+-- and every survivor needs moving out of chapters 1-4's way.
+delete from public.sessions s
+where s.campaign_id = 'fendwick'
+  and s.id in ('fw-s4','fw-s5','fw-s6','fw-s7')
+  and s.summary is null
+  and not exists (select 1 from public.quests               q where q.session_id = s.id)
+  and not exists (select 1 from public.session_participants p where p.session_id = s.id)
+  and not exists (select 1 from public.session_staging      t where t.session_id = s.id)
+  and not exists (select 1 from public.session_events       e where e.session_id = s.id)
+  and not exists (select 1 from public.connections          c where c.from_id    = s.id or c.to_id = s.id);
 
-delete from public.sessions
+-- Absolute, not `num + 100`: a relative increment gated on a condition it never
+-- changes would compound on every replay. Deriving the number from the id makes
+-- a second run land on exactly the same value.
+update public.sessions set num = 100 + (substring(id from 'fw-s(\d+)$'))::int
 where campaign_id = 'fendwick'
-  and id in ('fw-s4','fw-s5','fw-s6','fw-s7')
-  and summary is null
-  and not exists (select 1 from public.quests q where q.session_id = sessions.id);
+  and id in ('fw-s4','fw-s5','fw-s6','fw-s7');
 
 update public.sessions set
   num          = 1,
@@ -443,7 +470,12 @@ where id = 'p16' and campaign_id = 'fendwick';
 -- --- 5b. New cast ---------------------------------------------------------
 
 insert into public.people (id, campaign_id, name, epithet, race, role, tier, status, disposition, alignment, faction_id, location_id, notes, last_seen_session_id) values
-  ('p26', 'fendwick', 'The Masked Man', 'The Voice Through Derin', null, 'Unknown — an eavesdropper with a mask', 'major', 'unknown', 'hostile', null, 'f1', null,
+  -- faction_id deliberately null. The FK renders as "member of" at weight 3,
+  -- which would assert Conspiracy membership the fiction does not support — all
+  -- we have is a mask and a listening spell. The manual "suspected agent of"
+  -- edge in section 11 carries the doubt the FK cannot express, which is the
+  -- same reason 0027 kept Melvin's "interim commander of" string.
+  ('p26', 'fendwick', 'The Masked Man', 'The Voice Through Derin', null, 'Unknown — an eavesdropper with a mask', 'major', 'unknown', 'hostile', null, null, null,
    'Derin Zepper says a scary masked man cast the spell that let him hear everything Derin said, from any distance. Berend spoke to him through the boy without knowing who he was. He is not, on Derin''s account, Mr. Orin — though nothing rules out that they work for the same hand. Everything said around Derin between his capture and his gagging may already be known to him.',
    'fw-s8'),
 
@@ -701,9 +733,18 @@ where campaign_id = 'fendwick' and id = 'l8';  -- The Yeasting Barrel
 -- ==========================================================================
 -- 11. Connections
 --
--- Three edges the DM's notes falsify, then the new web. A manual connection
--- suppresses the FK-derived edge for the same pair (0027 section 6), so nothing
--- below duplicates a faction_id or location_id that already exists.
+-- Three edges the DM's notes falsify, then the new web.
+--
+-- A manual connection suppresses the FK-derived edge for the same pair (0027
+-- section 6, src/relations.ts), so nothing below duplicates a faction_id,
+-- location_id or giver_id already carried on the row — with one deliberate
+-- exception, p26 -> f1 "suspected agent of", where the label is the whole point
+-- and p26.faction_id is left null so there is no FK edge to suppress.
+--
+-- The pre-existing collisions from 0026 are left alone: q11.giver_id = 'p3' and
+-- q12.giver_id = 'p1' (set in section 9) meet manual "concerns" edges 0026
+-- already wrote. Those suppress a GIVER_WEIGHT (1) edge with a MANUAL_WEIGHT (2)
+-- one, so the pair ends up more strongly linked, not less. Nothing to fix.
 -- ==========================================================================
 
 delete from public.connections
@@ -770,8 +811,9 @@ from (values
   -- The missing commander
   ('fendwick', 'q13', 'p10', 'concerns'),
   ('fendwick', 'p5',  'p10', 'took the office of'),
-  -- Thernys
-  ('fendwick', 'p27', 'l15', 'lives in'),
+  -- Thernys needs no edge here: location_id = 'l15' on his row already derives
+  -- "resides at", and a manual "lives in" string would only suppress it to say
+  -- the same thing at the same weight.
   -- The calendar
   ('fendwick', 'lo7', 'lo4', 'counts'),
   -- Goals
@@ -812,10 +854,16 @@ where not exists (
 -- ==========================================================================
 -- 12. Board and pins
 --
--- Coordinates were computed against the 55 cards 0002 and 0027 placed, using
--- the repo's own CARD_SIZE table and findFreeSpot's overlap rule (24px pad),
--- as a block in the empty region x >= 2560 / y >= 1620. Verified 0 overlaps
--- across all 79 cards. Run "Tidy board" afterwards to recluster.
+-- Coordinates were computed against the 55 cards 0002 and 0027 placed (38 + 17),
+-- using the repo's own CARD_SIZE table and findFreeSpot's overlap rule (24px
+-- pad), as a block in the empty region x >= 2560 / y >= 1620. This block adds
+-- 33, for 88 in total, and introduces 0 overlaps.
+--
+-- It does NOT make the board overlap-free: the 0002 seed contains 37 overlapping
+-- pairs of its own, because its people rows sit 160px apart while a people card
+-- is 300px tall. That predates this migration and is left alone — "Tidy board"
+-- reclusters the whole thing in one click, which is worth running afterwards
+-- anyway so Louvain can pull the new sphere into shape.
 --
 -- This also places eight rows 0026/0027 left off the board entirely: the three
 -- Bestiary plates, The Lily, two lore entries and quests q8/q10.
