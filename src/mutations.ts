@@ -242,7 +242,7 @@ export async function addEventParticipant(eventId: string, personId: string) {
 }
 
 // User-clicked on a rendered participant chip — same known-to-exist 0-row
-// doctrine as deleteConnection.
+// doctrine as deleteConnectionBetween.
 export async function removeEventParticipant(eventId: string, personId: string) {
   const { count, error } = await supabase
     .from("event_participants")
