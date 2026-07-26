@@ -69,6 +69,33 @@ export function FeedRow({ ev, onOpenEntity }: { ev: SessionEvent; onOpenEntity: 
       </div>
     );
   }
+  if (ev.type === "annotate") {
+    // A party note left on an entity sheet at the table (0032). `text` is a
+    // bounded excerpt, not the note — the prose lives on the sheet, which is
+    // where the row clicks through to. Unlike a link row there is exactly one
+    // endpoint, so the whole card is the target, same as a reveal.
+    //
+    // Label: live lookup first, then the write-time snapshot for a struck
+    // entity, then the stock phrase for pre-0032 rows that carry no snapshot.
+    const ent = findEntity(ev.entityId);
+    const label = ent ? entityLabel(ent) : ev.entityLabel || "something struck from the codex";
+    return (
+      <div
+        className={`live-reveal${ent ? " linked" : ""}`}
+        onClick={ent ? () => onOpenEntity(ent.id) : undefined}
+        title={ent ? "Open in the codex" : undefined}
+      >
+        <div>
+          📝 <ThemedLabel
+            parchment={<>A note in the margin of <em>{label}</em></>}
+            atlas={<>Note on <em>{label}</em></>}
+          />
+          {ev.text ? <> — “{ev.text}”</> : null}
+        </div>
+        <div className="live-meta"><span>{ev.author ? `by ${ev.author}` : ""}</span><span>{fmtTime(ev.createdAt)}</span></div>
+      </div>
+    );
+  }
   return (
     <div className="live-note">
       <div>{ev.text}</div>
