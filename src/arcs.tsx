@@ -57,10 +57,14 @@ export function ArcsPage({ onOpenEntity }: { onOpenEntity: (id: string) => void 
   const campaign = useCampaign();
   const { canEdit } = useAuth();
   const [wizardSagaId, setWizardSagaId] = useState<string | null>(null);
-  // Which sagas the reader has toggled away from their default openness. A
-  // completed saga defaults closed (that's the point of sealing one) and an
-  // open saga defaults open, so this holds overrides rather than state.
-  const [toggled, setToggled] = useState<Set<string>>(new Set());
+  // Explicit open/closed per saga, falling back to "open unless completed".
+  //
+  // Storing the reader's *intent* rather than "deviates from the default"
+  // matters because the default itself moves: sealing a saga flips it to
+  // closed, and a set-of-deviations would have inverted at that moment —
+  // collapse a saga by hand, complete it, and it would spring open exactly
+  // when the fold-away is the point.
+  const [openOverride, setOpenOverride] = useState<Record<string, boolean>>({});
 
   const tree = sagaTree(campaign);
   const sessionsById = new Map(campaign.sessions.map((s) => [s.id, s]));
@@ -72,12 +76,12 @@ export function ArcsPage({ onOpenEntity }: { onOpenEntity: (id: string) => void 
     .sort((a, b) => a.num - b.num);
   const arcCount = campaign.arcs.filter((a) => a.parentId).length;
 
-  const isOpen = (saga: Arc) => (toggled.has(saga.id) ? isCompleted(saga) : !isCompleted(saga));
-  const toggle = (id: string) => setToggled((prev) => {
-    const next = new Set(prev);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    return next;
-  });
+  const isOpen = (saga: Arc) => openOverride[saga.id] ?? !isCompleted(saga);
+  // Reads `prev`, not isOpen(), so a toggle can't act on a stale closure.
+  const toggle = (saga: Arc) => setOpenOverride((prev) => ({
+    ...prev,
+    [saga.id]: !(prev[saga.id] ?? !isCompleted(saga)),
+  }));
 
   const onNewSaga = () => {
     const id = crypto.randomUUID();
@@ -130,7 +134,7 @@ export function ArcsPage({ onOpenEntity }: { onOpenEntity: (id: string) => void 
               <div className="saga-head">
                 <button
                   className="saga-toggle"
-                  onClick={() => toggle(saga.id)}
+                  onClick={() => toggle(saga)}
                   aria-expanded={open}
                   title={open ? "Fold this saga away" : "Unfold this saga"}
                 >

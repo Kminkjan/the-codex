@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check": "npm run check:ui && npm run check:saga",
+    "check:ui": "npx tsx scripts/ui-check.ts",
+    "check:saga": "npx tsx scripts/saga-check.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

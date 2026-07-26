@@ -186,7 +186,15 @@ update public.sessions s
    set arc_id = r.arc_id
   from arc_ranges r
  where s.campaign_id = 'fist-of-ilmater'
-   and s.num between r.lo and r.hi;
+   and s.num between r.lo and r.hi
+   -- Seed the unfiled; never overwrite curation. On the first run every chapter
+   -- is either unassigned or still points at one of the four arcs this migration
+   -- replaces, so this passes for all of them. If the file is ever replayed
+   -- against a database that already has it — the integration won't, but this
+   -- project has a documented history of hand-applied SQL — chapters the DM has
+   -- since re-filed keep their arc, and only genuinely unclaimed ones (a session
+   -- played after this ran) get picked up by the open-ended range above.
+   and (s.arc_id is null or s.arc_id in ('foi-arc1', 'foi-arc2', 'foi-arc3', 'foi-arc4'));
 
 -- Quests → the arc covering the chapter they were logged in.
 with arc_ranges(arc_id, lo, hi) as (values
@@ -215,7 +223,9 @@ update public.quests q
   from public.sessions s, arc_ranges r
  where q.campaign_id = 'fist-of-ilmater'
    and q.session_id = s.id
-   and s.num between r.lo and r.hi;
+   and s.num between r.lo and r.hi
+   -- Same guard as the chapters above: seed the unfiled, leave curation alone.
+   and (q.arc_id is null or q.arc_id in ('foi-arc1', 'foi-arc2', 'foi-arc3', 'foi-arc4'));
 
 -- Sessionless quests keep their altitude: they fall back to the saga their old
 -- arc became, which is the honest answer when there's no chapter to place them.
