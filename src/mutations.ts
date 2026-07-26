@@ -583,16 +583,22 @@ export async function updateEntity(
 // character is still alive. A dead PC keeps its player — the chronicle should
 // still say who played them, and that history is the whole reason the link
 // isn't a single pointer on campaign_members.
+// Bind before unbind, deliberately. These are two independent writes with no
+// transaction between them, so one of them can land alone — and the two orders
+// fail very differently. Unbind-first strands the member with no character at
+// all if the bind then fails; bind-first leaves them holding two, which the
+// charter renders as the first living one and the player can correct with
+// another pick. Neither is atomic, so pick the failure that loses less.
 export async function bindPlayerCharacter(
   userId: string,
   nextPersonId: string | null,
   previous: { id: string; status?: string } | null,
 ): Promise<void> {
-  if (previous && previous.id !== nextPersonId && previous.status !== "dead") {
-    await updateEntity("people", previous.id, { playerUserId: null });
-  }
   if (nextPersonId) {
     await updateEntity("people", nextPersonId, { playerUserId: userId, isPc: true });
+  }
+  if (previous && previous.id !== nextPersonId && previous.status !== "dead") {
+    await updateEntity("people", previous.id, { playerUserId: null });
   }
 }
 
