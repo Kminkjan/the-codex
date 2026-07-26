@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "./utils/supabase";
-import { sessionLabel } from "./data";
-import { useCampaign, useCampaignSwitcher, useIsDm, useKinds, useMembershipRefresh, usePresence } from "./hooks";
+import { isPc, sessionLabel } from "./data";
+import { useCampaign, useCampaignSwitcher, useIsDm, useKinds, useMembershipRefresh, usePresence, useProfiles } from "./hooks";
 import { useAuth } from "./auth";
-import { EditableText, EnumSelect } from "./components";
+import { EditableText, EntitySelect, EnumSelect, ThemedLabel } from "./components";
 import {
   updateCampaign, archiveCampaign, removeMember, setMemberRole,
+  bindPlayerCharacter,
   listCampaignInvites, createCampaignInvite, revokeCampaignInvite,
   type CampaignInvite,
 } from "./mutations";
@@ -378,6 +379,7 @@ export function CampaignCharterPage({ onOpenEntity }: { onOpenEntity: (id: strin
   const kinds = useKinds();
   const { user, canEdit } = useAuth();
   const { membershipVersion, refreshMembership } = useMembershipRefresh();
+  const profilesById = useProfiles();
   const [roster, setRoster] = useState<RosterEntry[] | null>(null);
   const [ledgerExpanded, setLedgerExpanded] = useState(false);
   // Sequence counter instead of an effect-scoped cancelled flag: loadRoster
@@ -385,8 +387,9 @@ export function CampaignCharterPage({ onOpenEntity }: { onOpenEntity: (id: strin
   // newest in-flight fetch may write state.
   const rosterSeq = useRef(0);
 
-  // Party roster: campaign_members joined with profiles in JS (no FK
-  // between them, so no PostgREST embed). Not realtime-published — reruns
+  // Party roster: campaign_members named from the shared profiles map (issue
+  // #114 hoisted it into CampaignProvider — no FK between the two tables, so
+  // it was never a PostgREST embed anyway). Not realtime-published — reruns
   // per charter mount / campaign switch, and on membershipVersion bumps
   // after membership RPCs (issue #86). Profiles staleness is accepted.
   const loadRoster = useCallback(async () => {
@@ -397,32 +400,31 @@ export function CampaignCharterPage({ onOpenEntity }: { onOpenEntity: (id: strin
       .eq("campaign_id", campaign.id);
     if (seq !== rosterSeq.current) return;
     if (error) { console.error(error); setRoster([]); return; }
-    const ids = (members ?? []).map((m: any) => m.user_id as string);
-    const profiles = new Map<string, { display_name: string | null; avatar_url: string | null }>();
-    if (ids.length > 0) {
-      const { data: profs, error: pErr } = await supabase
-        .from("profiles")
-        .select("user_id,display_name,avatar_url")
-        .in("user_id", ids);
-      if (seq !== rosterSeq.current) return;
-      if (pErr) console.error(pErr);
-      (profs ?? []).forEach((p: any) => profiles.set(p.user_id, p));
-    }
     const entries: RosterEntry[] = (members ?? []).map((m: any) => ({
       userId: m.user_id,
       role: m.role,
-      name: profiles.get(m.user_id)?.display_name ?? null,
-      avatarUrl: profiles.get(m.user_id)?.avatar_url ?? null,
+      name: profilesById.get(m.user_id)?.displayName ?? null,
+      avatarUrl: profilesById.get(m.user_id)?.avatarUrl ?? null,
     }));
     // DM first, then named members alphabetically, unnamed last.
     entries.sort((a, b) =>
       a.role !== b.role ? (a.role === "dm" ? -1 : 1) : (a.name ?? "￿").localeCompare(b.name ?? "￿"));
     setRoster(entries);
-  }, [campaign.id]);
+  }, [campaign.id, profilesById]);
 
   useEffect(() => {
     loadRoster();
   }, [loadRoster, membershipVersion]);
+
+  // Characters a member can be bound to (issue #114). Only people already
+  // marked as PCs on their detail sheet: the charter binds a player to a
+  // character, it doesn't decide what counts as one.
+  const pcOptions = useMemo(
+    () => campaign.people
+      .filter(isPc)
+      .map((p) => ({ id: p.id, label: p.name, kind: "people" as const, archived: p.archived, hidden: p.hidden })),
+    [campaign.people],
+  );
 
   // One funnel for every membership mutation: await the RPC, surface its
   // error (last-DM guard messages are user-facing), then bump
@@ -564,12 +566,20 @@ export function CampaignCharterPage({ onOpenEntity }: { onOpenEntity: (id: strin
                 // prevents a guaranteed-to-fail click.
                 const lastDm = m.role === "dm" && dmCount === 1;
                 const label = m.name ?? "this adventurer";
+                // The character this member is playing *now*: derived from
+                // status, not stored as a second pointer. A dead PC keeps its
+                // link (that's the chronicle) but stops being the answer here.
+                const playing = campaign.people.find(
+                  (p) => isPc(p) && p.playerUserId === m.userId && p.status !== "dead",
+                );
+                // DM binds anyone; a player claims or releases their own.
+                const canBind = isDm || (canEdit && user?.id === m.userId);
                 return (
                   <div
                     key={m.userId}
                     style={{
                       position: "relative",
-                      display: "flex", alignItems: "center", gap: 10,
+                      display: "flex", flexDirection: "column", gap: 4,
                       padding: "8px 14px",
                       background: "var(--paper-cream)",
                       border: "1px solid var(--vellum-deep)",
@@ -577,6 +587,7 @@ export function CampaignCharterPage({ onOpenEntity }: { onOpenEntity: (id: strin
                       boxShadow: "0 1px 2px rgba(40,20,5,.12)",
                     }}
                   >
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     {m.avatarUrl ? (
                       <img
                         src={m.avatarUrl}
@@ -645,6 +656,41 @@ export function CampaignCharterPage({ onOpenEntity }: { onOpenEntity: (id: strin
                       >
                         DM
                       </span>
+                    )}
+                    </div>
+                    {(canBind || playing) && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, paddingLeft: 38, minHeight: 20 }}>
+                        <span style={{
+                          fontFamily: "var(--font-fell-sc)", letterSpacing: ".16em",
+                          fontSize: 10, color: "var(--ink-secondary)",
+                        }}>
+                          <ThemedLabel parchment="PLAYING" atlas="Playing" />
+                        </span>
+                        {canBind ? (
+                          <EntitySelect
+                            value={playing?.id}
+                            options={pcOptions}
+                            allowClear
+                            onSave={(id) => {
+                              if (id === (playing?.id ?? null)) return;
+                              bindPlayerCharacter(
+                                m.userId,
+                                id,
+                                playing ? { id: playing.id, status: playing.status } : null,
+                              ).catch(console.error);
+                            }}
+                            style={{ fontSize: 13 }}
+                          />
+                        ) : (
+                          <button
+                            className="cleanup-link-btn"
+                            style={{ fontStyle: "normal" }}
+                            onClick={() => onOpenEntity(playing!.id)}
+                          >
+                            {playing!.name}
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                 );

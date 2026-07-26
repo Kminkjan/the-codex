@@ -16,6 +16,7 @@ import {
   type PresenceUser,
   type SessionEvent,
   type SessionStagingRow,
+  type UserProfile,
 } from "./data";
 
 interface CampaignContextValue {
@@ -58,6 +59,12 @@ interface CampaignContextValue {
   // campaign realtime channel, one entry per signed-in named editor.
   // Occupancy only: the "session is live" fact stays active_session_id.
   presenceUsers: PresenceUser[];
+  // Everyone who has ever signed in, by auth uuid (issue #114) — the mirror
+  // of editor identity that public.profiles (0020) keeps, so any surface can
+  // name a user_id without its own fetch. Distinct from presenceUsers: this
+  // covers offline members and carries no liveness; presence covers only
+  // online named editors and carries no history. Neither subsumes the other.
+  profilesById: Map<string, UserProfile>;
 }
 
 export const CampaignContext = createContext<CampaignContextValue>({
@@ -76,6 +83,7 @@ export const CampaignContext = createContext<CampaignContextValue>({
   membershipVersion: 0,
   refreshMembership: () => {},
   presenceUsers: [],
+  profilesById: new Map(),
 });
 
 // --- Channel presence identity (issue #74) ---------------------------------
@@ -126,6 +134,8 @@ const mapPerson = (r: any) => ({
   alignment: r.alignment ?? undefined,
   tier: r.tier ?? undefined,
   status: r.status ?? undefined,
+  isPc: !!r.is_pc,
+  playerUserId: r.player_user_id ?? undefined,
   location: r.location_id ?? undefined,
   faction: r.faction_id ?? undefined,
   lastSeen: r.last_seen_session_id ?? undefined,
@@ -412,7 +422,7 @@ function applyArrayChange<T extends { id: string | number }>(
 }
 
 export function CampaignProvider({ children }: { children: ReactNode }) {
-  const { user, canEdit, displayName } = useAuth();
+  const { user, canEdit, displayName, avatarUrl } = useAuth();
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -423,6 +433,7 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
   const [membershipVersion, setMembershipVersion] = useState(0);
   const refreshMembership = useCallback(() => setMembershipVersion((v) => v + 1), []);
   const [presenceUsers, setPresenceUsers] = useState<PresenceUser[]>([]);
+  const [profilesById, setProfilesById] = useState<Map<string, UserProfile>>(() => new Map());
 
   // Channel presence (issue #74). The channel lives inside the campaign
   // effect (keyed on campaignId only — auth changes must NOT refetch the
@@ -474,6 +485,43 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
       });
     return () => { cancelled = true; };
   }, [campaignId, user?.id, user?.is_anonymous, membershipVersion]);
+
+  // Profiles lookup (issue #114): auth uuid -> name/avatar, so any surface can
+  // name a user without its own fetch. Deliberately its own effect rather than
+  // a member of fetchCampaign's Promise.all — profiles has no campaign_id to
+  // scope by, and that block is fail-fast for the whole app, so a profiles
+  // outage there would blank the journal behind an ErrorSheet and delay first
+  // paint. Out here it degrades to "an unnamed adventurer", which is what
+  // loadRoster already did.
+  //
+  // Unpublished like campaign_members, so membershipVersion is the refresh
+  // lever (free refresh-on-join). displayName/avatarUrl are deps because
+  // AuthProvider's upsertMyProfile is fire-and-forget and this fetch can beat
+  // it on a first sign-in; the caller's own row is also seeded from auth below
+  // so their name is never missing even if the mirror hasn't caught up.
+  useEffect(() => {
+    let cancelled = false;
+    supabase
+      .from("profiles")
+      .select("user_id,display_name,avatar_url")
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) { console.error(error); return; }
+        const next = new Map<string, UserProfile>();
+        for (const p of data ?? []) {
+          next.set(p.user_id, {
+            userId: p.user_id,
+            displayName: p.display_name ?? null,
+            avatarUrl: p.avatar_url ?? null,
+          });
+        }
+        if (user && !user.is_anonymous && displayName) {
+          next.set(user.id, { userId: user.id, displayName, avatarUrl: avatarUrl ?? null });
+        }
+        setProfilesById(next);
+      });
+    return () => { cancelled = true; };
+  }, [campaignId, membershipVersion, user?.id, user?.is_anonymous, displayName, avatarUrl]);
 
   // Load the picker list once, then resolve the active id:
   // hash → host-page tweak → first campaign by creation date.
@@ -888,7 +936,7 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
   );
 
   return (
-    <CampaignContext.Provider value={{ campaign: visibleCampaign, loading, error, campaigns, activeCampaignId: campaignId, switchCampaign, adoptCampaign, retireCampaign, isDm, isRealDm, viewAsPlayer, setViewAsPlayer, membershipVersion, refreshMembership, presenceUsers }}>
+    <CampaignContext.Provider value={{ campaign: visibleCampaign, loading, error, campaigns, activeCampaignId: campaignId, switchCampaign, adoptCampaign, retireCampaign, isDm, isRealDm, viewAsPlayer, setViewAsPlayer, membershipVersion, refreshMembership, presenceUsers, profilesById }}>
       {children}
     </CampaignContext.Provider>
   );
