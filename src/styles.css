@@ -486,6 +486,29 @@ body {
   flex-shrink: 0;
 }
 
+/* Session sheet prep queue (DM-only) — reuses the live panel's stage-row
+   metrics; only the unstage control is local to the sheet. */
+.prep-unstage-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--ink-secondary);
+  font-size: 12px;
+  padding: 0 2px;
+  flex-shrink: 0;
+}
+.prep-unstage-btn:hover { color: var(--bloodred); }
+
+/* Stage-target picker on the detail sheet's action row — reuses the pin
+   picker's menu, but right-aligned rather than centered: the row hugs the
+   sheet's top-right corner, so a centered menu would overhang it. It opens
+   downward, staying inside .detail-sheet's overflow:hidden. */
+.stage-picker { position: relative; display: flex; gap: 6px; }
+.stage-picker .campaign-picker-menu {
+  left: auto; right: 0; transform: none;
+  min-width: 320px; max-height: 340px; overflow-y: auto;
+}
+
 /* Entity combobox — searchable picker for relations & FK fields. The trigger
    reads like the dashed edit affordances (EnumSelect/EditableText); the popover
    is portalled to <body> with fixed coords so it escapes the detail sheet's
@@ -2524,6 +2547,23 @@ button.session-pin { line-height: 1; }
   }
 }
 /* ── Archive / Pin ──────────────────────── */
+/* The detail sheet's action row. It wraps instead of overflowing — the DM's
+   row reaches nine controls once an entity is staged for a session other than
+   the live one — and the box itself is click-through so a wrapped row's empty
+   space doesn't swallow clicks on the title beneath it. */
+.detail-action-row {
+  position: absolute;
+  top: 14px; right: 54px;
+  max-width: calc(100% - 90px);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  z-index: 2;
+  pointer-events: none;
+}
+.detail-action-row > * { pointer-events: auto; }
+
 .detail-action-btn {
   background: transparent;
   border: 1px solid var(--ink-secondary);
