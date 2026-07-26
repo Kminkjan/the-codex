@@ -1,7 +1,7 @@
 import { supabase } from "./utils/supabase";
 import { getActiveCampaignId } from "./activeCampaign";
 import { getActiveSessionId } from "./activeSession";
-import { SHOW_MARK, type KindKey, type PartyNote, type BoardPosition, type CampaignSummary, type SessionEventType } from "./data";
+import { SHOW_MARK, type KindKey, type PartyNote, type BoardPosition, type CampaignSummary, type SessionEventType, type Status } from "./data";
 
 // Realtime subscriptions in campaignContext.tsx reflect writes back into UI
 // state, so callers do not need to patch local state (fire-and-forget is fine).
@@ -76,6 +76,9 @@ const fieldAlias: Record<KindKey, Record<string, string>> = {
     imageUrl: "image_url",
   },
   lore: {},
+  monsters: {
+    imageUrl: "image_url",
+  },
   sessions: {
     imageUrl: "image_url",
     inGameDate: "in_game_date",
@@ -85,6 +88,8 @@ const fieldAlias: Record<KindKey, Record<string, string>> = {
     startSession: "start_session_id",
     endSession: "end_session_id",
     orderNum: "order_num",
+    parentId: "parent_id",
+    completedAt: "completed_at",
   },
   events: {
     inGameDate: "in_game_date",
@@ -200,7 +205,7 @@ export async function deleteConnection(fromId: string, toId: string, label: stri
 }
 
 async function deleteConnectionsFor(entityId: string) {
-  // Sweep both directions; from_id/to_id don't have FKs (entities span seven tables).
+  // Sweep both directions; from_id/to_id don't have FKs (entities span eight tables).
   const { error } = await supabase
     .from("connections")
     .delete()
@@ -509,7 +514,7 @@ export async function updateDmNotes(entityId: string, text: string) {
   if (error) throw error;
 }
 
-// dm_notes.entity_id spans eight tables (7 kinds + sessions) so it has no FK
+// dm_notes.entity_id spans nine tables (8 kinds + sessions) so it has no FK
 // (like connections) — swept on entity delete.
 async function deleteDmNotesFor(entityId: string) {
   const { error } = await supabase
@@ -520,7 +525,7 @@ async function deleteDmNotesFor(entityId: string) {
   if (error) throw error;
 }
 
-// session_staging.entity_id spans seven tables so it has no FK (like
+// session_staging.entity_id spans eight tables so it has no FK (like
 // connections) — swept here. session_events rows are deliberately NOT swept:
 // the feed is append-only history and reveals should outlive their entity
 // (renderers tolerate a dangling entity_id).
@@ -576,12 +581,74 @@ async function deletePartyNotesFor(entityId: string) {
   if (error) throw error;
 }
 
-export async function bulkArchive(entries: Array<{ kind: KindKey; id: string }>) {
-  // Fire in parallel; each goes through updateEntity so realtime reflects it
-  // the same way as any other edit.
+// One statement per kind rather than one per entity: the Complete Saga wizard
+// (issue: sagas) sweeps dozens at a time, and 43 round-trips for one gesture is
+// the difference between a beat and a stall. Realtime is unaffected either way —
+// these touch only entity tables, which splice in incrementally; the
+// refetch-the-world tables (connections / board_positions / party_notes) aren't
+// involved, and board positions deliberately survive so unarchiving restores a
+// card to its exact spot.
+//
+// expectRows can't be reused here: it means "one row was meant to change". A
+// batched update reports the whole affected count, so an RLS-filtered write
+// (non-member since 0023) shows up as 0 against a non-empty id list.
+async function bulkPatch(
+  entries: Array<{ kind: KindKey; id: string }>,
+  patch: Record<string, unknown>,
+) {
+  const byKind = new Map<KindKey, string[]>();
+  for (const { kind, id } of entries) {
+    const ids = byKind.get(kind);
+    if (ids) ids.push(id);
+    else byKind.set(kind, [id]);
+  }
   await Promise.all(
-    entries.map(({ kind, id }) => updateEntity(kind, id, { archived: true })),
+    [...byKind].map(async ([kind, ids]) => {
+      const { count, error } = await supabase
+        .from(kind)
+        .update(toRow(kind, patch), { count: "exact" })
+        .in("id", ids)
+        .eq("campaign_id", getActiveCampaignId());
+      if (error) raiseWriteError(error);
+      if (!count) raiseWriteError(new Error(NOT_SAVED));
+    }),
   );
+}
+
+export async function bulkArchive(entries: Array<{ kind: KindKey; id: string }>) {
+  await bulkPatch(entries, { archived: true });
+}
+
+// The wizard's Undo. Restores exactly the ids it swept — not "everything
+// archived", which would resurrect entries the DM had filed away by hand.
+export async function bulkUnarchive(entries: Array<{ kind: KindKey; id: string }>) {
+  await bulkPatch(entries, { archived: false });
+}
+
+// Loose ends: quests/goals a finished saga never resolved get marked lost.
+export async function bulkSetStatus(
+  entries: Array<{ kind: KindKey; id: string }>,
+  status: Status,
+) {
+  await bulkPatch(entries, { status });
+}
+
+// Seal a saga. completedAt is what makes the Arcs page fold it away, so it's
+// written last-ish and on its own: the sweep may partially fail (RLS), and a
+// saga marked complete over an unswept cast is a smaller lie than the reverse.
+export async function completeSaga(
+  sagaId: string,
+  patch: { endSession?: string | null; summary?: string },
+) {
+  await updateEntity("arcs", sagaId, {
+    ...patch,
+    completedAt: new Date().toISOString(),
+  });
+}
+
+// Re-open a sealed saga (the Undo path also clears the seal).
+export async function reopenSaga(sagaId: string) {
+  await updateEntity("arcs", sagaId, { completedAt: null });
 }
 
 // ===== Membership: invites + roster (M6 issue #86) ==========================

@@ -72,6 +72,7 @@
   --forest:        #3d5536;
   --forest-pale:   #7a8f6c;
   --slate:         #465061;
+  --plum:          #5a3a63;        /* monsters kind — the one cold-violet hue */
 
   /* Paper stock variants */
   --paper-cream:   #f4e9cc;
@@ -147,6 +148,7 @@
   --mustard:       #d4a728;
   --mustard-deep:  #d9b870;        /* dark stock flips this to a pale ink */
   --gold-antique:  #b6923e;        /* lifted so the items swatch doesn't sink into the dark topbar */
+  --plum:          #b28fcb;        /* same lift as the others: #5a3a63 is invisible on dark stock */
   /* Light rim + deeper drop shadow: card-to-board separation in the dark. */
   --card-edge:     rgba(220,205,160,.32);
   --hairline:      rgba(220,205,160,.14);
@@ -185,6 +187,7 @@
   --forest:        #7fae6e;        /* goals */
   --forest-pale:   #9db07e;        /* lore */
   --slate:         #8b93a8;        /* factions */
+  --plum:          #a98bd8;        /* monsters */
 
   /* Card stock — one flat card surface, no paper variants */
   --paper-cream:   #1d212c;
@@ -1111,7 +1114,8 @@ button.session-pin { line-height: 1; }
 .card-location .loc-type,
 .card-goal .goal-kind,
 .card-item .i-label,
-.card-lore .l-label {
+.card-lore .l-label,
+.card-monster .m-type {
   font-family: var(--font-fell-sc);
   font-size: 11.5px;
   letter-spacing: .1em;
@@ -1409,6 +1413,90 @@ button.session-pin { line-height: 1; }
   line-height: 1.4;
   color: var(--ink-secondary);
   margin-top: 3px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+/* Bestiary plate (Monsters) — an illustrated field-guide leaf. The artwork is
+   the card, so the plate takes the top two-thirds at a portrait ratio and the
+   caption sits under a rule, engraving-style. */
+.card-monster {
+  width: 210px;
+  background: var(--paper-scroll);
+  color: var(--ink);
+  padding: 0;
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--card-edge);
+  position: relative;
+}
+.card-monster .m-plate {
+  position: relative;
+  /* Clearance at the top so the pin-head doesn't land on the artwork. */
+  margin: 16px 12px 0;
+  aspect-ratio: 4 / 3;
+  border: 1px solid var(--ink-faded);
+  background: linear-gradient(135deg, var(--vellum-dark) 25%, var(--vellum) 50%, var(--vellum-dark) 75%);
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--vellum-dark) 55%, var(--paper-scroll)) 25%,
+    color-mix(in srgb, var(--vellum) 45%, var(--paper-scroll)) 50%,
+    color-mix(in srgb, var(--vellum-dark) 55%, var(--paper-scroll)) 75%);
+  display: grid; place-items: center;
+  overflow: hidden;
+}
+.card-monster .m-plate-img {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  /* Matches the poster portrait's treatment so art from either kind sits on
+     the same paper. */
+  filter: sepia(.25) contrast(.95);
+}
+.card-monster .m-plate-empty { color: var(--ink-faded); }
+/* On the plate, not beside it: at board zoom the band is the only thing still
+   legible, so it carries the read. */
+.card-monster .m-threat {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  font-family: var(--font-fell-sc);
+  font-size: 10px;
+  letter-spacing: .18em;
+  text-align: center;
+  padding: 2px 0 1px;
+  background: rgba(31,22,14,.72);
+  color: var(--vellum-light);
+}
+.card-monster .m-threat.harmless  { background: rgba(61,85,54,.78); }
+.card-monster .m-threat.risky     { background: rgba(176,130,40,.8); }
+.card-monster .m-threat.deadly    { background: rgba(138,42,31,.82); }
+.card-monster .m-threat.legendary { background: rgba(90,58,99,.85); }
+.card-monster .m-body {
+  padding: 8px 12px 12px;
+  margin-top: 8px;
+  border-top: 1px dashed var(--ink-ghost);
+}
+.card-monster .m-type { color: var(--plum); }
+.card-monster .m-name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 1.1;
+  color: var(--ink);
+  margin: 2px 0 3px;
+}
+.card-monster .m-habitat {
+  font-family: var(--font-body);
+  font-style: italic; /* place-of-encounter aside, italic like the epithet */
+  font-size: 12.5px;
+  color: var(--ink-secondary);
+  line-height: 1.3;
+}
+.card-monster .m-desc {
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ink-secondary);
+  margin-top: 4px;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -1896,6 +1984,7 @@ button.session-pin { line-height: 1; }
 .rail-chip.factions { border-left-color: var(--slate); }
 .rail-chip.items   { border-left-color: var(--mustard); }
 .rail-chip.lore    { border-left-color: var(--forest); }
+.rail-chip.monsters { border-left-color: var(--plum); }
 .rail-chip.sessions { border-left-color: var(--ink-faded); }
 
 .detail-close {
@@ -2514,6 +2603,14 @@ button.session-pin { line-height: 1; }
   color: var(--ink);
 }
 .cleanup-controls input[type="range"] { flex: 1; }
+/* Was an inline style on the span; classed so the Atlas layer can reach it
+   (Inter needs the explicit uppercase that IM Fell SC gave for free). */
+.cleanup-window-label {
+  font-family: var(--font-fell-sc);
+  letter-spacing: .16em;
+  font-size: 11px;
+  color: var(--ink-secondary);
+}
 .cleanup-body {
   flex: 1;
   overflow-y: auto;
@@ -2583,6 +2680,228 @@ button.session-pin { line-height: 1; }
   text-decoration: underline;
   padding: 0;
 }
+
+/* ── Sagas & Arcs page: two tiers (migration 0025) ─────────────────────────
+   A saga is the heading, its arcs are indented beneath a rule that reads as a
+   spine down the left. Every colour is a theme variable: the grimoire theme
+   inverts the paper, so a hardcoded parchment tint would vanish there. */
+.saga { margin-top: 34px; }
+.saga-head {
+  display: flex; align-items: baseline; gap: 12px;
+  flex-wrap: wrap;
+}
+.saga-head h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 26px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.saga-toggle {
+  background: transparent;
+  border: none;
+  padding: 0 2px 0 0;
+  cursor: pointer;
+  color: var(--ink-secondary);
+  display: grid; place-items: center;
+  align-self: center;
+}
+.saga-toggle:hover { color: var(--ink); }
+.saga-meta,
+.arc-meta {
+  /* Fell SC at 11px needs the secondary tier as its contrast floor — the thin
+     strokes disappear at --ink-faded, worst on grimoire. */
+  font-family: var(--font-fell-sc);
+  letter-spacing: .12em;
+  font-size: 11px;
+  color: var(--ink-secondary);
+}
+.saga-seal {
+  font-family: var(--font-fell-sc);
+  letter-spacing: .16em;
+  font-size: 10px;
+  color: var(--bloodred);
+  border: 1px solid var(--bloodred);
+  border-radius: 2px;
+  padding: 1px 6px;
+}
+.saga.is-sealed .saga-head h2 { color: var(--ink-secondary); }
+.saga-complete-btn {
+  margin-left: auto;
+  display: inline-flex; align-items: center; gap: 5px;
+}
+.saga-summary,
+.arc-summary {
+  margin: 6px 0 0;
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--ink-body);
+}
+.saga-body {
+  margin: 14px 0 0 6px;
+  padding-left: 18px;
+  border-left: 1px solid var(--hairline);
+}
+.arc-block { margin-bottom: 20px; }
+.arc-head {
+  display: flex; align-items: baseline; gap: 10px;
+  flex-wrap: wrap;
+}
+.arc-head h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 18px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.arc-empty {
+  display: block;
+  margin-top: 6px;
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 13px;
+  color: var(--ink-ghost);
+}
+.saga-unclaimed-head {
+  font-family: var(--font-fell-sc);
+  letter-spacing: .18em;
+  font-size: 12px;
+  color: var(--ink-secondary);
+}
+
+/* ── Complete Saga wizard ──────────────────────────────────────────────────
+   Rides the .cleanup-* chrome above (overlay, panel, groups, rows, footer);
+   only the step rail, the facts list and the thread choices are its own. */
+.saga-wizard-steps {
+  display: flex; align-items: stretch; gap: 2px;
+  padding: 10px 24px;
+  border-bottom: 1px solid var(--vellum-deep);
+  background: var(--vellum-light);
+  overflow-x: auto;
+}
+.saga-step {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: transparent;
+  border: none;
+  padding: 4px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: var(--font-fell-sc);
+  letter-spacing: .12em;
+  font-size: 11px;
+  color: var(--ink-secondary);
+}
+.saga-step:disabled { cursor: default; }
+.saga-step-num {
+  display: grid; place-items: center;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  border: 1px solid var(--ink-ghost);
+  font-family: var(--font-body);
+  font-size: 11px;
+  letter-spacing: 0;
+}
+.saga-step.is-current { color: var(--ink); }
+.saga-step.is-current .saga-step-num {
+  border-color: var(--bloodred);
+  background: var(--bloodred);
+  color: var(--paper-cream);
+}
+.saga-step.is-done .saga-step-num { border-color: var(--ink-secondary); color: var(--ink-secondary); }
+.saga-wizard-step { font-family: var(--font-body); font-size: 14px; color: var(--ink-body); }
+.saga-wizard-facts { margin: 0 0 16px; display: flex; flex-direction: column; gap: 8px; }
+.saga-wizard-facts > div {
+  display: flex; gap: 12px; align-items: baseline;
+  border-bottom: 1px solid var(--hairline);
+  padding-bottom: 6px;
+}
+.saga-wizard-facts dt {
+  flex: 0 0 140px;
+  font-family: var(--font-fell-sc);
+  letter-spacing: .16em;
+  font-size: 11px;
+  color: var(--ink-secondary);
+}
+.saga-wizard-facts dd { margin: 0; font-size: 14px; color: var(--ink); }
+.saga-wizard-note {
+  margin: 0 0 12px;
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 13px;
+  color: var(--ink-secondary);
+}
+.saga-wizard-warn {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--mustard);
+  background: rgba(139,94,40,.06);
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--ink-body);
+}
+.saga-wizard-error {
+  padding: 10px 24px;
+  border-top: 1px solid var(--bloodred);
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--bloodred);
+}
+.saga-wizard-label {
+  display: block;
+  margin-bottom: 6px;
+  font-family: var(--font-fell-sc);
+  letter-spacing: .18em;
+  font-size: 11px;
+  color: var(--ink-secondary);
+}
+.saga-wizard-summary {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--paper-cream);
+  border: 1px dashed var(--ink-faded);
+  color: var(--ink-body);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.55;
+  padding: 10px 12px;
+  resize: vertical;
+}
+.saga-thread {
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--hairline);
+  font-family: var(--font-body);
+  font-size: 14px;
+}
+.saga-thread-label { color: var(--ink); cursor: pointer; }
+.saga-thread .cleanup-reason {
+  font-style: italic;
+  font-size: 13px;
+  color: var(--ink-secondary);
+}
+.saga-thread-choices { margin-left: auto; display: flex; gap: 4px; }
+.saga-choice {
+  background: transparent;
+  border: 1px solid var(--ink-ghost);
+  border-radius: 2px;
+  padding: 2px 8px;
+  cursor: pointer;
+  font-family: var(--font-fell-sc);
+  letter-spacing: .1em;
+  font-size: 10px;
+  color: var(--ink-secondary);
+}
+.saga-choice.is-on {
+  border-color: var(--bloodred);
+  background: var(--bloodred);
+  color: var(--paper-cream);
+}
+.saga-choice:disabled { cursor: default; opacity: .6; }
+/* Consequential action, kept clear of Close/Back per the destructive-action
+   convention — it's the only filled button in the footer. */
+.saga-seal-btn { margin-left: 8px; }
 
 /* People facet bar (KindList): view controls, not edit affordances — dashed
    borders mean "editable" everywhere else, so these stay borderless (the
@@ -2964,7 +3283,10 @@ button.session-pin { line-height: 1; }
   .live-dm-head, .cleanup-group-title, .quest-tag, .loc-type, .goal-kind,
   .i-label, .l-label, .card-poster .wanted, .card-poster .deceased-tag,
   .status-chip, .seen-toggle, .veil-badge, .portrait-caption, .session-ribbon,
-  .entity-combobox-kind) {
+  .entity-combobox-kind,
+  .saga-meta, .arc-meta, .saga-seal, .saga-step, .saga-choice,
+  .saga-wizard-label, .saga-wizard-facts dt, .saga-unclaimed-head,
+  .cleanup-window-label) {
   text-transform: uppercase;
 }
 
@@ -3308,7 +3630,7 @@ button.session-pin { line-height: 1; }
 [data-theme="modern"] .pinned { transform: none !important; }
 [data-theme="modern"] .kind-card { transform: none !important; }
 [data-theme="modern"] .pinned:hover { filter: none; }
-[data-theme="modern"] :is(.pinned, .kind-card):hover :is(.card-poster, .card-quest, .card-location, .card-goal, .card-faction, .card-item, .card-lore) {
+[data-theme="modern"] :is(.pinned, .kind-card):hover :is(.card-poster, .card-quest, .card-location, .card-goal, .card-faction, .card-item, .card-lore, .card-monster) {
   border-color: #3d4353;
 }
 [data-theme="modern"] .pinned.is-pinned,
@@ -3385,14 +3707,14 @@ button.session-pin { line-height: 1; }
 }
 
 /* ── Cards ───────────────────────────────── */
-[data-theme="modern"] :is(.card-poster, .card-quest, .card-location, .card-goal, .card-faction, .card-item, .card-lore, .card-note) {
+[data-theme="modern"] :is(.card-poster, .card-quest, .card-location, .card-goal, .card-faction, .card-item, .card-lore, .card-monster, .card-note) {
   border-radius: 10px;
   clip-path: none;
 }
 [data-theme="modern"] .card-poster::before { display: none; } /* torn top edge */
 
 /* Kind tags: dot + letterspaced Inter, colored per kind. */
-[data-theme="modern"] :is(.card-quest .quest-tag, .card-location .loc-type, .card-goal .goal-kind, .card-item .i-label, .card-lore .l-label, .sb-kind) {
+[data-theme="modern"] :is(.card-quest .quest-tag, .card-location .loc-type, .card-goal .goal-kind, .card-item .i-label, .card-lore .l-label, .card-monster .m-type, .sb-kind) {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -3400,7 +3722,7 @@ button.session-pin { line-height: 1; }
   font-weight: 600;
   letter-spacing: .06em;
 }
-[data-theme="modern"] :is(.card-quest .quest-tag, .card-location .loc-type, .card-goal .goal-kind, .card-item .i-label, .card-lore .l-label, .sb-kind)::before {
+[data-theme="modern"] :is(.card-quest .quest-tag, .card-location .loc-type, .card-goal .goal-kind, .card-item .i-label, .card-lore .l-label, .card-monster .m-type, .sb-kind)::before {
   content: '';
   width: 6px; height: 6px;
   border-radius: 50%;
@@ -3411,6 +3733,42 @@ button.session-pin { line-height: 1; }
 [data-theme="modern"] .card-goal .goal-kind { color: var(--forest); }
 [data-theme="modern"] .card-item .i-label { color: var(--gold-antique); }
 [data-theme="modern"] .card-lore .l-label { color: var(--forest-pale); }
+[data-theme="modern"] .card-monster .m-type { color: var(--plum); }
+
+/* Bestiary plate, Atlas dress: the art becomes a flush hero image with a
+   rounded top, and the threat band a pill in the corner instead of a full
+   ribbon — the parchment engraving voice doesn't carry here. */
+[data-theme="modern"] .card-monster .m-plate {
+  margin: 0;
+  aspect-ratio: 16 / 10;
+  border: none;
+  border-radius: 10px 10px 0 0;
+  background: linear-gradient(160deg, #252a38, #191c26);
+  color: #454c60;
+}
+[data-theme="modern"] .card-monster .m-plate-img { filter: none; }
+[data-theme="modern"] .card-monster .m-threat {
+  left: auto; bottom: 8px; right: 8px;
+  border-radius: 10px;
+  padding: 2px 8px;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: .06em;
+  background: rgba(20,22,29,.78);
+  color: var(--ink-body);
+}
+[data-theme="modern"] .card-monster .m-threat.harmless  { color: var(--forest); }
+[data-theme="modern"] .card-monster .m-threat.risky     { color: var(--mustard); }
+[data-theme="modern"] .card-monster .m-threat.deadly    { color: var(--bloodred-deep); }
+[data-theme="modern"] .card-monster .m-threat.legendary { color: var(--plum); }
+[data-theme="modern"] .card-monster .m-body {
+  margin-top: 0;
+  border-top: none;
+  padding: 11px 13px 13px;
+}
+[data-theme="modern"] .card-monster .m-name { font-size: 17px; }
+[data-theme="modern"] .card-monster .m-habitat,
+[data-theme="modern"] .card-monster .m-desc { font-style: normal; font-size: 12px; line-height: 1.45; }
 
 [data-theme="modern"] .card-poster { padding: 12px 13px; }
 [data-theme="modern"] .card-poster.headerless { padding-top: 12px; }
@@ -3762,6 +4120,33 @@ button.session-pin { line-height: 1; }
 [data-theme="modern"] .cleanup-empty { font-style: normal; }
 [data-theme="modern"] .cleanup-link-btn { font-style: normal; font-size: 12px; color: var(--ink-ghost); text-underline-offset: 3px; }
 [data-theme="modern"] .cleanup-link-btn:hover { color: var(--ink-secondary); }
+
+/* Sagas & Arcs + the Complete Saga wizard in Modern Atlas.
+   Deliberately short: the variable remap at the top of the file already turns
+   --font-body and --font-fell-sc into Inter, so nothing here restates a font.
+   Saga and arc titles keep --font-display (Cormorant) exactly like every other
+   page and section heading — Atlas reserves the serif for display titles, it
+   doesn't banish it. What's left is the flat dress: no italics, radii, and the
+   panel-surface swaps. The uppercase treatment for the label classes below
+   lives in the shared :is() list near the top of this section, because Inter
+   doesn't inherit the small-caps that IM Fell SC gave the parchment themes. */
+[data-theme="modern"] .saga-seal { font-size: 10px; letter-spacing: .06em; border-radius: 5px; }
+[data-theme="modern"] .arc-empty { font-style: normal; font-size: 12px; }
+[data-theme="modern"] .saga-body { border-left: 1px solid var(--card-edge); }
+[data-theme="modern"] .saga-wizard-steps { background: transparent; border-bottom: 1px solid var(--vellum-deep); }
+[data-theme="modern"] .saga-step-num { border-radius: 5px; }
+[data-theme="modern"] .saga-wizard-note { font-style: normal; font-size: 12px; }
+[data-theme="modern"] .saga-wizard-warn { font-size: 12px; background: #20242f; border-radius: 0 6px 6px 0; }
+[data-theme="modern"] .saga-wizard-summary {
+  background: var(--vellum-dark);
+  border: 1px solid var(--card-edge);
+  border-radius: 8px;
+}
+[data-theme="modern"] .saga-thread .cleanup-reason { font-style: normal; }
+[data-theme="modern"] .saga-choice { border-radius: 5px; border-color: var(--card-edge); }
+/* Atlas drops chrome engravings — same scoped pattern as .topbar/.board-toolbar. */
+[data-theme="modern"] .saga-complete-btn svg { display: none; }
+[data-theme="modern"] .saga-unclaimed-head { letter-spacing: .12em; font-size: 11px; }
 
 [data-theme="modern"] .tweaks-panel {
   background: var(--paper-cream);

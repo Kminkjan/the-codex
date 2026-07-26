@@ -5,6 +5,7 @@ import remarkGfm from "remark-gfm";
 import { sessionLabel, type KindKey, type PresenceUser } from "./data";
 import { Icon, MapScribble, kindIcon } from "./icons";
 import { rankIndex, KIND_LABEL, type Indexed } from "./entitySearch";
+import { arcSubtreeIds, sagaTree } from "./saga";
 import { useCampaign, useCampaignSwitcher, useDismiss, useKinds, usePresence, useViewAsPlayer } from "./hooks";
 import { createCampaign, createEntity, endLiveSession, setActiveSession, startLiveSession, switchLiveSession } from "./mutations";
 import { requestCharterOnNextLoad } from "./route";
@@ -176,6 +177,7 @@ export function CardBody({ entity, kind }: { entity: any; kind: KindKey }) {
     case "factions":  body = <FactionCard f={entity} />; break;
     case "items":     body = <ItemCard i={entity} />; break;
     case "lore":      body = <LoreCard l={entity} />; break;
+    case "monsters":  body = <MonsterCard m={entity} />; break;
     default: return null;
   }
   // Hidden rows never reach non-DM users (projected out in campaignContext),
@@ -317,6 +319,29 @@ export function ItemCard({ i }: { i: any }) {
   );
 }
 
+// Bestiary plate. Artwork is the point of this kind, so the illustration is the
+// card's headline (like PosterCard's portrait) and the words are the caption —
+// creature type above the name, habitat and the opening of the description
+// below. The threat band sits on the plate itself so it reads at board zoom.
+export function MonsterCard({ m }: { m: any }) {
+  return (
+    <div className="card-monster">
+      <div className="m-plate">
+        {m.imageUrl
+          ? <img src={m.imageUrl} alt={m.name} className="m-plate-img" />
+          : <span className="m-plate-empty"><Icon name="monster" size={44} strokeWidth={1.1} /></span>}
+        {m.threat && <span className={`m-threat ${m.threat}`}>{m.threat}</span>}
+      </div>
+      <div className="m-body">
+        {!!m.kind?.trim() && <div className="m-type"><Fleurons>{m.kind}</Fleurons></div>}
+        <div className="m-name">{m.name}</div>
+        {!!m.habitat?.trim() && <div className="m-habitat">{m.habitat}</div>}
+        <div className="m-desc">{m.desc}</div>
+      </div>
+    </div>
+  );
+}
+
 export function LoreCard({ l }: { l: any }) {
   return (
     <div className="card-lore">
@@ -380,9 +405,14 @@ export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, counts 
   // Fall back to "all" if the selected arc was deleted (possibly live, from
   // another tab) so the list and the select never disagree.
   const effectiveArcFilter = arcsById.has(arcFilter) ? arcFilter : "all";
-  const visibleSessions = effectiveArcFilter === "all"
-    ? campaign.sessions
-    : campaign.sessions.filter((s) => s.arc === effectiveArcFilter);
+  // Picking a saga means "every chapter under it", not just the handful filed
+  // at saga level — so the filter matches the whole subtree (0025 nesting).
+  const arcFilterIds = effectiveArcFilter === "all"
+    ? null
+    : arcSubtreeIds(campaign, effectiveArcFilter);
+  const visibleSessions = arcFilterIds
+    ? campaign.sessions.filter((s) => s.arc && arcFilterIds.has(s.arc))
+    : campaign.sessions;
   // Roster of people marked seen in the currently-live session.
   const liveSession = campaign.sessions.find((s) => s.id === campaign.activeSessionId);
   // Newest first by num, not array order — realtime INSERTs append, so
@@ -463,7 +493,7 @@ export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, counts 
       <div className="sidebar-label"><span>The Chronicle</span></div>
       <div className={`nav-item ${active === "arcs" ? "active" : ""}`} onClick={() => onSelect("arcs")}>
         <span className="icon"><Icon name="layers" /></span>
-        Story Arcs
+        Sagas &amp; Arcs
         <span className="count">{campaign.arcs.length}</span>
       </div>
       <div className={`nav-item ${active === "events" ? "active" : ""}`} onClick={() => onSelect("events")}>
@@ -516,9 +546,14 @@ export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, counts 
           }}
         >
           <option value="all">every arc</option>
-          {campaign.arcs.slice().sort((a, b) => a.orderNum - b.orderNum).map((a) => (
-            <option key={a.id} value={a.id}>{a.title}</option>
-          ))}
+          {/* Sagas, each followed by its own arcs — a flat list can't tell the
+              two altitudes apart, and picking a saga filters its whole subtree. */}
+          {sagaTree(campaign).map(({ saga, arcs }) => [
+            <option key={saga.id} value={saga.id}>{saga.title}</option>,
+            ...arcs.map((a) => (
+              <option key={a.id} value={a.id}>{`  ↳ ${a.title}`}</option>
+            )),
+          ])}
         </select>
       )}
       {shownSessions.map((s) => (
@@ -647,7 +682,7 @@ function CampaignPicker({ onOpenCharter }: { onOpenCharter: () => void }) {
             >
               <span className="dot" style={{ visibility: "hidden" }} />
               <span style={{ fontFamily: "var(--font-fell-sc)", letterSpacing: ".14em", fontSize: 11, color: "var(--ink-secondary)" }}>
-                ✦ FOUND A NEW CAMPAIGN
+                <span className="fleuron">✦ </span>FOUND A NEW CAMPAIGN
               </span>
             </button>
           )}
@@ -811,7 +846,7 @@ export function Topbar({ view, onShare, onOpenCharter, onSearch }: {
   // Breadcrumb tail (Modern Atlas only, via CSS): "campaign / where you are".
   const viewLabel =
     view === "board" ? "Notice Board"
-    : view === "arcs" ? "Story Arcs"
+    : view === "arcs" ? "Sagas & Arcs"
     : view === "events" ? "Events"
     : view === "campaign" ? "Charter"
     : kinds.find((k) => k.key === view)?.label ?? "";

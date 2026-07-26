@@ -34,6 +34,7 @@ const NEW_ENTITY_DEFAULTS: Record<Exclude<KindKey, "sessions" | "arcs" | "events
   factions:  { name: "Unnamed faction", sigil: "✦" },
   items:     { name: "Unnamed item", kind: "relic" },
   lore:      { title: "Untitled lore", text: "" },
+  monsters:  { name: "Unnamed beast", kind: "beast" },
 };
 
 interface Filters {
@@ -45,6 +46,7 @@ interface Filters {
   factions?: boolean;
   items?: boolean;
   lore?: boolean;
+  monsters?: boolean;
   [key: string]: boolean | string | undefined;
 }
 
@@ -96,7 +98,7 @@ export function NoticeBoard({
   const [filters, setFilters] = useState<Filters>(() => {
     // Open focused on the live session's cast when a session is pinned.
     const f: Filters = { sessions: campaign.activeSessionId ?? "all" };
-    (["people", "locations", "quests", "goals", "factions", "items", "lore"] as const).forEach((k) => {
+    (["people", "locations", "quests", "goals", "factions", "items", "lore", "monsters"] as const).forEach((k) => {
       (f as any)[k] = true;
     });
     return f;

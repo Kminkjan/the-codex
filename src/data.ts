@@ -7,6 +7,13 @@ export type PersonTier = "major" | "supporting" | "background";
 export type PersonStatus = "alive" | "dead" | "missing" | "unknown";
 export const PERSON_TIER_OPTIONS = ["major", "supporting", "background"] as const;
 export const PERSON_STATUS_OPTIONS = ["alive", "dead", "missing", "unknown"] as const;
+
+// Monsters-only: how much of a fight it is. Deliberately not CR — the Bestiary
+// is a glossary for artwork and notes, not a statblock, so this is the one
+// at-a-glance signal and it stays readable to players.
+export type MonsterThreat = "harmless" | "risky" | "deadly" | "legendary";
+export const MONSTER_THREAT_OPTIONS = ["harmless", "risky", "deadly", "legendary"] as const;
+
 export type KindKey =
   | "people"
   | "locations"
@@ -15,6 +22,7 @@ export type KindKey =
   | "factions"
   | "items"
   | "lore"
+  | "monsters"
   | "sessions"
   | "arcs"
   | "events";
@@ -30,8 +38,15 @@ export interface Session {
   arc?: string;
 }
 
-// Story arcs group sessions and quests ("Barovia Saga"). Like sessions they
-// live outside buildKinds: no board cards, no archiving, a bespoke page.
+// Story arcs group sessions and quests. Like sessions they live outside
+// buildKinds: no board cards, no archiving, a bespoke page.
+//
+// Arcs nest exactly one level (migration 0025): a row with no parentId is a
+// **saga** ("The Ravenloft Saga"), its children are its arcs ("Vallaki Arc").
+// Depth is enforced by trigger, not here — see isSaga/sagaTree in saga.ts for
+// the derivations, and never read parentId to build a tree by hand.
+// completedAt is stamped by the Complete Saga wizard; it's the one piece of
+// arc state that means "this chapter of the campaign is closed".
 export interface Arc {
   id: string;
   title: string;
@@ -39,6 +54,8 @@ export interface Arc {
   startSession?: string;
   endSession?: string;
   orderNum: number;
+  parentId?: string;
+  completedAt?: string;
 }
 
 // Key moments of the chronicle ("Karn's death"). Named CampaignEvent to dodge
@@ -135,8 +152,22 @@ export interface Lore extends ArchivableFields {
   text: string;
 }
 
+// A bestiary plate. `kind` is the creature type ("aberration", "undead"),
+// matching the locations/items convention; `desc` carries the lore and `notes`
+// the party's own record of fighting the thing.
+export interface Monster extends ArchivableFields {
+  id: string;
+  name: string;
+  kind?: string;
+  threat?: MonsterThreat;
+  habitat?: string;
+  desc?: string;
+  imageUrl?: string;
+  notes?: string;
+}
+
 export const ARCHIVABLE_KINDS: ReadonlyArray<KindKey> = [
-  "people", "locations", "quests", "goals", "factions", "items", "lore",
+  "people", "locations", "quests", "goals", "factions", "items", "lore", "monsters",
 ];
 
 export function isArchivableKind(k: KindKey): boolean {
@@ -206,7 +237,7 @@ export function stripShowMark(text: string | undefined): string | undefined {
 }
 
 export type Entity =
-  & (Person | Location | Quest | Goal | Faction | Item | Lore | Session | Arc | CampaignEvent)
+  & (Person | Location | Quest | Goal | Faction | Item | Lore | Monster | Session | Arc | CampaignEvent)
   & { _kind?: KindKey; _kindLabel?: string };
 
 export interface Campaign {
@@ -239,6 +270,7 @@ export interface Campaign {
   factions: Faction[];
   items: Item[];
   lore: Lore[];
+  monsters: Monster[];
   connections: Connection[];
   board: Record<string, BoardPosition>;
   notes: Record<string, PartyNote[]>;
@@ -268,6 +300,7 @@ export function buildKinds(campaign: Campaign): KindDef[] {
     { key: "factions",  label: "Factions",      plural: "factions",  list: () => campaign.factions,  color: "var(--slate)" },
     { key: "items",     label: "Items",         plural: "items",     list: () => campaign.items,     color: "var(--gold-antique)" },
     { key: "lore",      label: "Lore",          plural: "lore",      list: () => campaign.lore,      color: "var(--forest-pale)" },
+    { key: "monsters",  label: "Bestiary",      plural: "monsters",  list: () => campaign.monsters,  color: "var(--plum)" },
   ];
 }
 
@@ -334,6 +367,7 @@ export function projectCampaignForViewers(c: Campaign): Campaign {
   const factions = keep(c.factions);
   const items = keep(c.items);
   const lore = keep(c.lore);
+  const monsters = keep(c.monsters);
   // Since 0018 (issue #73) RLS already keeps hidden rows, staging and
   // dm_notes off non-DM clients — for players this projection is normally the
   // identity. It still must exist and still must strip everything: it is the
@@ -357,7 +391,7 @@ export function projectCampaignForViewers(c: Campaign): Campaign {
     Object.fromEntries(Object.entries(rec).filter(([id]) => !hiddenIds.has(id)));
   return {
     ...c,
-    people, locations, quests, goals, factions, items, lore,
+    people, locations, quests, goals, factions, items, lore, monsters,
     // DM's eyes only — emptied for the player view (issue #70/#73).
     dmNotes: {},
     connections: c.connections.filter(([a, b]) => !hiddenIds.has(a) && !hiddenIds.has(b)),

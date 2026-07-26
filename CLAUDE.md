@@ -56,10 +56,23 @@ The app supports an "edit mode" handshake with a parent window via `window.__TWE
 
 - **Route everything campaign-scoped through the active campaign id** — components read it via `useCampaign()`/`useCampaignSwitcher()`, mutations via `getActiveCampaignId()` from [src/activeCampaign.ts](src/activeCampaign.ts); never query without the `campaign_id` filter. Since migration 0023 (issue #87) RLS also enforces per-campaign **write** access: editors can only write to campaigns where they hold a `campaign_members` row (reads stay open to everyone, minus hidden-row gating).
 - **New entity IDs are `crypto.randomUUID()` strings** generated client-side. All PKs are `text` except `connections.id` (bigserial) and `party_notes.id` (bigserial).
-- **Styling is inline style objects + a few CSS classes** in [src/styles.css](src/styles.css). CSS variables (`--ink`, `--vellum`, `--bloodred`, `--font-fell-sc`, etc.) carry the parchment aesthetic — reach for those before inventing colors.
-- **Fonts are picked by role** (see the `:root` comment in styles.css): `--font-body` (Bookinsanity, self-hosted from [public/fonts/](public/fonts/), the 5e-book body face) is for ALL content text — descriptions, notes, rows, inputs; `--font-fell-sc` is small-caps chrome labels; `--font-fell` (IM Fell) is decorative flourishes only, never content.
+- **Styling is inline style objects + a few CSS classes** in [src/styles.css](src/styles.css). CSS variables (`--ink`, `--vellum`, `--bloodred`, `--font-fell-sc`, etc.) carry the aesthetic — reach for those before inventing colors.
+- **Fonts are picked by role** (see the `:root` comment in styles.css): `--font-body` (Bookinsanity, self-hosted from [public/fonts/](public/fonts/), the 5e-book body face) is for ALL content text — descriptions, notes, rows, inputs; `--font-fell-sc` is small-caps chrome labels; `--font-fell` (IM Fell) is decorative flourishes only, never content; `--font-display` (Cormorant) is display titles.
 - **Ink tiers are picked by role** (see the `:root` comment in styles.css): `--ink-secondary` is the contrast floor for any text ≤14px — the Fell SC labels' thin strokes need it, especially on the grimoire theme. `--ink-faded`/`--ink-ghost` are reserved for off-states, hints, and decoration, never for small content text. Colors that read as text on card stock (tags, chips) must be theme-aware variables — hardcoded light-paper colors vanish on grimoire.
-- **Committed `.js` / `.d.ts` siblings of the `.tsx` files are gitignored** (`src/**/*.js`, `src/**/*.d.ts` except `global.d.ts`). They're `tsc` outputs — ignore them.
+- **Committed `.js` / `.d.ts` siblings of the `.tsx` files are gitignored** (`src/**/*.js`, `src/**/*.d.ts` except `global.d.ts`). They're `tsc` outputs — ignore them. If any exist on disk, **delete them** — Vite resolves `.js` before `.tsx`, so a stale sibling silently shadows the real source in dev *and* in `vite build`.
+
+## Themes: Modern Atlas is the default
+
+**Do not build parchment-first.** Since PR #102 the default theme is **Modern Atlas** — flat, dark, Inter, functional — while Cartographer (parchment) and Grimoire stay first-class. Most users see Atlas. Read [docs/design-atlas.md](docs/design-atlas.md) before touching UI; the essentials:
+
+- **One DOM, two dresses.** Never branch a component on theme. Structural additions are CSS-gated to `[data-theme="modern"]`, and the parchment themes must render identically after your change.
+- **Voice goes through `<ThemedLabel parchment=… atlas=…>`** ([src/components.tsx](src/components.tsx)) — parchment speaks ceremony ("Tidy the Codex", "Draw string"), Atlas speaks function ("Tidy the codex", "Connect"). Use it for every control label, panel title, empty state and register-differing note. Skip it when both voices are identical (counts, session codes). Pure modules can't use it, so their strings must be voice-neutral.
+- **Ornaments go in a `.fleuron` span** — `<Fleurons>` or `<span className="fleuron">✦ </span>`. Atlas hides them; a bare `✦` in JSX survives where every other flourish is suppressed.
+- **Atlas remaps the font *variables*** (`--font-body`/`--font-fell-sc` → Inter), so role variables mostly Atlas themselves. `--font-display` is deliberately **not** remapped: Atlas keeps Cormorant for display titles — never demote a title to `--font-ui`.
+- **New small-caps label classes must join the shared `[data-theme="modern"] :is(…)` uppercase list**, or they render sentence-case among uppercase neighbours. Easiest thing to forget.
+- **A new dark theme must join the `color-scheme: dark` list**, or its native `<select>` popups render light-on-white (#106).
+
+Run `npx tsx scripts/ui-check.ts` to catch the mechanical half of this.
 
 ## Ritual
 
