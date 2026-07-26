@@ -17,7 +17,40 @@ if (import.meta.env.DEV && import.meta.env.VITE_DEV_EDITOR_EMAIL) {
       email: email ?? (import.meta.env.VITE_DEV_EDITOR_EMAIL as string),
       password: password ?? (import.meta.env.VITE_DEV_EDITOR_PASSWORD as string),
     });
-    if (error) { console.error("[dev] sign-in failed:", error.message); return error.message; }
+    if (error) {
+      console.error("[dev] sign-in failed:", error.message);
+      // invalid_credentials covers "no such user" AND "wrong password" —
+      // Supabase won't say which. The account is throwaway and lives only in
+      // the remote project, so it rots silently whenever it's deleted or its
+      // password rotates, and the bare message above leaves no trail to
+      // follow. Print the provisioning steps instead, including the
+      // membership half people forget: since 0023 a confirmed editor still
+      // can't write without a campaign_members row, and that table is
+      // deny-all for client writes (0018/0022) — only create_campaign or
+      // redeem_campaign_invite can grant it.
+      if ((error as any).code === "invalid_credentials" || error.message === "Invalid login credentials") {
+        console.info(
+          `[dev] the throwaway editor is missing or its password changed. To restore it:
+  1. Supabase dashboard → Authentication → Users → Add user
+       email:    ${import.meta.env.VITE_DEV_EDITOR_EMAIL}
+       password: whatever VITE_DEV_EDITOR_PASSWORD holds in your .env
+       tick "Auto Confirm User" — an unconfirmed user fails with
+       email_not_confirmed instead, which looks like a different bug.
+  2. Grant it write access to the campaign you're testing. Membership can't be
+     inserted from the client, so either:
+       * redeem an invite as this user (Topbar → invite flow), or
+       * run in the dashboard SQL editor:
+           insert into campaign_members (campaign_id, user_id, role)
+           select '<campaign-id>', id, 'dm' from auth.users
+           where email = '${import.meta.env.VITE_DEV_EDITOR_EMAIL}'
+           on conflict do nothing;
+     Without step 2 you get a session that passes canEdit but has every write
+     RLS-rejected into the "wasn't saved" toast.
+  See .env.example for the variables themselves.`,
+        );
+      }
+      return error.message;
+    }
     // Skip the DisplayNameGate for the throwaway editor by seeding a name.
     if (!data.user?.user_metadata?.display_name) {
       await supabase.auth.updateUser({ data: { display_name: "Dev Editor" } });
