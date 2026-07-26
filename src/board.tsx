@@ -19,7 +19,7 @@ import {
   upsertBoardPosition,
   bulkUpsertBoardPositions,
   insertConnection,
-  deleteConnection,
+  deleteConnectionBetween,
   createEntity,
   markSeen,
 } from "./mutations";
@@ -214,8 +214,8 @@ export function NoticeBoard({
   };
 
   const removeConnection = (fromId: string, toId: string, label: string) => {
-    deleteConnection(fromId, toId, label).catch((e) =>
-      console.error("deleteConnection failed", e),
+    deleteConnectionBetween(fromId, toId, label).catch((e) =>
+      console.error("deleteConnectionBetween failed", e),
     );
   };
 

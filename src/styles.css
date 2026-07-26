@@ -2141,6 +2141,41 @@ button.session-pin { line-height: 1; }
 .rail-chip.lore    { border-left-color: var(--forest); }
 .rail-chip.monsters { border-left-color: var(--plum); }
 .rail-chip.sessions { border-left-color: var(--ink-faded); }
+/* The rail's one destructive control: cuts the connections row behind a
+   hand-drawn chip. It replaces the chevron (decoration — the whole chip
+   navigates), so chevron now reads "derived, read-only" and ✕ reads "a string
+   you can cut" — the same split the board draws with dashed yarn. Always
+   visible rather than hover-revealed: Atlas kills .rail-chip:hover feedback
+   entirely (see the modern override), so a hover-reveal would be
+   undiscoverable there and dead on touch. Quiet at rest in --ink-secondary to
+   match the .rc-rel beside it, then the house destructive flip to --bloodred,
+   per .detail-close. 24px fits the chip's content box without changing its
+   height; flex-basis stops a long entity name squeezing it. */
+.rail-chip .rc-unpin {
+  flex: 0 0 24px;
+  width: 24px; height: 24px;
+  display: grid; place-items: center;
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  color: var(--ink-secondary);
+  cursor: pointer;
+}
+/* The glyph is #fff in every theme, deliberately not --paper-cream: the fill
+   underneath is --bloodred, which stays the same red family across themes, so
+   the polarity here does NOT flip with the stock. --paper-cream is dark card
+   stock on both dark themes, which would paint dark-on-red — 2.78:1 on
+   grimoire. White measures 8.64 / 5.11 / 3.66 on cartographer / grimoire /
+   modern, clearing the 3:1 non-text floor everywhere. Same reason
+   .detail-close:hover uses #fff under Atlas. */
+.rail-chip .rc-unpin:hover,
+.rail-chip .rc-unpin:focus-visible {
+  background: var(--bloodred);
+  border-color: var(--bloodred-deep);
+  color: #fff;
+  outline: none;
+}
 
 .detail-close {
   position: absolute;
@@ -4146,6 +4181,13 @@ button.session-pin { line-height: 1; }
 [data-theme="modern"] .rail-chip .rc-name { font-size: 12.5px; }
 [data-theme="modern"] .rail-chip .rc-rel { color: var(--ink-secondary); }
 [data-theme="modern"] .rail-chip .rc-rel .rc-tag { background: var(--vellum-dark); border-color: var(--card-edge); }
+/* Radius follows Atlas's rounded chips; the ring is dropped because Atlas's
+   --bloodred-deep is a pale red meant as text-on-dark, so it reads as a halo
+   rather than an edge. Colours need no override — the base rule's #fff is
+   already correct on the red fill in every theme. */
+[data-theme="modern"] .rail-chip .rc-unpin { border-radius: 6px; }
+[data-theme="modern"] .rail-chip .rc-unpin:hover,
+[data-theme="modern"] .rail-chip .rc-unpin:focus-visible { border-color: transparent; }
 
 [data-theme="modern"] .detail-close {
   background: var(--vellum-dark);
