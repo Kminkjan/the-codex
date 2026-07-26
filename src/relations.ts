@@ -9,9 +9,12 @@ import type { Campaign } from "./data";
 export type RelationSource = "manual" | "fk";
 
 export interface DerivedEdge {
-  // For manual edges these keep the connection row's stored orientation, so
-  // deleteConnection(from, to, label) can match the exact row. FK edges point
-  // from the entity that carries the field to the entity it references.
+  // For manual edges these keep the connection row's stored orientation. Note
+  // this is NOT load-bearing for deletes: because the manual dedupe below is
+  // keyed on an unordered pair, one edge can stand for a mirrored A→B / B→A
+  // pair, so deleteConnectionBetween matches either direction and removes the
+  // whole set. FK edges point from the entity that carries the field to the
+  // entity it references.
   a: string;
   b: string;
   label: string;

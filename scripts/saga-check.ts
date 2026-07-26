@@ -74,10 +74,24 @@ const campaign: Campaign = {
     { id: "qGiver", title: "Given thread", status: "whispered", session: "s1", giver: "pSupp" },
   ],
   goals: [
-    // Owned by someone in the saga's cast → a loose end.
-    { id: "gOpen", text: "A goal", owner: "pSupp", kind: "personal", status: "pursuing" },
-    // Owned by someone outside → not.
-    { id: "gOut", text: "Other goal", owner: "pLater", kind: "personal", status: "pursuing" },
+    // `owner` is FREE TEXT naming whoever holds the aim — never an entity id.
+    // These fixtures deliberately spell that out, because the earlier version of
+    // this file used person ids here and so agreed with a bug in sagaScope that
+    // dropped every goal in every campaign.
+    //
+    // A goal carries no arc or session, so there is nothing to scope one by:
+    // every unresolved goal is a loose end, whoever is named.
+    { id: "gOpen", text: "A goal", owner: "The Party", kind: "personal", status: "pursuing" },
+    // Names someone who never appears in this saga's cast → still a loose end.
+    { id: "gOut", text: "Other goal", owner: "Kael (Ranger)", kind: "personal", status: "pursuing" },
+    // Owner left blank → still a loose end.
+    { id: "gNoOwner", text: "Unattributed goal", owner: "", kind: "party", status: "whispered" },
+    // Closed, so never a loose end — the only status test that survives.
+    { id: "gDone", text: "Closed goal", owner: "The Party", kind: "personal", status: "resolved" },
+    { id: "gLost", text: "Lost goal", owner: "The Party", kind: "personal", status: "lost" },
+    // Pinned and archived are skipped for goals exactly as for every other kind.
+    { id: "gPin", text: "Pinned goal", owner: "The Party", kind: "personal", status: "pursuing", pinned: true },
+    { id: "gArch", text: "Archived goal", owner: "The Party", kind: "personal", status: "pursuing", archived: true },
   ],
   locations: [
     // Linked only to saga-A folk → offered, never pre-checked.
@@ -144,8 +158,16 @@ check("open quest is a loose end", ends.has("qOpen"));
 check("resolved quest is not", !ends.has("qDone"));
 check("next-saga quest is not", !ends.has("qLater"));
 check("quest reached via its chapter is", ends.has("qGiver"));
-check("goal owned by saga cast is", ends.has("gOpen"));
-check("goal owned by outsider is not", !ends.has("gOut"));
+// Goals enter unscoped, on purpose. The rule these guard is "who owns it never
+// decides", which is what the old cast-membership filter got wrong: `owner` is
+// free text, so the filter matched nothing and no goal ever reached the wizard.
+check("unresolved goal is a loose end", ends.has("gOpen"));
+check("owner naming a non-cast member does NOT exclude it", ends.has("gOut"));
+check("blank owner does NOT exclude it", ends.has("gNoOwner"));
+check("resolved goal is not", !ends.has("gDone"));
+check("lost goal is not", !ends.has("gLost"));
+check("pinned goal is never offered", !ends.has("gPin"));
+check("archived goal is never offered", !ends.has("gArch"));
 
 console.log("\nsagaScope — places & things");
 const things = new Map(scope.things.map((c) => [c.id, c]));

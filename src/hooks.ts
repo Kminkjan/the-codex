@@ -52,6 +52,13 @@ export function usePresence() {
   return useContext(CampaignContext).presenceUsers;
 }
 
+// Durable editor identity by auth uuid (issue #114) — everyone who has ever
+// signed in, online or not. Use this to name a stored user_id; use
+// usePresence() for who's at the table right now.
+export function useProfiles() {
+  return useContext(CampaignContext).profilesById;
+}
+
 export function useCampaignSwitcher() {
   const { campaigns, activeCampaignId, switchCampaign, adoptCampaign, retireCampaign } = useContext(CampaignContext);
   return { campaigns, activeCampaignId, switchCampaign, adoptCampaign, retireCampaign };

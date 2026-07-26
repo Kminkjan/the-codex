@@ -174,9 +174,10 @@ export interface SagaScope {
  *   * **Cast** — people are reachable from chapters directly, through the
  *     session_participants junction (`campaign.sessionParticipants`) plus the
  *     lastSeen pointer. Strong signal.
- *   * **Loose ends** — quests/goals filed against the saga (or one of its
- *     chapters) that never resolved. Not archived by this function; the wizard
- *     asks per row.
+ *   * **Loose ends** — unresolved quests filed against the saga (or one of its
+ *     chapters), plus *every* unresolved goal, since goals carry no arc or
+ *     session to be filed against. Not archived by this function; the wizard
+ *     asks per row, and every row defaults to "keep".
  *   * **Things** — locations, factions, items, lore and monsters carry no
  *     session link whatsoever, so they can only be reached by association
  *     through deriveRelations(). Same trick the cleanup panel uses for
@@ -276,13 +277,21 @@ export function sagaScope(campaign: Campaign, sagaId: string): SagaScope {
     if (q.status === "resolved" || q.status === "lost") continue;
     looseEnds.push({ kind: "quests", id: q.id, label: entityLabel(q), status: q.status ?? "unknown" });
   }
-  // Goals have no arc or session column, so they enter through their owner:
-  // a goal is this saga's business when the person who holds it is.
   const castIds = new Set(cast.map((c) => c.id));
+  // Every unresolved goal, unscoped — deliberately, because there is nothing to
+  // scope one by. `goals` carries no arc or session column, and `owner` is free
+  // text naming whoever holds the aim ("Kael (Ranger)", "The Fendwick
+  // Legionnaires", "The Party"), not an entity id. An earlier version tested
+  // `castIds.has(g.owner)`, which never matched a single row in any campaign and
+  // so dropped goals from every wizard entirely.
+  //
+  // Over-reporting is the right way to be wrong here: a goal still pursued when
+  // a saga ends is a decision the DM wants put to them, every row on this step
+  // defaults to "keep", and the set is small. Reaching them by association like
+  // the things below would miss the ones strung only to an item or a faction.
   for (const g of campaign.goals) {
     if (skip(g)) continue;
     if (g.status === "resolved" || g.status === "lost") continue;
-    if (!g.owner || !castIds.has(g.owner)) continue;
     looseEnds.push({ kind: "goals", id: g.id, label: entityLabel(g), status: g.status ?? "unknown" });
   }
 

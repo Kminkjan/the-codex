@@ -12,14 +12,14 @@ import { CompassRose, Icon, kindIcon } from "./icons";
 import { useCampaign, useDismiss, useFindEntity, useIsDm, useKinds } from "./hooks";
 import { useAuth } from "./auth";
 import { CardBody, PinnedCard, ThemedLabel } from "./components";
-import { entityLabel, sessionLabel } from "./data";
+import { entityLabel, isPc, sessionLabel } from "./data";
 import { computeTidyLayout, cardDims, findFreeSpot } from "./boardLayout";
 import { deriveRelations } from "./relations";
 import {
   upsertBoardPosition,
   bulkUpsertBoardPositions,
   insertConnection,
-  deleteConnection,
+  deleteConnectionBetween,
   createEntity,
   markSeen,
 } from "./mutations";
@@ -214,8 +214,8 @@ export function NoticeBoard({
   };
 
   const removeConnection = (fromId: string, toId: string, label: string) => {
-    deleteConnection(fromId, toId, label).catch((e) =>
-      console.error("deleteConnection failed", e),
+    deleteConnectionBetween(fromId, toId, label).catch((e) =>
+      console.error("deleteConnectionBetween failed", e),
     );
   };
 
@@ -710,7 +710,7 @@ export function NoticeBoard({
   );
 }
 
-const NO_FACETS = { tier: "all", status: "all", faction: "all", race: "all" };
+const NO_FACETS = { tier: "all", status: "all", faction: "all", race: "all", pc: "all" };
 
 export function KindList({ kind, onOpenEntity }: { kind: string; onOpenEntity: (id: string) => void }) {
   const kinds = useKinds();
@@ -761,7 +761,12 @@ export function KindList({ kind, onOpenEntity }: { kind: string; onOpenEntity: (
       if (facets.status !== "all") visible = visible.filter((e) => e.status === facets.status);
       if (facets.faction !== "all") visible = visible.filter((e) => e.faction === facets.faction);
       if (facets.race !== "all") visible = visible.filter((e) => e.race?.trim().toLowerCase() === facets.race);
-      if (facets.tier === "all") {
+      if (facets.pc !== "all") visible = visible.filter((e) => isPc(e) === (facets.pc === "pc"));
+      // The background reveal is a bulk-roster valve. Asking for the party
+      // bypasses it — otherwise a background-tier PC would silently vanish from
+      // a list of five people. Asking for townsfolk must NOT bypass it: that is
+      // exactly the bulk population the valve exists to hold back.
+      if (facets.tier === "all" && facets.pc !== "pc") {
         background = visible.filter((e) => personTier(e) === "background").length;
         if (!showBackground) visible = visible.filter((e) => personTier(e) !== "background");
       }
@@ -822,6 +827,11 @@ export function KindList({ kind, onOpenEntity }: { kind: string; onOpenEntity: (
               placeholder="filter by name…"
               title="Filter people by name or epithet"
             />
+            <select className="facet-select" value={facets.pc} onChange={(e) => setFacets((f) => ({ ...f, pc: e.target.value }))} title="Filter player characters">
+              <option value="all">everyone</option>
+              <option value="pc">player characters</option>
+              <option value="npc">townsfolk</option>
+            </select>
             <select className="facet-select" value={facets.tier} onChange={(e) => setFacets((f) => ({ ...f, tier: e.target.value }))} title="Filter by tier">
               <option value="all">every tier</option>
               {PERSON_TIER_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}

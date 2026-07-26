@@ -6,9 +6,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - `npm run dev` — Vite dev server (usually 5173, falls back if in use)
 - `npm run build` — `tsc -b && vite build`; always run this to verify a change typechecks
+- `npm run check` — chains every wired harness below; run it alongside `build` before calling a change done
 - `npm run preview` — serve the production build
 
-No test framework is set up.
+There's no test *framework*, but there are four assertion harnesses in [scripts/](scripts/), each runnable as `npx tsx scripts/<name>.ts` and exiting non-zero on failure:
+
+| harness | guards | wired into `npm run check` |
+| --- | --- | --- |
+| `saga-check.ts` | the pure derivations in [src/saga.ts](src/saga.ts) — the Complete Saga wizard's rules | yes (`check:saga`) |
+| `ui-check.ts` | theme drift (see [docs/design-atlas.md](docs/design-atlas.md)) | yes (`check:ui`) |
+| `relations-check.ts` | the read-projection in [src/relations.ts](src/relations.ts) — `source` (which decides whether a rail chip gets a delete control) and the unordered-pair dedupe that makes one edge stand for a mirrored row pair | yes (`check:relations`) |
+| `layout-check.ts` | board layout | **no — run it by hand** after touching [src/boardLayout.ts](src/boardLayout.ts) |
+
+**A harness fixture can encode the bug it should catch.** `saga-check.ts` asserted the behaviour of a broken owner-as-id check in `sagaScope`, using person ids for a free-text column — so it agreed with the bug rather than catching it, and the bug shipped (#121). When a fix flips what a harness asserts, that's a prompt to check the fixture's *model*, not just to update the expected value.
 
 Supabase migrations live in [supabase/migrations/](supabase/migrations/). The **Supabase GitHub integration auto-applies merged migrations to prod** and rebuilds the full chain on every PR's preview branch — so files must be one-per-version (duplicate numeric prefixes hard-fail the preview branch), apply cleanly from scratch, and never be renumbered once their version is in the remote history. Before numbering a new migration, check the highest version across the directory, the remote history, and in-flight PRs. Prod's remote version 0014 differs from the directory's 0014 — see [supabase/migrations/README.md](supabase/migrations/README.md) for that anomaly, the numbering rules, and the `supabase migration fetch` overwrite warning. Project ref: `nsemknuzupcnvctevgfd` (URL: `https://nsemknuzupcnvctevgfd.supabase.co`).
 
@@ -39,6 +49,8 @@ Dashboard config this depends on (Authentication → …):
 - Providers: **Anonymous ON** (viewer JWTs), **Email ON** (magic link), and **Discord ON** (client ID/secret from the Discord developer app; its OAuth2 Redirects must include `https://nsemknuzupcnvctevgfd.supabase.co/auth/v1/callback`).
 - **Sign-ups open** — anyone with the URL can become an editor via Discord or magic link.
 - URL Configuration: Site URL = production URL; `http://localhost:5173` in Redirect URLs for dev.
+
+**Testing edit-gated surfaces locally.** Anonymous visitors are read-only, so any change behind `canEdit` needs a real non-anonymous session. Set `VITE_DEV_EDITOR_EMAIL`/`VITE_DEV_EDITOR_PASSWORD` in `.env` and call `window.__devSignIn()` from the console — it's compiled out of production by an `import.meta.env.DEV` guard. The account is a throwaway living only in the remote project, so nothing here recreates it and **it goes stale silently**; `__devSignIn` prints the provisioning steps when it hits `invalid_credentials`. Two steps, and the second is the one that gets missed: create the user with **Auto Confirm** ticked, *then* grant it a `campaign_members` row for the campaign under test — since 0023 writes require membership, and that table is deny-all for client writes (0018/0022), so only `create_campaign` or `redeem_campaign_invite` can grant it. Without it you get a session that passes `canEdit` but has every write RLS-rejected into the toast. See [.env.example](.env.example).
 
 ### Entity model
 

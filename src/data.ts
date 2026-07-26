@@ -91,6 +91,13 @@ export interface Person extends ArchivableFields {
   alignment?: string;
   tier?: PersonTier;
   status?: PersonStatus;
+  // Party membership (issue #114). isPc is the roster fact and playerUserId the
+  // account fact — they come apart on purpose: imported campaigns have PCs whose
+  // players will never hold an account, the DM seeds people before invites are
+  // redeemed, and a dead PC stays a PC. Attribution only, never permission:
+  // writes are gated by campaign membership (0023), not by this link.
+  isPc?: boolean;
+  playerUserId?: string;
   location?: string;
   faction?: string;
   lastSeen?: string;
@@ -183,6 +190,15 @@ export interface PresenceUser {
   name: string;
   initials: string;
   color: string;
+}
+
+// Mirrored editor identity from public.profiles (0020) — the durable
+// counterpart to PresenceUser above, covering members whether or not they're
+// online. Written only by upsertMyProfile for the caller's own row.
+export interface UserProfile {
+  userId: string;
+  displayName: string | null;
+  avatarUrl: string | null;
 }
 
 export interface PartyNote {
@@ -343,6 +359,10 @@ export function isPinned(e: any): boolean {
 
 export function isHidden(e: any): boolean {
   return !!(e && e.hidden);
+}
+
+export function isPc(e: any): boolean {
+  return !!(e && e.isPc);
 }
 
 // Player-facing projection: strips DM-hidden entities and every reference to

@@ -36,7 +36,9 @@ const STEPS: Array<{ key: StepKey; parchment: string; atlas: string }> = [
   { key: "confirm", parchment: "Seal it", atlas: "Review" },
 ];
 
-// What to do with a quest/goal the saga never resolved.
+// What to do with an open thread. Quests reach this step filed against the saga;
+// goals arrive unscoped, because nothing on a goal says which saga it belongs to
+// (see the loose-ends block in saga.ts). Either way "keep" is the default.
 type ThreadChoice = "keep" | "lost" | "archive";
 
 interface SagaWizardProps {
