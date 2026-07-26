@@ -10,6 +10,7 @@ import {
   personTier,
 } from "./data";
 import { Icon } from "./icons";
+import { Fleurons, ThemedLabel } from "./components";
 import { bulkArchive } from "./mutations";
 import { useAuth } from "./auth";
 import { deriveRelations } from "./relations";
@@ -92,6 +93,7 @@ function computeSuggestions(campaign: Campaign, n: number): Suggestion[] {
     ["factions", campaign.factions],
     ["items", campaign.items],
     ["lore", campaign.lore],
+    ["monsters", campaign.monsters],
   ];
   for (const [kind, list] of connectionStaleKinds) {
     for (const e of list) {
@@ -187,13 +189,16 @@ export function CleanupPanel({ onClose, onOpenEntity }: CleanupPanelProps) {
       <div className="cleanup-panel" onMouseDown={(e) => e.stopPropagation()}>
         <div className="cleanup-header">
           <button className="cleanup-close" onClick={onClose}><Icon name="close" size={16} /></button>
-          <h2>Tidy the Codex</h2>
+          <h2><ThemedLabel parchment="Tidy the Codex" atlas="Tidy the codex" /></h2>
           <p>
-            Suggestions — nothing is archived until you act. Pinned entries are never suggested.
+            <ThemedLabel
+              parchment="Suggestions — nothing is archived until you act. Pinned entries are never suggested."
+              atlas="Suggestions only — nothing is archived until you act. Pinned entries are never suggested."
+            />
           </p>
         </div>
         <div className="cleanup-controls">
-          <span>Fresh window:</span>
+          <span><ThemedLabel parchment="Fresh window:" atlas="Recent window:" /></span>
           <input
             type="range"
             min={1}
@@ -201,7 +206,7 @@ export function CleanupPanel({ onClose, onOpenEntity }: CleanupPanelProps) {
             value={n}
             onChange={(e) => setN(Number(e.target.value))}
           />
-          <span style={{ fontFamily: "var(--font-fell-sc)", letterSpacing: ".16em", fontSize: 11, color: "var(--ink-secondary)" }}>
+          <span className="cleanup-window-label">
             LAST {n} SESSIONS
           </span>
           <button className="cleanup-link-btn" onClick={selectAll}>select all</button>
@@ -209,7 +214,9 @@ export function CleanupPanel({ onClose, onOpenEntity }: CleanupPanelProps) {
         <div className="cleanup-body">
           {suggestions.length === 0 && (
             <div className="cleanup-empty">
-              ✦ Nothing stale — the Codex is tidy. ✦
+              <Fleurons>
+                <ThemedLabel parchment="Nothing stale — the Codex is tidy." atlas="Nothing stale — the codex is tidy." />
+              </Fleurons>
             </div>
           )}
           {ARCHIVABLE_KINDS.map((kind) => {

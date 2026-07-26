@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { type KindKey, PERSON_STATUS_OPTIONS, PERSON_TIER_OPTIONS, entityLabel, isArchivableKind, isArchived, isHidden, isPinned, personTier, sessionFeedToMarkdown, sessionLabel } from "./data";
+import { type KindKey, MONSTER_THREAT_OPTIONS, PERSON_STATUS_OPTIONS, PERSON_TIER_OPTIONS, entityLabel, isArchivableKind, isArchived, isHidden, isPinned, personTier, sessionFeedToMarkdown, sessionLabel } from "./data";
 import { Icon, kindIcon } from "./icons";
 import { StatusChip, EditableText, EditableMarkdown, EnumSelect, EntitySelect, EntityCombobox, Fleurons } from "./components";
 import { useCampaign, useFindEntity, useIsDm } from "./hooks";
@@ -26,7 +26,7 @@ import { FeedRow } from "./livePanel";
 import { uploadEntityImage, type UploadableKind } from "./upload";
 import { deriveRelations } from "./relations";
 
-const UPLOADABLE_KINDS = ["people", "locations", "factions", "items", "sessions"] as const;
+const UPLOADABLE_KINDS = ["people", "locations", "factions", "items", "monsters", "sessions"] as const;
 const isUploadable = (k: KindKey): k is UploadableKind =>
   (UPLOADABLE_KINDS as readonly string[]).includes(k);
 
@@ -198,6 +198,7 @@ function AddRelationForm({ fromId }: { fromId: string }) {
       ...campaign.factions.map((f) => ({ id: f.id, label: f.name, kind: "factions" as const, archived: f.archived, hidden: f.hidden })),
       ...campaign.items.map((i) => ({ id: i.id, label: i.name, kind: "items" as const, archived: i.archived, hidden: i.hidden })),
       ...campaign.lore.map((l) => ({ id: l.id, label: l.title, kind: "lore" as const, archived: l.archived, hidden: l.hidden })),
+      ...campaign.monsters.map((m) => ({ id: m.id, label: m.name, kind: "monsters" as const, archived: m.archived, hidden: m.hidden })),
       ...campaign.sessions.map((s) => ({ id: s.id, label: s.title, kind: "sessions" as const })),
       ...campaign.arcs.map((a) => ({ id: a.id, label: a.title, kind: "arcs" as const })),
       ...campaign.events.map((e) => ({ id: e.id, label: e.title, kind: "events" as const })),
@@ -263,6 +264,7 @@ const primaryField: Record<KindKey, string> = {
   locations: "name",
   factions: "name",
   items: "name",
+  monsters: "name",
   quests: "title",
   lore: "title",
   sessions: "title",
@@ -415,12 +417,39 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
   // ("New person" opens the id right after createEntity; the takeover and
   // deep links guard with findEntity, this flow can't). Hooks live above the
   // return; they only read campaign, so a null entity is fine here.
+  // A chapter or quest can be filed at either altitude, so this lists sagas
+  // and arcs together. Children carry their saga in the label — the list runs
+  // to ~25 entries on a long campaign and "Vallaki Arc" alone doesn't say
+  // which saga it belongs to.
   const arcOptions = useMemo(
+    () => {
+      const titleOf = new Map(campaign.arcs.map((a) => [a.id, a.title]));
+      return campaign.arcs
+        .slice()
+        .sort((a, b) => a.orderNum - b.orderNum)
+        .map((a) => ({
+          id: a.id,
+          label: a.parentId && titleOf.has(a.parentId) ? `${titleOf.get(a.parentId)} · ${a.title}` : a.title,
+          kind: "arcs" as const,
+        }));
+    },
+    [campaign.arcs],
+  );
+  // Eligible sagas for this arc's parent. Mirrors tg_arcs_depth (0025): a
+  // parent must itself be top-level, and can't be the arc being edited. The
+  // remaining rule — an arc with children can't become a child — is enforced by
+  // not rendering the picker at all in that case (see below), so the UI can
+  // never offer a write the trigger would refuse.
+  const sagaOptions = useMemo(
     () => campaign.arcs
-      .slice()
+      .filter((a) => !a.parentId && a.id !== entityId)
       .sort((a, b) => a.orderNum - b.orderNum)
       .map((a) => ({ id: a.id, label: a.title, kind: "arcs" as const })),
-    [campaign.arcs],
+    [campaign.arcs, entityId],
+  );
+  const hasChildArcs = useMemo(
+    () => campaign.arcs.some((a) => a.parentId === entityId),
+    [campaign.arcs, entityId],
   );
   const sessionOptions = useMemo(
     () => campaign.sessions
@@ -486,6 +515,19 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
         related.quests.push({ entity: findEntity(q.id), rel: "woven into this arc" });
       }
     });
+    // The nesting itself (0025), in both directions: the saga above, or the
+    // arcs below. Both land in `related.arcs`, which the rail already renders.
+    const pushArc = (id: string, rel: string) => {
+      const a = findEntity(id);
+      if (!a) return;
+      related.arcs = related.arcs || [];
+      if (!related.arcs.find((r) => r.entity.id === a.id)) related.arcs.push({ entity: a, rel });
+    };
+    if ((entity as any).parentId) pushArc((entity as any).parentId, "part of saga");
+    campaign.arcs
+      .filter((a) => a.parentId === entityId)
+      .sort((a, b) => a.orderNum - b.orderNum)
+      .forEach((a) => pushArc(a.id, "arc of this saga"));
   }
   // Event chips on the sheets an event touches.
   {
@@ -598,7 +640,8 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
 
   const kindTitle: Record<string, string> = {
     people: "Person of Note", locations: "Location", quests: "Quest",
-    goals: "Goal", factions: "Faction", items: "Item", lore: "Lore", sessions: "Session",
+    goals: "Goal", factions: "Faction", items: "Item", lore: "Lore",
+    monsters: "Bestiary Entry", sessions: "Session",
     arcs: "Story Arc", events: "Event",
   };
 
@@ -856,6 +899,13 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                 {kind === "items" && (
                   <Stat label="Kind" empty={!(entity as any).kind?.trim()}><EditableText value={(entity as any).kind ?? ""} onSave={(v) => patch({ kind: v })} placeholder="—" /></Stat>
                 )}
+                {kind === "monsters" && (
+                  <>
+                    <Stat label="Type" empty={!(entity as any).kind?.trim()}><EditableText value={(entity as any).kind ?? ""} onSave={(v) => patch({ kind: v })} placeholder="—" /></Stat>
+                    <Stat label="Threat" empty={!(entity as any).threat} valueStyle={{ textTransform: "capitalize" }}><EnumSelect value={(entity as any).threat} options={MONSTER_THREAT_OPTIONS} allowClear onSave={(v) => patch({ threat: v })} /></Stat>
+                    <Stat label="Habitat" empty={!(entity as any).habitat?.trim()} span={2} valueStyle={{ fontSize: 14 }}><EditableText value={(entity as any).habitat ?? ""} onSave={(v) => patch({ habitat: v })} placeholder="— where it is met —" /></Stat>
+                  </>
+                )}
                 {kind === "sessions" && (
                   <>
                     <Stat label="No."><EditableNumber value={(entity as any).num ?? 0} onSave={(n) => patch({ num: n })} /></Stat>
@@ -866,6 +916,15 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                 )}
                 {kind === "arcs" && (
                   <>
+                    {hasChildArcs ? (
+                      <Stat label="Saga" span={2} valueStyle={{ fontSize: 13 }}>
+                        <span style={{ fontFamily: "var(--font-body)", fontStyle: "italic", color: "var(--ink-secondary)" }}>
+                          a saga in its own right
+                        </span>
+                      </Stat>
+                    ) : (
+                      <Stat label="Part of Saga" empty={!(entity as any).parentId} span={2} valueStyle={{ fontSize: 13 }}><EntitySelect value={(entity as any).parentId} options={sagaOptions} allowClear onSave={(id) => patch({ parentId: id ?? "" })} /></Stat>
+                    )}
                     <Stat label="First Session" empty={!(entity as any).startSession} span={2} valueStyle={{ fontSize: 13 }}><EntitySelect value={(entity as any).startSession} options={sessionOptions} allowClear onSave={(id) => patch({ startSession: id ?? "" })} /></Stat>
                     <Stat label="Last Session" empty={!(entity as any).endSession} span={2} valueStyle={{ fontSize: 13 }}><EntitySelect value={(entity as any).endSession} options={sessionOptions} allowClear onSave={(id) => patch({ endSession: id ?? "" })} /></Stat>
                     <Stat label="Order"><EditableNumber value={(entity as any).orderNum ?? 0} onSave={(n) => patch({ orderNum: n })} /></Stat>
@@ -998,7 +1057,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                     multiline
                     value={(entity as any).desc ?? ""}
                     onSave={(v) => patch({ desc: v })}
-                    placeholder="Describe this…"
+                    placeholder={kind === "monsters" ? "What the party has learned of it…" : "Describe this…"}
                     style={{ fontFamily: "var(--font-body)" }}
                   />
                 </div>
@@ -1081,13 +1140,14 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
 
               {kind === "events" && <EventParticipantsEditor eventId={entityId} onOpen={onOpen} />}
 
-              {(["people", "locations", "quests", "goals", "factions", "items", "lore", "sessions", "arcs", "events"] as const).map((k) => {
+              {(["people", "locations", "quests", "goals", "factions", "items", "lore", "monsters", "sessions", "arcs", "events"] as const).map((k) => {
                 const list = related[k];
                 if (!list || list.length === 0) return null;
                 const label: Record<string, string> = {
                   people: "Known Folk", locations: "Places", quests: "Quests",
                   goals: "Goals", factions: "Factions", items: "Items & Relics",
-                  lore: "Lore", sessions: "Sessions", arcs: "Story Arcs", events: "Events",
+                  lore: "Lore", monsters: "Bestiary", sessions: "Sessions",
+                  arcs: "Sagas & Arcs", events: "Events",
                 };
                 return (
                   <div className="rail-section" key={k}>

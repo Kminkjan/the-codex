@@ -194,6 +194,18 @@ const mapLore = (r: any) => ({
   ...archiveFields(r),
 });
 
+const mapMonster = (r: any) => ({
+  id: r.id,
+  name: r.name,
+  kind: r.kind ?? undefined,
+  threat: r.threat ?? undefined,
+  habitat: r.habitat ?? undefined,
+  desc: r.desc ?? undefined,
+  imageUrl: r.image_url ?? undefined,
+  notes: r.notes ?? undefined,
+  ...archiveFields(r),
+});
+
 const mapSession = (r: any) => ({
   id: r.id,
   num: r.num,
@@ -212,6 +224,8 @@ const mapArc = (r: any) => ({
   startSession: r.start_session_id ?? undefined,
   endSession: r.end_session_id ?? undefined,
   orderNum: r.order_num ?? 0,
+  parentId: r.parent_id ?? undefined,
+  completedAt: r.completed_at ?? undefined,
 });
 
 const mapEvent = (r: any) => ({
@@ -304,6 +318,7 @@ async function fetchCampaign(id: string): Promise<Campaign> {
     factionsRes,
     itemsRes,
     loreRes,
+    monstersRes,
     connectionsRes,
     boardRes,
     notesRes,
@@ -325,6 +340,7 @@ async function fetchCampaign(id: string): Promise<Campaign> {
     supabase.from("factions").select("*").eq("campaign_id", id),
     supabase.from("items").select("*").eq("campaign_id", id),
     supabase.from("lore").select("*").eq("campaign_id", id),
+    supabase.from("monsters").select("*").eq("campaign_id", id),
     supabase.from("connections").select("*").eq("campaign_id", id),
     supabase.from("board_positions").select("*").eq("campaign_id", id),
     supabase.from("party_notes").select("*").eq("campaign_id", id).order("created_at"),
@@ -334,7 +350,7 @@ async function fetchCampaign(id: string): Promise<Campaign> {
     campaignRes, sessionsRes, arcsRes, eventsRes, participantsRes,
     sessionParticipantsRes, sessionStagingRes, sessionEventsRes, dmNotesRes,
     peopleRes, locationsRes, questsRes, goalsRes, factionsRes, itemsRes,
-    loreRes, connectionsRes, boardRes, notesRes,
+    loreRes, monstersRes, connectionsRes, boardRes, notesRes,
   ].find((r) => r.error);
   if (first?.error) throw new Error(first.error.message);
 
@@ -365,6 +381,7 @@ async function fetchCampaign(id: string): Promise<Campaign> {
     factions: (factionsRes.data ?? []).map(mapFaction),
     items: (itemsRes.data ?? []).map(mapItem),
     lore: (loreRes.data ?? []).map(mapLore),
+    monsters: (monstersRes.data ?? []).map(mapMonster),
     connections: (connectionsRes.data ?? []).map(mapConnection),
     board: Object.fromEntries((boardRes.data ?? []).map(mapBoardPosition)),
     notes: notesByEntity,
@@ -690,6 +707,13 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
           { event: "*", schema: "public", table: "lore", filter },
           (payload: any) => {
             setCampaign((c) => c && c.id === campaignId ? { ...c, lore: applyArrayChange(c.lore, payload.eventType, payload.new ? mapLore(payload.new) : null, payload.old ? mapLore(payload.old) : null) } : c);
+          },
+        );
+        channel.on(
+          "postgres_changes" as any,
+          { event: "*", schema: "public", table: "monsters", filter },
+          (payload: any) => {
+            setCampaign((c) => c && c.id === campaignId ? { ...c, monsters: applyArrayChange(c.monsters, payload.eventType, payload.new ? mapMonster(payload.new) : null, payload.old ? mapMonster(payload.old) : null) } : c);
           },
         );
         channel.on(

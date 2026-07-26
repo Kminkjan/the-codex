@@ -15,7 +15,7 @@ import type { BoardPosition, KindKey } from "../src/data";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 const TABLES = [
-  "people", "locations", "quests", "goals", "factions", "items", "lore",
+  "people", "locations", "quests", "goals", "factions", "items", "lore", "monsters",
   "sessions", "events", "connections", "board_positions",
 ] as const;
 

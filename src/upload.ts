@@ -3,7 +3,7 @@ import { supabase } from "./utils/supabase";
 const BUCKET = "entity-images";
 const MAX_BYTES = 5 * 1024 * 1024;
 
-export type UploadableKind = "people" | "locations" | "factions" | "items" | "sessions";
+export type UploadableKind = "people" | "locations" | "factions" | "items" | "monsters" | "sessions";
 
 // "campaign" is a path prefix for the campaign crest (issue #85), not a
 // KindKey — keep it out of UploadableKind, which detail.tsx feeds into

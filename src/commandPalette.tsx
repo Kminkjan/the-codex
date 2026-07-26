@@ -184,7 +184,7 @@ export function CommandPalette({ open, onClose, onOpenEntity, onLocate }: Comman
         </div>
         <div className="cmdk-list" ref={listRef} role="listbox" id="cmdk-listbox">
           {query.trim() === "" && (
-            <div className="cmdk-empty">Type to search people, places, quests, goals, factions, items, lore, sessions, and party notes — or narrow people with tier: status: race: faction:</div>
+            <div className="cmdk-empty">Type to search people, places, quests, goals, factions, items, lore, monsters, sessions, and party notes — or narrow people with tier: status: race: faction:</div>
           )}
           {query.trim() !== "" && results.length === 0 && (
             <div className="cmdk-empty">Nothing in the codex matches "{query}".</div>

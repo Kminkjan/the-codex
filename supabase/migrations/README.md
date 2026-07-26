@@ -8,7 +8,11 @@ Consequences of the integration:
 - **Migrations must apply cleanly from scratch** (preview branches replay 0001→head on an empty database) and should be idempotent where possible.
 - **Never renumber a file whose version is already in the remote history** — that would desync repo and remote forever.
 
-**Picking a number for a new migration:** take the next number after the highest across (a) this directory, (b) the remote history, and (c) any in-flight branch or open PR that adds a migration. As of 2026-07-25 that next number is **0024** — 0023 (`campaign_crud_membership_scoping`, issue #87) is the highest here, and issue #86's `campaign_invites` has since landed as 0022.
+**Picking a number for a new migration:** take the next number after the highest across (a) this directory, (b) the remote history, and (c) any in-flight branch or open PR that adds a migration. As of 2026-07-26 that next number is **0026** — 0025 (`arc_nesting`, sagas) is the highest here, and 0024 added the `monsters` Bestiary kind.
+
+**Adding an entity kind?** 0024 is the worked example of everything a new archivable kind needs at the DB layer, including the one easy-to-miss edit: `entity_hidden()` (0018) has to learn the new table, or hidden rows of that kind leak their connections and board pins to players.
+
+**Touching arcs?** Nesting is capped at two levels (saga → arc) by the `tg_arcs_depth` trigger in [0025_arc_nesting.sql](0025_arc_nesting.sql), which is also what makes cycles impossible. Any UI that writes `arcs.parent_id` must mirror its four rules or it will offer writes the database refuses.
 
 ## Known anomaly: prod's version 0014 is not this directory's 0014
 

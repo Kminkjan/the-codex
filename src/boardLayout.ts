@@ -23,6 +23,9 @@ export const CARD_SIZE: Record<string, { w: number; h: number }> = {
   factions: { w: 180, h: 80 },
   items: { w: 170, h: 90 },
   lore: { w: 190, h: 90 },
+  // Artwork-forward like the people poster, a touch shorter (no epithet or
+  // last-seen row beneath the plate).
+  monsters: { w: 210, h: 270 },
 };
 const DEFAULT_SIZE = { w: 200, h: 140 };
 export const cardDims = (kind: string) => CARD_SIZE[kind] || DEFAULT_SIZE;

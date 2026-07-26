@@ -27,6 +27,7 @@ export const KIND_LABEL: Record<KindKey, string> = {
   factions: "Faction",
   items: "Item",
   lore: "Lore",
+  monsters: "Monster",
   sessions: "Session",
   arcs: "Arc",
   events: "Event",
@@ -144,6 +145,17 @@ export function buildIndex(campaign: Campaign): Indexed[] {
       secondary: lo.text ?? "",
       archived: lo.archived,
       hidden: lo.hidden,
+    });
+  }
+  for (const m of campaign.monsters) {
+    out.push({
+      id: m.id,
+      kind: "monsters",
+      label: entityLabel(m),
+      primary: m.name ?? "",
+      secondary: joinFields(m.kind, m.threat, m.habitat, m.desc, m.notes),
+      archived: m.archived,
+      hidden: m.hidden,
     });
   }
   for (const s of campaign.sessions) {
