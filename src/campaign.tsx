@@ -366,11 +366,15 @@ function DangerZoneCard() {
   );
 }
 
+// Membership only. Names and avatars are resolved from the profiles map at
+// render, not stored here: baking them in made loadRoster depend on that map,
+// so every profiles resolution changed the callback's identity and refetched
+// campaign_members for a second time. The identity fields have their own
+// lifecycle (a global, non-realtime mirror) — keeping them out of roster state
+// lets each refresh on its own terms.
 interface RosterEntry {
   userId: string;
   role: "dm" | "player";
-  name: string | null;
-  avatarUrl: string | null;
 }
 
 export function CampaignCharterPage({ onOpenEntity }: { onOpenEntity: (id: string) => void }) {
@@ -387,11 +391,10 @@ export function CampaignCharterPage({ onOpenEntity }: { onOpenEntity: (id: strin
   // newest in-flight fetch may write state.
   const rosterSeq = useRef(0);
 
-  // Party roster: campaign_members named from the shared profiles map (issue
-  // #114 hoisted it into CampaignProvider — no FK between the two tables, so
-  // it was never a PostgREST embed anyway). Not realtime-published — reruns
-  // per charter mount / campaign switch, and on membershipVersion bumps
-  // after membership RPCs (issue #86). Profiles staleness is accepted.
+  // Party roster: who is a member, nothing more (no FK to profiles, so this was
+  // never a PostgREST embed anyway). Not realtime-published — reruns per
+  // charter mount / campaign switch, and on membershipVersion bumps after
+  // membership RPCs (issue #86).
   const loadRoster = useCallback(async () => {
     const seq = ++rosterSeq.current;
     const { data: members, error } = await supabase
@@ -400,21 +403,27 @@ export function CampaignCharterPage({ onOpenEntity }: { onOpenEntity: (id: strin
       .eq("campaign_id", campaign.id);
     if (seq !== rosterSeq.current) return;
     if (error) { console.error(error); setRoster([]); return; }
-    const entries: RosterEntry[] = (members ?? []).map((m: any) => ({
-      userId: m.user_id,
-      role: m.role,
-      name: profilesById.get(m.user_id)?.displayName ?? null,
-      avatarUrl: profilesById.get(m.user_id)?.avatarUrl ?? null,
-    }));
-    // DM first, then named members alphabetically, unnamed last.
-    entries.sort((a, b) =>
-      a.role !== b.role ? (a.role === "dm" ? -1 : 1) : (a.name ?? "￿").localeCompare(b.name ?? "￿"));
-    setRoster(entries);
-  }, [campaign.id, profilesById]);
+    setRoster((members ?? []).map((m: any) => ({ userId: m.user_id, role: m.role })));
+  }, [campaign.id]);
 
   useEffect(() => {
     loadRoster();
   }, [loadRoster, membershipVersion]);
+
+  // Names/avatars joined in at render, so a profiles refresh re-sorts without
+  // re-querying campaign_members. DM first, then named members alphabetically,
+  // unnamed last. Profiles staleness is accepted.
+  const namedRoster = useMemo(() => {
+    if (!roster) return null;
+    return roster
+      .map((m) => ({
+        ...m,
+        name: profilesById.get(m.userId)?.displayName ?? null,
+        avatarUrl: profilesById.get(m.userId)?.avatarUrl ?? null,
+      }))
+      .sort((a, b) =>
+        a.role !== b.role ? (a.role === "dm" ? -1 : 1) : (a.name ?? "￿").localeCompare(b.name ?? "￿"));
+  }, [roster, profilesById]);
 
   // Characters a member can be bound to (issue #114). Only people already
   // marked as PCs on their detail sheet: the charter binds a player to a
@@ -549,19 +558,19 @@ export function CampaignCharterPage({ onOpenEntity }: { onOpenEntity: (id: strin
             around the controls is load-bearing like the identity plate's:
             it hides guaranteed-to-fail RPC calls and folds view-as-player in. */}
         <SectionHeading>THE PARTY</SectionHeading>
-        {roster === null ? (
+        {namedRoster === null ? (
           <div style={{ fontFamily: "var(--font-body)", fontStyle: "italic", fontSize: 14, color: "var(--ink-secondary)" }}>
             Consulting the rolls…
           </div>
-        ) : roster.length === 0 ? (
+        ) : namedRoster.length === 0 ? (
           <div style={{ fontFamily: "var(--font-body)", fontStyle: "italic", fontSize: 14, color: "var(--ink-secondary)" }}>
             No members are recorded on this charter yet.
           </div>
         ) : (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 14 }}>
             {(() => {
-              const dmCount = roster.filter((r) => r.role === "dm").length;
-              return roster.map((m) => {
+              const dmCount = namedRoster.filter((r) => r.role === "dm").length;
+              return namedRoster.map((m) => {
                 // The server's last-DM guard is authoritative; this only
                 // prevents a guaranteed-to-fail click.
                 const lastDm = m.role === "dm" && dmCount === 1;
@@ -673,6 +682,26 @@ export function CampaignCharterPage({ onOpenEntity }: { onOpenEntity: (id: strin
                             allowClear
                             onSave={(id) => {
                               if (id === (playing?.id ?? null)) return;
+                              // Binding a character overwrites its player_user_id,
+                              // so picking one someone else is playing takes it from
+                              // them. That is allowed — a DM correcting an assignment
+                              // shouldn't have to unbind twice — but it must not be
+                              // silent, since the loser sees only their own row go
+                              // blank. Same confirm ritual as strike/leave below.
+                              const heldBy = id
+                                ? namedRoster.find(
+                                    (o) => o.userId !== m.userId
+                                      && campaign.people.some(
+                                        (p) => p.id === id && p.playerUserId === o.userId && p.status !== "dead",
+                                      ),
+                                  )
+                                : undefined;
+                              if (heldBy) {
+                                const taken = campaign.people.find((p) => p.id === id)?.name ?? "that character";
+                                if (!window.confirm(
+                                  `${taken} is played by ${heldBy.name ?? "another member"}. Reassign to ${label}?`,
+                                )) return;
+                              }
                               bindPlayerCharacter(
                                 m.userId,
                                 id,
