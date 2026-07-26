@@ -50,6 +50,15 @@
 -- the nine KindKeys and has no CARD_SIZE entry, so an events pin would be the
 -- blank-thumbtack bug 0027 documents for sessions.
 --
+-- Also deliberately NOT here: sessions.date. That column is the real-world play
+-- date, and the charter's LAST PLAYED tile and chronicle epigraph read it — so
+-- its absence is a visible hole, and leaving it is a decision rather than an
+-- oversight. Fendwick's four chapters are distillations of three in-game DAYS
+-- taken from the DM's notes, not transcripts of four evenings at a table; there
+-- is no single play date that honestly belongs to any of them. Do not backfill
+-- this by inference. If the DM later supplies real dates for real sessions, that
+-- is the moment for it.
+--
 -- Idempotent: id'd inserts use ON CONFLICT DO NOTHING and both junctions have
 -- composite primary keys, so replaying inserts nothing and re-fires no trigger.
 -- ===========================================================================
