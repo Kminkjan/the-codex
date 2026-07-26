@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { type KindKey, MONSTER_THREAT_OPTIONS, PERSON_STATUS_OPTIONS, PERSON_TIER_OPTIONS, bothVisible, entityLabel, isArchivableKind, isArchived, isHidden, isPc, isPinned, isVisible, personTier, sessionFeedToMarkdown, sessionLabel } from "./data";
+import { ARCHIVABLE_KINDS, type KindKey, MONSTER_THREAT_OPTIONS, PERSON_STATUS_OPTIONS, PERSON_TIER_OPTIONS, bothVisible, entityLabel, isArchivableKind, isArchived, isHidden, isPc, isPinned, isVisible, personTier, sessionFeedToMarkdown, sessionLabel } from "./data";
 import { Icon, kindIcon } from "./icons";
-import { StatusChip, EditableText, EditableMarkdown, EnumSelect, EntitySelect, EntityCombobox, Fleurons } from "./components";
+import { StatusChip, EditableText, EditableMarkdown, EnumSelect, EntitySelect, EntityCombobox, type EntityOption, Fleurons, ThemedLabel } from "./components";
 import { useCampaign, useFindEntity, useIsDm, useProfiles } from "./hooks";
 import { useAuth } from "./auth";
 import {
@@ -375,6 +375,281 @@ function EventParticipantsEditor({ eventId, onOpen }: { eventId: string; onOpen:
   );
 }
 
+// The session's prep queue, on the session's own sheet — the counterpart to
+// StageControls, so a DM can prepare a whole evening from one page instead of
+// visiting nine entity sheets. DM-only (the queue is projected out for everyone
+// else). Releasing stays in the live panel: this is the prep desk, not the
+// release desk.
+function SessionPrepList({ sessionId, onOpen }: { sessionId: string; onOpen: (id: string) => void }) {
+  const campaign = useCampaign();
+  const findEntity = useFindEntity();
+
+  const rows = campaign.sessionStaging
+    .filter((r) => r.sessionId === sessionId)
+    // A staging row can transiently dangle between an entity delete and the
+    // staging sweep landing — skip rather than render a ghost.
+    .flatMap((r) => {
+      const ent = findEntity(r.entityId);
+      return ent ? [{ row: r, ent }] : [];
+    })
+    .sort((a, b) =>
+      (a.row.releasedAt ? 1 : 0) - (b.row.releasedAt ? 1 : 0)
+      || entityLabel(a.ent).localeCompare(entityLabel(b.ent)),
+    );
+
+  // Only the archivable kinds carry `hidden` and a reveal ceremony — sessions,
+  // arcs and events are never staged.
+  const options = useMemo<EntityOption[]>(() => {
+    const staged = new Set(
+      campaign.sessionStaging.filter((r) => r.sessionId === sessionId).map((r) => r.entityId),
+    );
+    return ARCHIVABLE_KINDS.flatMap((k) =>
+      ((campaign as any)[k] as any[]).map((e) => ({
+        id: e.id,
+        label: e[primaryField[k]] ?? "",
+        kind: k,
+        archived: e.archived,
+        hidden: e.hidden,
+      })),
+    ).filter((o) => !staged.has(o.id));
+  }, [campaign, sessionId]);
+
+  return (
+    <div className="detail-prep">
+      <h3 style={{ marginTop: 28 }}>
+        <ThemedLabel parchment="The DM's Preparations" atlas="Staged for this session" />
+      </h3>
+      {/* Voice-neutral, so no ThemedLabel. */}
+      {rows.length === 0 && (
+        <div className="live-dm-empty">Nothing staged for this session yet.</div>
+      )}
+      {rows.map(({ row, ent }) => (
+        <div className="live-stage-row" key={row.entityId}>
+          <Icon name={kindIcon[ent._kind as KindKey]} size={13} />
+          <span className="lbl" onClick={() => onOpen(row.entityId)} title={entityLabel(ent)}>
+            {entityLabel(ent)}
+            {/* Staged-but-visible is legal (the STAGE flow allows it) — surface
+                it so a later "reveal" of something the party already sees is
+                deliberate, not a surprise. */}
+            {!row.releasedAt && !isHidden(ent) && <span className="live-visible-hint">visible</span>}
+          </span>
+          {row.releasedAt ? (
+            <span className="live-released" title="Released during this session">✓ revealed</span>
+          ) : (
+            <button
+              className="prep-unstage-btn"
+              title={`Take “${entityLabel(ent)}” off this session's queue`}
+              onClick={() => unstageEntity(sessionId, row.entityId).catch(console.error)}
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      ))}
+      <EntityCombobox
+        options={options}
+        onSelect={(id) => {
+          if (!id) return;
+          const ent = findEntity(id);
+          if (!ent) return;
+          // Same hide offer as StageControls: staging happens either way, so
+          // Cancel means "stage it, but leave it visible".
+          if (!isHidden(ent) && window.confirm(`Hide “${entityLabel(ent)}” from the party until released?`)) {
+            updateEntity(ent._kind as KindKey, id, { hidden: true }).catch(console.error);
+          }
+          stageEntity(sessionId, id).catch(console.error);
+        }}
+        placeholder="Stage something for this session…"
+        style={{ marginTop: 10, fontSize: 13 }}
+      />
+    </div>
+  );
+}
+
+// The DM's staging + reveal controls (issues #65/#68/#69). Staging is a
+// (session_id, entity_id) row with no tie to campaigns.active_session_id, so
+// prep is deliberately NOT live-only: the target defaults to the live session
+// when there is one and the newest session otherwise, and the ▾ picker
+// retargets to any session. Only RELEASE and ⚡ SHOW NOW stay live-gated —
+// both append to the live feed and SHOW takes over every player's screen,
+// which means nothing for a session that hasn't started.
+function StageControls({ kind, entityId, entity, patch }: {
+  kind: KindKey;
+  entityId: string;
+  entity: any;
+  patch: (fields: Record<string, unknown>) => void;
+}) {
+  const campaign = useCampaign();
+  const { displayName } = useAuth();
+  // Double-click guard for RELEASE: the reveal event insert isn't idempotent
+  // and realtime won't flip the staging row fast enough.
+  const [releasing, setReleasing] = useState(false);
+  // Same guard for SHOW NOW, but cleared on settle (success and failure):
+  // this button never unmounts, and a deliberate re-show is legitimate.
+  const [showing, setShowing] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setPickerOpen(false);
+    };
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
+  }, [pickerOpen]);
+
+  // Newest first — the session you're most likely prepping for.
+  const ordered = useMemo(
+    () => [...campaign.sessions].sort((a, b) => b.num - a.num),
+    [campaign.sessions],
+  );
+  const live = campaign.activeSessionId
+    ? ordered.find((s) => s.id === campaign.activeSessionId)
+    : undefined;
+  // Staging needs a session row to hang off — with none, there's nothing to
+  // offer (the sidebar's + creates one ahead of play).
+  const target = live ?? ordered[0];
+  if (!target) return null;
+
+  const rowFor = (sessionId: string) =>
+    campaign.sessionStaging.find((r) => r.sessionId === sessionId && r.entityId === entityId);
+  // Queued = staged and not yet released. A released row is history, not a
+  // pending reveal, so it doesn't claim the badge — it shows in the picker.
+  const queued = ordered.filter((s) => {
+    const row = rowFor(s.id);
+    return !!row && !row.releasedAt;
+  });
+  const label = entityLabel(entity);
+
+  const doStage = (sessionId: string) => {
+    // Staging happens either way — the confirm is only the hide offer (default
+    // yes), so Cancel truthfully means "stage it, but leave it visible".
+    if (!isHidden(entity) && window.confirm(`Hide “${label}” from the party until released?`)) {
+      patch({ hidden: true });
+    }
+    stageEntity(sessionId, entityId).catch(console.error);
+  };
+
+  const liveQueued = live ? queued.some((s) => s.id === live.id) : false;
+  const liveCode = live ? sessionLabel(live.num) : "";
+
+  return (
+    <>
+      {queued.map((s) => (
+        <button
+          key={s.id}
+          onClick={() => unstageEntity(s.id, entityId).catch(console.error)}
+          title={`Remove from the session ${sessionLabel(s.num)} queue`}
+          className="detail-action-btn"
+          style={{ borderColor: "var(--mustard)", color: "var(--mustard-deep)" }}
+        >
+          ⧉ STAGED {sessionLabel(s.num)}
+        </button>
+      ))}
+      <div className="stage-picker" ref={rootRef}>
+        {!queued.some((s) => s.id === target.id) && (
+          <button
+            onClick={() => doStage(target.id)}
+            title={rowFor(target.id)?.releasedAt
+              ? `Already revealed in session ${sessionLabel(target.num)} — re-queue it for another reveal`
+              : `Stage for session ${sessionLabel(target.num)} — queued for one-click release from the live panel`}
+            className="detail-action-btn"
+          >
+            ⧉ STAGE {sessionLabel(target.num)}
+          </button>
+        )}
+        <button
+          onClick={() => setPickerOpen((o) => !o)}
+          title="Stage for another session"
+          className="detail-action-btn"
+          aria-haspopup="listbox"
+          aria-expanded={pickerOpen}
+          style={{ padding: "4px 6px" }}
+        >
+          ▾
+        </button>
+        {pickerOpen && (
+          <div className="campaign-picker-menu" role="listbox">
+            {ordered.map((s) => {
+              const row = rowFor(s.id);
+              const isQueued = !!row && !row.releasedAt;
+              return (
+                <button
+                  key={s.id}
+                  role="option"
+                  aria-selected={isQueued}
+                  className="campaign-picker-item"
+                  onClick={() => {
+                    if (isQueued) unstageEntity(s.id, entityId).catch(console.error);
+                    else doStage(s.id);
+                    setPickerOpen(false);
+                  }}
+                  title={isQueued ? `Remove from the session ${sessionLabel(s.num)} queue` : `Stage for session ${sessionLabel(s.num)}`}
+                >
+                  <span className="dot" style={{ visibility: s.id === campaign.activeSessionId ? "visible" : "hidden" }} />
+                  <span style={{ flex: 1, fontFamily: "var(--font-body)", fontSize: 13 }}>
+                    {sessionLabel(s.num)} — {s.title}
+                  </span>
+                  <span style={{ fontFamily: "var(--font-fell-sc)", fontSize: 10, letterSpacing: ".12em", color: "var(--ink-secondary)" }}>
+                    {isQueued ? "⧉ STAGED" : row?.releasedAt ? "✓ REVEALED" : ""}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+      {/* One-click release from the sheet (issue #68) — the same verb as the
+          live panel's queue button. Unhiding via ◈ UNREVEALED is not a
+          release: no feed event, no released_at stamp, no seen-mark. */}
+      {live && liveQueued && isHidden(entity) && (
+        <button
+          disabled={releasing || showing}
+          onClick={() => {
+            setReleasing(true);
+            releaseEntity(kind, entityId, live.id, { author: displayName || undefined, label })
+              // Clear ONLY on failure (for retry). On success the button
+              // unmounts once realtime flips hidden/released_at; resetting
+              // here would re-enable it in the echo gap and allow a duplicate
+              // release.
+              .catch((e) => { console.error("releaseEntity failed", e); setReleasing(false); });
+          }}
+          title={`Reveal to the party now — unhides it, stamps the ${liveCode} queue, and lands in the session feed`}
+          className="detail-action-btn"
+          style={{ borderColor: "var(--bloodred)", color: "var(--bloodred)" }}
+        >
+          {releasing ? "🕯 …" : "🕯 RELEASE"}
+        </button>
+      )}
+      {/* "Show now" (#69): the loud reveal — release semantics (unhide + stamp
+          if queued) plus a takeover that opens this sheet on every player's
+          screen. Legal on anything while live, hidden or not, staged or not —
+          and only while live, since it's the live feed it plays to. */}
+      {live && (
+        <button
+          disabled={showing || releasing}
+          onClick={() => {
+            setShowing(true);
+            showEntity(kind, entityId, live.id, {
+              author: displayName || undefined,
+              label,
+              unhide: isHidden(entity),
+            })
+              .catch((e) => console.error("showEntity failed", e))
+              .finally(() => setShowing(false));
+          }}
+          title={`Show “${label}” now — opens it on every player's screen and lands in the ${liveCode} feed`}
+          className="detail-action-btn"
+          style={{ background: "var(--bloodred)", borderColor: "var(--bloodred)", color: "var(--vellum-light)" }}
+        >
+          {showing ? "⚡ …" : "⚡ SHOW NOW"}
+        </button>
+      )}
+    </>
+  );
+}
+
 interface DetailSheetProps {
   entityId: string;
   onClose: () => void;
@@ -408,12 +683,6 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
 
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
-  // Double-click guard for the RELEASE button: the reveal event insert isn't
-  // idempotent and realtime won't flip the staging row fast enough.
-  const [releasing, setReleasing] = useState(false);
-  // Same guard for SHOW NOW, but cleared on settle (success and failure):
-  // this button never unmounts, and a deliberate re-show is legitimate.
-  const [showing, setShowing] = useState(false);
   // Same guard for DRAFT RECAP (issue #72): the append is a read-modify-write
   // on summary. Like RELEASE, the guard clears on failure only — clearing on
   // success would re-enable the button in the realtime echo gap while
@@ -727,7 +996,9 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
     <div className="detail-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className={`detail-sheet tex-vellum ${isArchived(entity) ? "is-archived" : ""} ${isHidden(entity) ? "is-veiled" : ""}`}>
         <button className="detail-close" onClick={onClose}><Icon name="close" size={16} /></button>
-        {canEdit && <div style={{ position: "absolute", top: 14, right: 54, display: "flex", gap: 6, zIndex: 2 }}>
+        {/* Wraps rather than overflows: the DM's row can reach nine controls
+            once an entity is staged for a session other than the live one. */}
+        {canEdit && <div className="detail-action-row">
           {isArchivableKind(kind) && (
             <>
               <button
@@ -760,92 +1031,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                   {isHidden(entity) ? "◈ UNREVEALED" : "◇ HIDE"}
                 </button>
               )}
-              {/* DM prep queue (issue #65) — link this entity to the pinned
-                  session so PR 3's live panel can release it one click at a
-                  time. Ignores released_at on purpose: for PR 2, "in the
-                  queue" is the only state this button knows. */}
-              {isDm && campaign.activeSessionId && (() => {
-                const activeNum = campaign.sessions.find((s) => s.id === campaign.activeSessionId)?.num;
-                const code = activeNum != null ? sessionLabel(activeNum) : "";
-                const stagingRow = campaign.sessionStaging.find(
-                  (r) => r.sessionId === campaign.activeSessionId && r.entityId === entityId,
-                );
-                const staged = !!stagingRow;
-                return (
-                  <>
-                    <button
-                      onClick={() => {
-                        if (staged) {
-                          unstageEntity(campaign.activeSessionId!, entityId).catch(console.error);
-                          return;
-                        }
-                        // Staging happens either way — the confirm is only the
-                        // hide offer (default yes), so Cancel truthfully means
-                        // "stage it, but leave it visible".
-                        if (!isHidden(entity) && window.confirm(`Hide “${entityLabel(entity)}” from the party until released?`)) {
-                          patch({ hidden: true });
-                        }
-                        stageEntity(campaign.activeSessionId!, entityId).catch(console.error);
-                      }}
-                      title={staged
-                        ? `Remove from the session ${code} queue`
-                        : `Stage for session ${code} — queued for one-click release from the live panel`}
-                      className="detail-action-btn"
-                      style={staged ? { borderColor: "var(--mustard)", color: "var(--mustard-deep)" } : undefined}
-                    >
-                      {staged ? `⧉ STAGED ${code}` : `⧉ STAGE ${code}`}
-                    </button>
-                    {/* One-click release from the sheet (issue #68) — the same
-                        verb as the live panel's queue button. Unhiding via
-                        ◈ UNREVEALED is not a release: no feed event, no
-                        released_at stamp, no seen-mark. */}
-                    {staged && !stagingRow!.releasedAt && isHidden(entity) && (
-                      <button
-                        disabled={releasing || showing}
-                        onClick={() => {
-                          setReleasing(true);
-                          releaseEntity(kind, entityId, campaign.activeSessionId!, {
-                            author: displayName || undefined,
-                            label: entityLabel(entity),
-                          })
-                            // Clear ONLY on failure (for retry). On success the
-                            // button unmounts once realtime flips hidden/
-                            // released_at; resetting here would re-enable it in
-                            // the echo gap and allow a duplicate release.
-                            .catch((e) => { console.error("releaseEntity failed", e); setReleasing(false); });
-                        }}
-                        title={`Reveal to the party now — unhides it, stamps the ${code} queue, and lands in the session feed`}
-                        className="detail-action-btn"
-                        style={{ borderColor: "var(--bloodred)", color: "var(--bloodred)" }}
-                      >
-                        {releasing ? "🕯 …" : "🕯 RELEASE"}
-                      </button>
-                    )}
-                    {/* "Show now" (#69): the loud reveal — release semantics
-                        (unhide + stamp if queued) plus a takeover that opens
-                        this sheet on every player's screen. Legal on anything
-                        while live, hidden or not, staged or not. */}
-                    <button
-                      disabled={showing || releasing}
-                      onClick={() => {
-                        setShowing(true);
-                        showEntity(kind, entityId, campaign.activeSessionId!, {
-                          author: displayName || undefined,
-                          label: entityLabel(entity),
-                          unhide: isHidden(entity),
-                        })
-                          .catch((e) => console.error("showEntity failed", e))
-                          .finally(() => setShowing(false));
-                      }}
-                      title={`Show “${entityLabel(entity)}” now — opens it on every player's screen and lands in the ${code} feed`}
-                      className="detail-action-btn"
-                      style={{ background: "var(--bloodred)", borderColor: "var(--bloodred)", color: "var(--vellum-light)" }}
-                    >
-                      {showing ? "⚡ …" : "⚡ SHOW NOW"}
-                    </button>
-                  </>
-                );
-              })()}
+              {isDm && <StageControls kind={kind} entityId={entityId} entity={entity} patch={patch} />}
               {/* Board membership is a positions row, independent of tier/archive.
                   Not worded "PIN" — that already means pinned-to-top above. */}
               <button
@@ -1080,6 +1266,10 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                     style={{ fontFamily: "var(--font-body)" }}
                   />
                 </div>
+              )}
+
+              {kind === "sessions" && isDm && (
+                <SessionPrepList sessionId={entityId} onOpen={onOpen} />
               )}
 
               {showFeed && (
