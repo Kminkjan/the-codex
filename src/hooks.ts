@@ -30,6 +30,14 @@ export function useViewAsPlayer() {
   return { isRealDm, viewAsPlayer, setViewAsPlayer };
 }
 
+// A signed-in editor holding no campaign_members row for this campaign, so
+// RLS (0023) rejects every write. canEdit already reflects this — the edit
+// affordances are simply gone — so this is only for the surfaces that EXPLAIN
+// the gap: the Topbar chip and the notice. False until the lookup resolves.
+export function useSeatless(): boolean {
+  return useContext(CampaignContext).seatless;
+}
+
 // Membership isn't realtime (campaign_members is deliberately unpublished):
 // after any membership RPC (issue #86), call refreshMembership() and key
 // roster fetches on membershipVersion so isDm and member lists refetch.

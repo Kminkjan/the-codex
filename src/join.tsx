@@ -69,7 +69,10 @@ function stripJoinParam() {
 let autoRedeemConsumed = false;
 
 export function JoinFlow() {
-  const { user, canEdit } = useAuth();
+  // isEditorAccount, not canEdit: redeeming an invite is the very act that
+  // grants membership, so this flow MUST work for an editor whose canEdit is
+  // false for lack of a seat — gating it on canEdit would be a deadlock.
+  const { user, isEditorAccount } = useAuth();
   const { campaign } = useCampaignStatus();
   const { activeCampaignId, switchCampaign } = useCampaignSwitcher();
   const { refreshMembership } = useMembershipRefresh();
@@ -131,13 +134,13 @@ export function JoinFlow() {
   // an auth round-trip (stash only — redirectTo dropped the param), or the
   // visitor dismissed the letter and signed in via the Topbar later.
   useEffect(() => {
-    if (autoRedeemConsumed || !canEdit || letterOpen) return;
+    if (autoRedeemConsumed || !isEditorAccount || letterOpen) return;
     const code = urlCode ?? readPendingJoin();
     if (!code) return;
     autoRedeemConsumed = true;
     void redeem(code);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canEdit, letterOpen, urlCode]);
+  }, [isEditorAccount, letterOpen, urlCode]);
 
   // Campaign identity on the letter only when the link's #/c/ hash resolved
   // to the loaded campaign — reads are world-open, so title/subtitle/crest
@@ -233,7 +236,7 @@ export function JoinFlow() {
               )}
               {sealBroken && (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-                  {canEdit ? (
+                  {isEditorAccount ? (
                     <button
                       onClick={() => void redeem(urlCode)}
                       disabled={redeeming}
@@ -268,7 +271,7 @@ export function JoinFlow() {
                       // join them the moment the letter closes. An anonymous
                       // dismissal keeps the stash — the magic-link path and a
                       // later Topbar sign-in still need it.
-                      if (canEdit) {
+                      if (isEditorAccount) {
                         autoRedeemConsumed = true;
                         clearPendingJoin();
                         stripJoinParam();
