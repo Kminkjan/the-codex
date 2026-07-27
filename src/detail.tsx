@@ -1408,7 +1408,8 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
               </div>
 
               {canEdit && <div
-                className="add-note"
+                className={`add-note${draft ? "" : " is-empty"}`}
+                data-placeholder="Leave a note in the margin… (⌘↵ to pin)"
                 contentEditable
                 suppressContentEditableWarning
                 ref={draftRef}
@@ -1421,9 +1422,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                     (e.currentTarget as HTMLDivElement).textContent = "";
                   }
                 }}
-              >
-                {draft ? null : "Leave a note in the margin… (⌘↵ to pin)"}
-              </div>}
+              />}
             </div>
 
             <div className="detail-rail">

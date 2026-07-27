@@ -2049,6 +2049,17 @@ button.session-pin { line-height: 1; }
   font-size: 14px;
   color: var(--ink-ghost);
 }
+/* The placeholder is a pseudo-element, never a real child. A text node inside
+   the contentEditable takes the caret on click, so the first keystroke lands
+   *inside* the placeholder — and the render that follows (draft went
+   non-empty) removes that text node, taking the typed character with it.
+   Emptiness comes from React state rather than `:empty` because browsers
+   leave a stray <br> behind after a select-all delete. */
+.add-note.is-empty::before {
+  content: attr(data-placeholder);
+  color: var(--ink-ghost);
+  pointer-events: none;
+}
 .add-note:focus {
   outline: none;
   background: var(--paper-note);
