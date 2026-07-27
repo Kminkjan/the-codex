@@ -270,10 +270,10 @@ export function LivePanel({ onOpenEntity }: { onOpenEntity: (id: string) => void
   }
 
   const send = () => {
-    // Read the body from `draft` (set only by real typing), NOT el.textContent:
-    // the placeholder is a real DOM child while empty, so textContent would
-    // submit "Note for the record…" as a note on a bare Enter. Same guard as
-    // the party-notes composer's addNote.
+    // Read the body from `draft` (set only by real typing), not el.textContent.
+    // The placeholder is a ::before pseudo-element now, so textContent is
+    // honest either way — but `draft` stays the single source of truth, and
+    // it's what drives the is-empty class the placeholder hangs off.
     const text = draft.trim();
     if (!text) return;
     insertSessionEvent({
@@ -348,7 +348,8 @@ export function LivePanel({ onOpenEntity }: { onOpenEntity: (id: string) => void
       {canEdit && (
         <div className="live-composer">
           <div
-            className="add-note live-input"
+            className={`add-note live-input${draft ? "" : " is-empty"}`}
+            data-placeholder="Note for the record… (↵ to send)"
             contentEditable
             suppressContentEditableWarning
             ref={composerRef}
@@ -363,9 +364,7 @@ export function LivePanel({ onOpenEntity }: { onOpenEntity: (id: string) => void
                 send();
               }
             }}
-          >
-            {draft ? null : "Note for the record… (↵ to send)"}
-          </div>
+          />
         </div>
       )}
     </aside>
