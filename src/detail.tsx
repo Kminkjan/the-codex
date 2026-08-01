@@ -4,7 +4,7 @@ import { ARCHIVABLE_KINDS, type KindKey, MONSTER_THREAT_OPTIONS, PERSON_STATUS_O
 import { Icon, kindIcon } from "./icons";
 import { StatusChip, EditableText, EditableMarkdown, EnumSelect, EntitySelect, EntityCombobox, type EntityOption, Fleurons, NoteComposer, ThemedLabel } from "./components";
 import { clearDraft, entityDraftKey } from "./noteDrafts";
-import { useCampaign, useFindEntity, useIsDm, useProfiles } from "./hooks";
+import { useCampaign, useFindEntity, useIsDm, usePresence, useProfiles } from "./hooks";
 import { useAuth } from "./auth";
 import {
   insertPartyNote,
@@ -17,6 +17,8 @@ import {
   removeEventParticipant,
   markSeen,
   unmarkSeen,
+  markAttended,
+  markAbsent,
   stageEntity,
   unstageEntity,
   releaseEntity,
@@ -620,6 +622,111 @@ function EventParticipantsEditor({ eventId, onOpen }: { eventId: string; onOpen:
             <option key={p.id} value={p.id}>{p.name}</option>
           ))}
         </select>
+      )}
+    </div>
+  );
+}
+
+// "At the Table" — the session_attendance register (0039), on the chapter's own
+// sheet, because attendance is usually written up after the fact rather than
+// during play.
+//
+// Read the boundary before extending this: it is NOT the "+ Seen this session"
+// toggle further down (session_participants — who appeared in the fiction, which
+// feeds lastSeen and sagaScope), and it is NOT presence (who has the codex open
+// right now, which expires with the socket). This is the party's own register of
+// who played, and present/absent is the whole vocabulary: a row means present.
+function AttendanceRegister({ sessionId }: { sessionId: string }) {
+  const campaign = useCampaign();
+  const { canEdit, displayName } = useAuth();
+  const presenceUsers = usePresence();
+  const session = campaign.sessions.find((s) => s.id === sessionId);
+  const attended = new Set(campaign.sessionAttendance[sessionId] ?? []);
+  // The party, UNION anyone already on the register. The union is what keeps the
+  // history honest: a guest character, or an ex-PC whose is_pc was flipped off
+  // later, must not silently drop out of a chapter they played. Archived PCs are
+  // only listed if they're on it — archiving is the DM's "retire this row".
+  const roster = campaign.people
+    .filter((p) => attended.has(p.id) || (isPc(p) && !p.archived))
+    // Dead characters sink to the bottom rather than being filtered out: a dead
+    // PC stays a PC (0030), and back-filling an old chapter still needs them.
+    .sort((a, b) => {
+      const da = a.status === "dead", db = b.status === "dead";
+      return da !== db ? (da ? 1 : -1) : a.name.localeCompare(b.name);
+    });
+  // An empty register is ambiguous on its own — the stamp is what makes it mean
+  // "nobody came" instead of "nobody has recorded it". Rows imply the stamp, so
+  // either signal counts (and the OR also survives a stamp that never landed).
+  const recorded = attended.size > 0 || !!session?.attendanceTakenAt;
+  // Live-session shortcut: presence tracks auth uuids and 0030 links a PC to its
+  // player's uuid, so who-has-the-codex-open can *propose* a register. A
+  // suggestion, never an automatic write — occupancy isn't a claim about who
+  // played, and one careless auto-record would be indistinguishable from one the
+  // DM made on purpose.
+  const proposed = campaign.activeSessionId === sessionId
+    ? roster.filter((p) => !attended.has(p.id) && p.playerUserId
+        && presenceUsers.some((u) => u.id === p.playerUserId))
+    : [];
+
+  return (
+    <div style={{ marginBottom: 26 }}>
+      <h3><ThemedLabel parchment="Those Who Sat" atlas="Attendance" /></h3>
+      {roster.length === 0 ? (
+        <div className="attend-note">
+          No player characters are marked yet — mark someone a player character on their own sheet
+          and they'll appear here.
+        </div>
+      ) : (
+        <>
+          <div className="attend-register">
+            {roster.map((p) => {
+              const present = attended.has(p.id);
+              const cls = "attend-chip" + (present ? " is-present" : "");
+              const label = <>{present && <span className="attend-tick">✓</span>}{p.name}</>;
+              if (!canEdit) {
+                return (
+                  <span key={p.id} className={cls} title={present ? "At the table" : "Not at the table"}>
+                    {label}
+                  </span>
+                );
+              }
+              return (
+                <button
+                  key={p.id}
+                  className={cls}
+                  title={present ? `${p.name} was at the table — click to remove` : `Record ${p.name} at the table`}
+                  onClick={() =>
+                    (present
+                      ? markAbsent(sessionId, p.id)
+                      : markAttended(sessionId, p.id, displayName ?? undefined)
+                    ).catch(console.error)}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+          <div className="attend-note">
+            {recorded
+              ? `${attended.size} of ${roster.length} at the table.`
+              : canEdit ? "Attendance not recorded — tick who played." : "Attendance not recorded."}
+            {canEdit && proposed.length > 0 && (
+              <button
+                className="attend-propose"
+                title={proposed.map((p) => p.name).join(", ")}
+                onClick={() => {
+                  proposed.forEach((p) =>
+                    markAttended(sessionId, p.id, displayName ?? undefined).catch(console.error));
+                }}
+              >
+                <ThemedLabel
+                  parchment={`Seat the ${proposed.length} here now`}
+                  atlas={`Add ${proposed.length} here now`}
+                />
+              </button>
+            )}
+          </div>
+        </>
       )}
     </div>
   );
@@ -1552,6 +1659,8 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
 
           <div className="detail-body">
             <div className="detail-notes">
+              {kind === "sessions" && <AttendanceRegister sessionId={entityId} />}
+
               <h3>Chronicle</h3>
 
               {kind === "sessions" && (

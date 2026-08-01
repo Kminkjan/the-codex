@@ -437,6 +437,45 @@ export async function unmarkSeen(personId: string) {
   if (error) throw error;
 }
 
+// ===== Session attendance (0039) ============================================
+// Who was at the table, as opposed to who was seen in the fiction (markSeen
+// above). Deliberately NOT scoped to the live session: attendance is usually
+// written on the chapter's own sheet, often days later, so the session id is
+// always the caller's — there is no getActiveSessionId() fallback to lean on.
+//
+// `recordedBy` is the caller's display name for the same reason party notes'
+// author is: mutations can't reach React context.
+
+export async function markAttended(sessionId: string, personId: string, recordedBy?: string) {
+  // Idempotent for markSeen's reason: no optimistic UI, so two editors ticking
+  // the same character (or one double-click) would otherwise hit the composite
+  // PK. ignoreDuplicates keeps the original provenance rather than overwriting
+  // it with the second person's name.
+  const { error } = await supabase.from("session_attendance").upsert(
+    {
+      campaign_id: getActiveCampaignId(),
+      session_id: sessionId,
+      person_id: personId,
+      recorded_by: recordedBy ?? null,
+    },
+    { onConflict: "session_id,person_id", ignoreDuplicates: true },
+  );
+  if (error) raiseWriteError(error);
+}
+
+// Correcting a mis-tick. Note what this does NOT do: clear
+// sessions.attendance_taken_at. Removing the last present character leaves the
+// chapter "recorded, nobody present" on purpose — see the 0039 header.
+export async function markAbsent(sessionId: string, personId: string) {
+  const { error } = await supabase
+    .from("session_attendance")
+    .delete()
+    .eq("campaign_id", getActiveCampaignId())
+    .eq("session_id", sessionId)
+    .eq("person_id", personId);
+  if (error) raiseWriteError(error);
+}
+
 // ===== Live session: staging queue + feed (M5 PR 2, issues #65/#66) ========
 
 export async function stageEntity(sessionId: string, entityId: string) {

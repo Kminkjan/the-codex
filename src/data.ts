@@ -47,6 +47,14 @@ export interface Session {
   imageFocus?: string;
   inGameDate?: string;
   arc?: string;
+  /**
+   * When attendance was first recorded for this chapter (0039), stamped by
+   * trigger on the first `session_attendance` write. Its whole job is to
+   * separate "nobody came" from "nobody recorded it" — an empty roster means
+   * the former only once this is set. Never cleared: deleting every row leaves
+   * the chapter recorded-with-nobody-present, which is a real answer.
+   */
+  attendanceTakenAt?: string;
 }
 
 // Story arcs group sessions and quests. Like sessions they live outside
@@ -351,6 +359,12 @@ export interface Campaign {
   eventParticipants: Record<string, string[]>;
   // session id → person ids seen in that session (session_participants junction).
   sessionParticipants: Record<string, string[]>;
+  // session id → person ids who were AT THE TABLE (session_attendance, 0039).
+  // Not the same fact as sessionParticipants: that one is who appeared in the
+  // fiction and feeds lastSeen/sagaScope, this one is the party's own register
+  // of who played. Rows are present-only — absence is the absence of an id, and
+  // `session.attendanceTakenAt` is what says an empty list was deliberate.
+  sessionAttendance: Record<string, string[]>;
   // DM prep queue (session_staging). Projected to [] for non-DM viewers.
   sessionStaging: SessionStagingRow[];
   // Append-only live feed (session_events), sorted by (createdAt, id).
@@ -500,6 +514,7 @@ export function projectCampaignForViewers(c: Campaign): Campaign {
     board: dropHiddenKeys(c.board),
     eventParticipants: dropHiddenValues(c.eventParticipants),
     sessionParticipants: dropHiddenValues(c.sessionParticipants),
+    sessionAttendance: dropHiddenValues(c.sessionAttendance),
     notes: dropHiddenKeys(c.notes),
     // The whole prep queue is DM-only ("staged-but-unreleased items are
     // visible only to the DM", #65) — nothing player-facing consumes it, the
