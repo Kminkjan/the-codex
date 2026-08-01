@@ -15,8 +15,8 @@ export const BUCKET = "entity-images";
 const MAX_BYTES = 5 * 1024 * 1024;
 const MAX_INPUT_BYTES = 30 * 1024 * 1024;
 
-// One year, immutable — and the SDK default is one HOUR, which is the whole
-// reason this is stated explicitly.
+// One year — and the SDK default is one HOUR, which is the whole reason this is
+// stated explicitly.
 //
 // The free tier's binding constraint is egress (5 GB cached + 5 GB uncached per
 // month), not the 1 GB of storage. At the default `cacheControl: "3600"` every
@@ -30,7 +30,14 @@ const MAX_INPUT_BYTES = 30 * 1024 * 1024;
 // given path is never rewritten. Replacing an entity's image mints a NEW path
 // and a new URL, so there is no stale-cache failure mode to trade against.
 // Anything that starts overwriting a path in place must revisit this value.
-const CACHE_CONTROL = "31536000, immutable";
+//
+// SECONDS ONLY — do not add directives here. The value is a duration everywhere
+// it is documented, and the SDK interpolates it as `max-age=${value}`, so a
+// `immutable` or `public` token rides on the server accepting a non-numeric
+// field. Appending `, immutable` would suppress revalidation on an explicit
+// reload and nothing else; that is not worth a change whose failure mode is
+// every upload 400ing.
+const CACHE_CONTROL = "31536000";
 
 export type UploadableKind = "people" | "locations" | "factions" | "items" | "monsters" | "sessions";
 
