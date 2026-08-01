@@ -512,7 +512,10 @@ body {
 /* Entity combobox — searchable picker for relations & FK fields. The trigger
    reads like the dashed edit affordances (EnumSelect/EditableText); the popover
    is portalled to <body> with fixed coords so it escapes the detail sheet's
-   overflow:auto and the overlay's backdrop-filter, sitting above them all. */
+   overflow:auto and the overlay's backdrop-filter, sitting above them all.
+   The popover deliberately has no width here: it shrink-to-fits its widest row
+   between the min/max that reposition() measures, so long entity names stay
+   readable in a narrow FK field. */
 .entity-combobox-trigger {
   display: inline-flex; align-items: center; gap: 6px;
   max-width: 100%;

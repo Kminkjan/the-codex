@@ -1341,7 +1341,7 @@ export function EntityCombobox({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(0);
-  const [rect, setRect] = useState<{ left: number; top: number; width: number; flip: boolean; maxHeight: number } | null>(null);
+  const [rect, setRect] = useState<{ left: number; top: number; minWidth: number; maxWidth: number; flip: boolean; maxHeight: number } | null>(null);
 
   const index = useMemo<Indexed[]>(
     () => options.map((o) => ({ id: o.id, kind: o.kind, label: o.label, primary: o.label, secondary: "", archived: o.archived, hidden: o.hidden })),
@@ -1377,12 +1377,21 @@ export function EntityCombobox({
     // popover never runs past the viewport edge.
     const flip = spaceBelow < 300 && spaceAbove > spaceBelow;
     const maxHeight = Math.min(320, Math.max(140, flip ? spaceAbove : spaceBelow));
-    const width = Math.max(r.width, 240);
-    // Clamp left so the popover's right edge never runs past the viewport —
-    // it defaults to the trigger's left edge but slides left if that would
-    // overflow (e.g. a narrow FK field near the right edge of a resized window).
-    const left = Math.min(r.left, window.innerWidth - width - margin);
-    setRect({ left: Math.max(left, margin), top: flip ? r.top : r.bottom, width: r.width, flip, maxHeight });
+    // The popover sizes to its widest row rather than to the trigger: FK fields
+    // are often a few characters wide ("Arc", "Faction") while the entity names
+    // inside them are long, and matching the trigger truncated every row to a
+    // guess. min/max bracket that: never narrower than a readable list, never
+    // wider than the room left of the viewport edge.
+    const minWidth = Math.max(r.width, 280);
+    // Anchor to the trigger's left edge, sliding left only when minWidth
+    // wouldn't otherwise fit (a narrow field near the right edge of a resized
+    // window), then let maxWidth take whatever room is left to the right.
+    const left = Math.max(margin, Math.min(r.left, window.innerWidth - minWidth - margin));
+    // Never below minWidth: a viewport too narrow to hold the list would
+    // otherwise compute a zero-or-negative cap, which the browser drops as
+    // invalid and the popover grows unbounded.
+    const maxWidth = Math.max(minWidth, Math.min(560, window.innerWidth - left - margin));
+    setRect({ left, top: flip ? r.top : r.bottom, minWidth, maxWidth, flip, maxHeight });
   }, []);
 
   useEffect(() => {
@@ -1460,7 +1469,7 @@ export function EntityCombobox({
         onClick={() => setOpen((o) => !o)}
       >
         {current && <Icon name={kindIcon[current.kind]} size={13} />}
-        <span className={`entity-combobox-value${current ? "" : " placeholder"}`}>
+        <span className={`entity-combobox-value${current ? "" : " placeholder"}`} title={current?.label}>
           {current?.label ?? placeholder}
         </span>
         <Icon name="chevron" size={12} className="entity-combobox-caret" />
@@ -1472,7 +1481,8 @@ export function EntityCombobox({
           style={{
             position: "fixed",
             left: rect.left,
-            width: Math.max(rect.width, 240),
+            minWidth: rect.minWidth,
+            maxWidth: rect.maxWidth,
             maxHeight: rect.maxHeight,
             ...(rect.flip
               ? { bottom: window.innerHeight - rect.top + 4 }
@@ -1525,7 +1535,7 @@ export function EntityCombobox({
                   onClick={() => choose(hit.id)}
                 >
                   <Icon name={kindIcon[hit.kind]} size={14} />
-                  <span className={`entity-combobox-row-label${hit.archived ? " archived" : ""}`}>{hit.label}</span>
+                  <span className={`entity-combobox-row-label${hit.archived ? " archived" : ""}`} title={hit.label}>{hit.label}</span>
                   <span className="entity-combobox-kind">{KIND_LABEL[hit.kind]}</span>
                   {hit.archived && <span className="entity-combobox-archived">archived</span>}
                   {hit.hidden && <span className="entity-combobox-veiled">unrevealed</span>}
