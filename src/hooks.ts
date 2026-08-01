@@ -1,6 +1,8 @@
-import { useContext, useEffect, useMemo, type RefObject } from "react";
+import { useCallback, useContext, useEffect, useMemo, useState, type RefObject } from "react";
 import { CampaignContext } from "./campaignContext";
-import { buildKinds, findEntity, type Campaign, type Entity } from "./data";
+import { buildKinds, findEntity, type Campaign, type Entity, type KindKey } from "./data";
+import { readListSort, writeListSort } from "./listPrefs";
+import { isSortKey, type SortKey } from "./listSort";
 
 export function useCampaign(): Campaign {
   const { campaign } = useContext(CampaignContext);
@@ -67,6 +69,28 @@ export function useCampaignSwitcher() {
 export function useKinds() {
   const campaign = useCampaign();
   return useMemo(() => buildKinds(campaign), [campaign]);
+}
+
+// The overview pages' sort control, remembered per kind (see src/listPrefs.ts
+// for where and why). Read through isSortKey both times, so a stored key that
+// a release renamed — or one belonging to another kind — degrades to the
+// default instead of leaving the list unsorted.
+//
+// The effect is not redundant with the lazy initialiser: App renders <KindList>
+// at a fixed position with `kind` as a prop, so walking from People to Items
+// REUSES the component instance and never re-runs the initialiser.
+export function useListSort(kind: KindKey): [SortKey, (next: SortKey) => void] {
+  const load = (k: KindKey): SortKey => {
+    const stored = readListSort(k);
+    return isSortKey(k, stored) ? stored : "default";
+  };
+  const [sort, setSort] = useState<SortKey>(() => load(kind));
+  useEffect(() => { setSort(load(kind)); }, [kind]);
+  const choose = useCallback((next: SortKey) => {
+    setSort(next);
+    writeListSort(kind, next);
+  }, [kind]);
+  return [sort, choose];
 }
 
 export function useFindEntity() {

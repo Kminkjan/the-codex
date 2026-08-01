@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { MONSTER_THREAT_OPTIONS, sessionLabel, sortForDisplay, type Monster } from "./data";
-import { useCampaign, useIsDm } from "./hooks";
+import { MONSTER_THREAT_OPTIONS, sessionLabel, type Monster } from "./data";
+import { applyListSort, sortOptionsFor, type SortKey } from "./listSort";
+import { useCampaign, useIsDm, useListSort } from "./hooks";
 import { useAuth } from "./auth";
 import { Icon } from "./icons";
 import { Fleurons, ThemedLabel } from "./components";
@@ -189,7 +190,11 @@ export function BestiaryPage({ onOpenEntity }: { onOpenEntity: (id: string) => v
   // offered explicitly rather than relied on: the seeded rows arrive ordered by
   // name and share an updatedAt, so default LOOKS alphabetical until the first
   // edit lifts one plate to the top.
-  const [sort, setSort] = useState<"default" | "name" | "cr" | "met">("default");
+  //
+  // Shared with the overview pages since the sort became sticky: the option
+  // catalogue and the comparator both live in src/listSort.ts, and the choice
+  // outlives the visit (src/listPrefs.ts) while the facets above still don't.
+  const [sort, setSort] = useListSort("monsters");
   // The un-inked frames are the whole point of the wall, so they're on by
   // default; the toggle is for a DM who wants to see only what's been met.
   const [showUninked, setShowUninked] = useState(true);
@@ -212,28 +217,25 @@ export function BestiaryPage({ onOpenEntity }: { onOpenEntity: (id: string) => v
     if (!showUninked) list = list.filter((m) => met.has(m.id));
     const q = query.trim().toLowerCase();
     if (q) list = list.filter((m) => m.name.toLowerCase().includes(q));
-    // sortForDisplay first, always: it carries the pinned-then-archived
-    // precedence every list in the app shares. The re-sorts below are stable, so
-    // that precedence survives inside each rank.
-    const ordered = sortForDisplay(list, { kind: "monsters" });
-    if (sort === "name") return [...ordered].sort((a, b) => a.name.localeCompare(b.name));
-    if (sort === "cr") {
-      // Unrated last rather than first — otherwise "worst thing we fought" opens
-      // on the creatures nobody has rated.
-      return [...ordered].sort((a, b) => (b.cr ?? -1) - (a.cr ?? -1));
-    }
-    if (sort === "met") {
-      // Indexed once, not scanned per comparison: a sort of 450 plates against
-      // 190 sessions would otherwise do six figures of array walking.
-      const numById = new Map(campaign.sessions.map((s) => [s.id, s.num]));
-      // Un-inked plates (and a reveal whose session was deleted) sort to the end.
-      const num = (id: string) => numById.get(met.get(id)?.firstSessionId ?? "") ?? Infinity;
-      return [...ordered].sort((a, b) => num(a.id) - num(b.id));
-    }
-    return ordered;
+    // Indexed once, not scanned per comparison: a sort of 450 plates against
+    // 190 sessions would otherwise do six figures of array walking. Un-inked
+    // plates (and a reveal whose session was deleted) resolve to Infinity, which
+    // applyListSort sorts to the end.
+    const numById = new Map(campaign.sessions.map((s) => [s.id, s.num]));
+    const firstMetNum = (id: string) => numById.get(met.get(id)?.firstSessionId ?? "") ?? Infinity;
+    // applyListSort carries the pinned-then-archived precedence every list in
+    // the app shares, in EVERY order — not just the default one, which is a
+    // change from the old local re-sorts: a pinned plate used to sink into the
+    // middle of the alphabet as soon as you picked "by name".
+    return applyListSort(list, sort, { kind: "monsters", firstMetNum });
   }, [campaign.monsters, campaign.sessions, showArchived, typeFacet, threatFacet, showUninked, met, query, sort]);
 
-  const facetsActive = typeFacet !== ALL || threatFacet !== ALL || !showUninked || !!query.trim() || sort !== "default";
+  // Sort is NOT part of this, and stopped being part of it when the choice
+  // became sticky: a remembered "by CR" would otherwise light this button up on
+  // every future visit with nothing actually filtered, and clicking it would
+  // quietly un-remember the choice. The select is its own way back. Same rule
+  // as KindList's row, so the two pages agree.
+  const facetsActive = typeFacet !== ALL || threatFacet !== ALL || !showUninked || !!query.trim();
 
   const onNew = () => {
     const id = crypto.randomUUID();
@@ -295,11 +297,8 @@ export function BestiaryPage({ onOpenEntity }: { onOpenEntity: (id: string) => v
               <option value={ALL}>any threat</option>
               {MONSTER_THREAT_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
-            <select className="facet-select" value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} title="Order the wall">
-              <option value="default">most recently touched</option>
-              <option value="name">by name</option>
-              <option value="cr">by CR, worst first</option>
-              <option value="met">by when first met</option>
+            <select className="facet-select" value={sort} onChange={(e) => setSort(e.target.value as SortKey)} title="Order the wall">
+              {sortOptionsFor("monsters").map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
             <button className="cleanup-link-btn" onClick={() => setShowUninked((v) => !v)}>
               {showUninked ? "hide un-inked plates" : "show un-inked plates"}
@@ -307,7 +306,7 @@ export function BestiaryPage({ onOpenEntity }: { onOpenEntity: (id: string) => v
             {facetsActive && (
               <button
                 className="cleanup-link-btn"
-                onClick={() => { setTypeFacet(ALL); setThreatFacet(ALL); setShowUninked(true); setQuery(""); setSort("default"); }}
+                onClick={() => { setTypeFacet(ALL); setThreatFacet(ALL); setShowUninked(true); setQuery(""); }}
               >
                 clear filters
               </button>

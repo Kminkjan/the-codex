@@ -5,11 +5,11 @@ import {
   PERSON_STATUS_OPTIONS,
   PERSON_TIER_OPTIONS,
   personTier,
-  sortForDisplay,
   isArchivableKind,
 } from "./data";
+import { applyListSort, sortOptionsFor, type SortKey } from "./listSort";
 import { CompassRose, Icon, kindIcon } from "./icons";
-import { useCampaign, useDismiss, useFindEntity, useIsDm, useKinds } from "./hooks";
+import { useCampaign, useDismiss, useFindEntity, useIsDm, useKinds, useListSort } from "./hooks";
 import { useAuth } from "./auth";
 import { CardBody, PinnedCard, ThemedLabel } from "./components";
 import { bothVisible, entityLabel, isPc, sessionLabel } from "./data";
@@ -725,6 +725,10 @@ export function KindList({ kind, onOpenEntity }: { kind: string; onOpenEntity: (
   // facet explicitly bypasses the hide.
   const isPeople = kind === "people";
   const [nameQuery, setNameQuery] = useState("");
+  // The one piece of view state that outlives the visit (src/listPrefs.ts).
+  // Filters deliberately don't: a remembered filter is a page that opens with
+  // rows missing and nothing on screen saying why.
+  const [sort, setSort] = useListSort(kind as KindKey);
   const [facets, setFacets] = useState({ ...NO_FACETS });
   const [showBackground, setShowBackground] = useState(false);
   const factionChoices = useMemo(
@@ -748,10 +752,12 @@ export function KindList({ kind, onOpenEntity }: { kind: string; onOpenEntity: (
   const archivable = isArchivableKind(k.key);
   const all = k.list() as any[];
   const facetsActive = nameQuery.trim() !== "" || Object.values(facets).some((v) => v !== "all");
+  const sortOptions = sortOptionsFor(k.key as KindKey);
   const { archivedCount, backgroundCount, sorted } = useMemo(() => {
-    if (!archivable) return { archivedCount: 0, backgroundCount: 0, sorted: all };
     const numById = new Map(campaign.sessions.map((s) => [s.id, s.num]));
     const sessionNum = (id: string) => numById.get(id) ?? 0;
+    const order = (list: any[]) => applyListSort(list, sort, { kind: k.key as KindKey, sessionNum });
+    if (!archivable) return { archivedCount: 0, backgroundCount: 0, sorted: order(all) };
     const archived = all.filter((e) => e.archived).length;
     let visible = showArchived ? all : all.filter((e) => !e.archived);
     let background = 0;
@@ -775,9 +781,9 @@ export function KindList({ kind, onOpenEntity }: { kind: string; onOpenEntity: (
     return {
       archivedCount: archived,
       backgroundCount: background,
-      sorted: sortForDisplay(visible, { kind: k.key as KindKey, sessionNum }),
+      sorted: order(visible),
     };
-  }, [all, archivable, showArchived, k.key, campaign.sessions, isPeople, nameQuery, facets, showBackground]);
+  }, [all, archivable, showArchived, k.key, campaign.sessions, isPeople, nameQuery, facets, showBackground, sort]);
 
   return (
     <div style={{ flex: 1, overflow: "auto", padding: "28px 40px 60px", background: "var(--vellum)", position: "relative" }} className="tex-vellum">
@@ -819,40 +825,59 @@ export function KindList({ kind, onOpenEntity }: { kind: string; onOpenEntity: (
             )}
           </span>
         </div>
-        {isPeople && (
+        {/* Every kind gets the row now — the sort control lives in it, and
+            unlike the facets it isn't people-only. Empty pages skip it: an
+            ordering control over nothing is just chrome. */}
+        {all.length > 0 && (
           <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", marginBottom: 8 }}>
-            <input
-              className="facet-input"
-              value={nameQuery}
-              onChange={(e) => setNameQuery(e.target.value)}
-              placeholder="filter by name…"
-              title="Filter people by name or epithet"
-            />
-            <select className="facet-select" value={facets.pc} onChange={(e) => setFacets((f) => ({ ...f, pc: e.target.value }))} title="Filter player characters">
-              <option value="all">everyone</option>
-              <option value="pc">player characters</option>
-              <option value="npc">townsfolk</option>
-            </select>
-            <select className="facet-select" value={facets.tier} onChange={(e) => setFacets((f) => ({ ...f, tier: e.target.value }))} title="Filter by tier">
-              <option value="all">every tier</option>
-              {PERSON_TIER_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
-            <select className="facet-select" value={facets.status} onChange={(e) => setFacets((f) => ({ ...f, status: e.target.value }))} title="Filter by status">
-              <option value="all">any status</option>
-              {PERSON_STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-            {factionChoices.length > 0 && (
-              <select className="facet-select" value={facets.faction} onChange={(e) => setFacets((f) => ({ ...f, faction: e.target.value }))} title="Filter by faction">
-                <option value="all">all factions</option>
-                {factionChoices.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
-              </select>
+            {isPeople && (
+              <>
+                <input
+                  className="facet-input"
+                  value={nameQuery}
+                  onChange={(e) => setNameQuery(e.target.value)}
+                  placeholder="filter by name…"
+                  title="Filter people by name or epithet"
+                />
+                <select className="facet-select" value={facets.pc} onChange={(e) => setFacets((f) => ({ ...f, pc: e.target.value }))} title="Filter player characters">
+                  <option value="all">everyone</option>
+                  <option value="pc">player characters</option>
+                  <option value="npc">townsfolk</option>
+                </select>
+                <select className="facet-select" value={facets.tier} onChange={(e) => setFacets((f) => ({ ...f, tier: e.target.value }))} title="Filter by tier">
+                  <option value="all">every tier</option>
+                  {PERSON_TIER_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+                <select className="facet-select" value={facets.status} onChange={(e) => setFacets((f) => ({ ...f, status: e.target.value }))} title="Filter by status">
+                  <option value="all">any status</option>
+                  {PERSON_STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+                {factionChoices.length > 0 && (
+                  <select className="facet-select" value={facets.faction} onChange={(e) => setFacets((f) => ({ ...f, faction: e.target.value }))} title="Filter by faction">
+                    <option value="all">all factions</option>
+                    {factionChoices.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+                  </select>
+                )}
+                {raceChoices.length > 0 && (
+                  <select className="facet-select" value={facets.race} onChange={(e) => setFacets((f) => ({ ...f, race: e.target.value }))} title="Filter by race">
+                    <option value="all">any race</option>
+                    {raceChoices.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+                  </select>
+                )}
+              </>
             )}
-            {raceChoices.length > 0 && (
-              <select className="facet-select" value={facets.race} onChange={(e) => setFacets((f) => ({ ...f, race: e.target.value }))} title="Filter by race">
-                <option value="all">any race</option>
-                {raceChoices.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
-              </select>
-            )}
+            {/* Sort sits last, after the filters, matching the Bestiary's row.
+                It's excluded from "clear filters" on purpose: the choice is
+                remembered, so a reset control that quietly un-remembers it
+                would fight the feature — the select is its own way back. */}
+            <select
+              className="facet-select"
+              value={sort}
+              onChange={(e) => setSort(e.target.value as SortKey)}
+              title={`Order the ${k.plural}`}
+            >
+              {sortOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
             {facetsActive && (
               <button className="cleanup-link-btn" onClick={() => { setFacets({ ...NO_FACETS }); setNameQuery(""); }}>
                 clear filters
