@@ -2184,7 +2184,12 @@ button.session-pin { line-height: 1; }
   color: var(--ink-ghost);
   pointer-events: none;
 }
-.add-note:focus {
+/* .has-draft rides the focus dress so a KEPT but unsent draft goes on looking
+   like live writing after you click away — the cheapest "this isn't sent yet"
+   cue, and it means no reflow on blur. Notes never send on focus loss (see
+   NoteComposer), so the box holding text is exactly the unsent state. */
+.add-note:focus,
+.add-note.has-draft {
   outline: none;
   background: var(--paper-note);
   border-style: solid;
@@ -2193,6 +2198,26 @@ button.session-pin { line-height: 1; }
   font-size: 17px;
   font-style: normal;
 }
+
+/* The explicit send affordance both composers now carry. Dressed as
+   .draft-recap-btn — same quiet chrome button, same sheet. */
+.note-composer-actions {
+  display: flex; justify-content: flex-end;
+  margin-top: 8px;
+}
+.note-send-btn {
+  background: transparent;
+  border: 1px solid var(--vellum-deep);
+  border-radius: 2px;
+  font-family: var(--font-fell-sc);
+  letter-spacing: .14em;
+  font-size: 10px;
+  color: var(--ink-secondary);
+  padding: 5px 12px;
+  cursor: pointer;
+}
+.note-send-btn:hover:not(:disabled) { border-color: var(--bloodred); color: var(--bloodred); }
+.note-send-btn:disabled { opacity: .45; cursor: default; }
 
 /* DM-only notes (issue #70): the veiled block on the detail sheet. Dashed
    secondary-ink frame — deliberately quieter than .note-scrap (party) and
@@ -3666,7 +3691,7 @@ button.session-pin { line-height: 1; }
   .m-type, .m-threat, .m-cr, .plate-stamp, .plate-lightbox-type,
   .saga-meta, .arc-meta, .saga-seal, .saga-step, .saga-choice,
   .saga-wizard-label, .saga-wizard-facts dt, .saga-unclaimed-head,
-  .cleanup-window-label) {
+  .cleanup-window-label, .note-send-btn) {
   text-transform: uppercase;
 }
 
@@ -4407,12 +4432,20 @@ button.session-pin { line-height: 1; }
   font-size: 12.5px;
   color: var(--ink-ghost);
 }
-[data-theme="modern"] .add-note:focus {
+[data-theme="modern"] .add-note:focus,
+[data-theme="modern"] .add-note.has-draft {
   background: var(--paper-cream);
   border-color: #3d4353;
   color: var(--ink);
   font-family: var(--font-ui);
   font-size: 13px;
+}
+[data-theme="modern"] .note-send-btn {
+  border-radius: 5px;
+  border-color: var(--card-edge);
+  font-size: 10.5px;
+  letter-spacing: .06em;
+  font-weight: 600;
 }
 [data-theme="modern"] .dm-note { border-radius: 8px; border-color: #3d4353; background: rgba(154,163,181,.04); }
 [data-theme="modern"] .dm-note-head { font-size: 9.5px; font-weight: 600; letter-spacing: .12em; }

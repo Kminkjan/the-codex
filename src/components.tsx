@@ -10,6 +10,7 @@ import { arcSubtreeIds, sagaTree } from "./saga";
 import { useCampaign, useCampaignSwitcher, useDismiss, useKinds, usePresence, useSeatless, useViewAsPlayer } from "./hooks";
 import { createCampaign, createEntity, endLiveSession, setActiveSession, startLiveSession, switchLiveSession } from "./mutations";
 import { requestCharterOnNextLoad } from "./route";
+import { clearDraft, readDraft, writeDraft } from "./noteDrafts";
 import { SignInDialog, useAuth } from "./auth";
 
 interface Position {
@@ -1239,6 +1240,155 @@ export function EditableMarkdown({
       }}
     >
       {empty ? (placeholder || "Click to edit…") : <ReactMarkdown remarkPlugins={[remarkGfm]}>{normalizeLoosePipeRows(display)}</ReactMarkdown>}
+    </div>
+  );
+}
+
+// ============================================================================
+// NoteComposer — the one composer for append-only notes. Two callers: the
+// detail sheet's party notes and the live session panel's feed.
+//
+// THE RULE, which is the whole point of this component: a composer that
+// creates an append-only, non-editable, non-deletable record commits only on
+// an explicit act — a keystroke chosen for its medium, or the send button.
+// NEVER on focus loss. Clicking away keeps the draft (src/noteDrafts.ts), it
+// does not commit a half-typed note nobody can edit or delete.
+//
+// That is the opposite of EditableText/EditableMarkdown above, and correctly
+// so: those edit an existing MUTABLE value, so blur-to-save is safe — the
+// field is still sitting there to fix. Blur-to-save is only dangerous when
+// there is no undo. Party notes used to send on blur and players reported it;
+// the live panel never did.
+//
+// The keystroke follows the medium, and only the keystroke differs:
+//   * party notes are margin prose (parchment even swaps to --font-hand), so
+//     Enter must make a paragraph and ⌘/Ctrl+Enter sends — `sendOn="modEnter"`
+//   * the live feed is one-line chat rows (issue #67), so Enter sends and
+//     Shift+Enter makes a newline — `sendOn="enter"`
+// Both render the button, because the keyboard hint is invisible once you
+// type and there is no modifier key to hold on a tablet.
+// ============================================================================
+
+interface NoteComposerProps {
+  // Per-entity / per-session draft identity. Changing it re-seeds the box from
+  // the store, which is what keeps entity A's prose from being sent to B.
+  draftKey: string;
+  placeholder: string;
+  submitLabel: React.ReactNode;
+  submitTitle: string;
+  // Must REJECT on failure — a rejected write keeps the draft rather than
+  // silently eating the text.
+  onSubmit: (text: string) => void | Promise<void>;
+  sendOn: "enter" | "modEnter";
+  className?: string;
+}
+
+export function NoteComposer({
+  draftKey,
+  placeholder,
+  submitLabel,
+  submitTitle,
+  onSubmit,
+  sendOn,
+  className,
+}: NoteComposerProps) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [draft, setDraft] = useState(() => readDraft(draftKey));
+  const [saving, setSaving] = useState(false);
+
+  // React renders no children into the contentEditable (a text node would take
+  // the caret and swallow the first keystroke — see the .add-note CSS note), so
+  // the DOM has to be seeded imperatively whenever the identity changes. A
+  // LAYOUT effect, so the previous entity's text never paints.
+  //
+  // This one hook does three jobs: restores a kept draft on remount, resets the
+  // box when the relations rail swaps entities under a mounted sheet, and
+  // re-fills it when the live panel's collapse unmounts only the subtree.
+  useLayoutEffect(() => {
+    const seeded = readDraft(draftKey);
+    setDraft(seeded);
+    if (ref.current) ref.current.textContent = seeded;
+  }, [draftKey]);
+
+  const clearComposer = () => {
+    setDraft("");
+    clearDraft(draftKey);
+    if (ref.current) ref.current.textContent = "";
+  };
+
+  const submit = async () => {
+    const text = draft.trim();
+    if (!text || saving) return;
+    setSaving(true);
+    try {
+      await onSubmit(text);
+      // Clear only on success. A write rejected by RLS keeps its prose, and
+      // the caller's mutation has already raised the write-error toast.
+      clearComposer();
+    } catch (e) {
+      console.error("note submit failed", e);
+    } finally {
+      // If the sheet remounted mid-flight (rail navigation) this lands on an
+      // unmounted composer — a no-op in React 18. The insert still resolves
+      // against the entity id the caller captured.
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="note-composer">
+      <div
+        className={`add-note${className ? ` ${className}` : ""}${draft ? " has-draft" : " is-empty"}`}
+        data-placeholder={placeholder}
+        contentEditable
+        suppressContentEditableWarning
+        ref={ref}
+        onInput={(e) => {
+          const text = e.currentTarget.textContent || "";
+          setDraft(text);
+          writeDraft(draftKey, text);
+        }}
+        onPaste={(e) => {
+          e.preventDefault();
+          // Default paste into a contentEditable carries markup. textContent
+          // flattens it on the way to the DB, but the box looks broken.
+          document.execCommand("insertText", false, e.clipboardData.getData("text/plain"));
+        }}
+        onKeyDown={(e) => {
+          // First: an Enter-to-send surface must not commit mid-composition,
+          // or every IME user sends a partial word.
+          if (e.nativeEvent.isComposing) return;
+          if (e.key === "Escape") {
+            // preventDefault + the contentEditable target both satisfy the
+            // detail sheet's Esc guard, so this can never also close the
+            // sheet. A second Esc (target is now body) does close it.
+            e.preventDefault();
+            clearComposer();
+            ref.current?.blur();
+            return;
+          }
+          if (e.key !== "Enter") return;
+          if (e.shiftKey) return; // always a newline, on both surfaces
+          const mod = e.metaKey || e.ctrlKey;
+          // modEnter keeps plain Enter as a paragraph break; enter also takes
+          // ⌘/Ctrl+Enter so muscle memory carries between the two surfaces.
+          if (sendOn === "enter" || mod) {
+            e.preventDefault();
+            void submit();
+          }
+        }}
+      />
+      <div className="note-composer-actions">
+        <button
+          type="button"
+          className="note-send-btn"
+          disabled={!draft.trim() || saving}
+          title={submitTitle}
+          onClick={submit}
+        >
+          {saving ? "…" : submitLabel}
+        </button>
+      </div>
     </div>
   );
 }

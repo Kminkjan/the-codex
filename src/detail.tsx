@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ARCHIVABLE_KINDS, type KindKey, MONSTER_THREAT_OPTIONS, PERSON_STATUS_OPTIONS, PERSON_TIER_OPTIONS, bothVisible, entityLabel, isArchivableKind, isArchived, isHidden, isPc, isPinned, isVisible, personTier, sessionFeedToMarkdown, sessionLabel } from "./data";
 import { Icon, kindIcon } from "./icons";
-import { StatusChip, EditableText, EditableMarkdown, EnumSelect, EntitySelect, EntityCombobox, type EntityOption, Fleurons, ThemedLabel } from "./components";
+import { StatusChip, EditableText, EditableMarkdown, EnumSelect, EntitySelect, EntityCombobox, type EntityOption, Fleurons, NoteComposer, ThemedLabel } from "./components";
+import { clearDraft, entityDraftKey } from "./noteDrafts";
 import { useCampaign, useFindEntity, useIsDm, useProfiles } from "./hooks";
 import { useAuth } from "./auth";
 import {
@@ -934,8 +935,6 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
 
   const notes = campaign.notes[entityId] || [];
 
-  const [draft, setDraft] = useState("");
-  const [saving, setSaving] = useState(false);
   // Same guard for DRAFT RECAP (issue #72): the append is a read-modify-write
   // on summary. Like RELEASE, the guard clears on failure only — clearing on
   // success would re-enable the button in the realtime echo gap while
@@ -948,7 +947,12 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
   useEffect(() => {
     setDraftingRecap(false);
   }, [entitySummary]);
-  const draftRef = useRef<HTMLDivElement>(null);
+  // Unsent party-note text, held outside the component so none of the sheet's
+  // dismissal paths can destroy it. Keyed per entity, which is also what stops
+  // a draft typed for one entity being inserted onto another.
+  const noteDraftKey = entityDraftKey(campaign.id, entityId);
+  // Did the current drag start on the backdrop? See the overlay's handlers.
+  const downOnBackdrop = useRef(false);
 
   // Esc closes the sheet ("single Esc/click dismiss", #69 — and general UX).
   // defaultPrevented skips Esc already claimed by an inner editor (EditableText
@@ -973,8 +977,9 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  // Navigating the rail keeps this component mounted — don't carry one
-  // creature's plate over onto the next entity's sheet.
+  // Belt to App.tsx's key={openId}, which remounts the sheet on entity change
+  // and would reset this anyway: don't carry one creature's plate over onto the
+  // next entity's sheet if the sheet ever stops being keyed.
   useEffect(() => { setPlateOpen(false); }, [entityId]);
 
   // Manual strings + FK relations (resides at / member of / quest giver /
@@ -1206,36 +1211,30 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
     const label = entityLabel(entity);
     if (!window.confirm(`Strike "${label}" from the codex? This cannot be undone.`)) return;
     deleteEntity(kind, entityId)
-      .then(() => onClose())
+      .then(() => {
+        // A struck entity's kept draft is unreachable — nothing left to pin it to.
+        clearDraft(noteDraftKey);
+        onClose();
+      })
       .catch((e) => console.error("deleteEntity failed", e));
   };
 
-  const addNote = async () => {
-    const text = draft.trim();
-    if (!text || saving) return;
-    setSaving(true);
-    try {
-      await insertPartyNote(entityId, {
-        author: displayName || "Anonymous",
-        when: "Just now",
-        text,
-        hand: true,
-      }, {
-        // Announce it in the live feed only if the players can already see what
-        // was annotated (0032) — a note on an unreleased entity is DM prep. The
-        // label is snapshotted here because the mutation can't resolve a display
-        // field that varies by kind; it's the fallback for a later-struck entity.
-        announce: isVisible(entity),
-        entityLabel: entity ? entityLabel(entity) : undefined,
-      });
-      setDraft("");
-      if (draftRef.current) draftRef.current.textContent = "";
-    } catch (e) {
-      console.error("insertPartyNote failed", e);
-    } finally {
-      setSaving(false);
-    }
-  };
+  // Returns the promise: NoteComposer keeps the draft if the write is rejected,
+  // and insertPartyNote has already raised the write-error toast.
+  const addNote = (text: string) =>
+    insertPartyNote(entityId, {
+      author: displayName || "Anonymous",
+      when: "Just now",
+      text,
+      hand: true,
+    }, {
+      // Announce it in the live feed only if the players can already see what
+      // was annotated (0032) — a note on an unreleased entity is DM prep. The
+      // label is snapshotted here because the mutation can't resolve a display
+      // field that varies by kind; it's the fallback for a later-struck entity.
+      announce: isVisible(entity),
+      entityLabel: entity ? entityLabel(entity) : undefined,
+    });
 
   const kindTitle: Record<string, string> = {
     people: "Person of Note", locations: "Location", quests: "Quest",
@@ -1246,7 +1245,23 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
 
   return (
     <>
-    <div className="detail-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    {/* Dismiss needs BOTH mouse endpoints on the backdrop. Not onClick alone: a
+        text-selection drag that starts inside the sheet and ends outside fires a
+        click whose target is the common ancestor — this overlay — so the sheet
+        would close out from under a selection. Not onMouseDown alone either
+        (the old bug): the browser moves focus as mousedown's DEFAULT ACTION, so
+        unmounting on down meant a focused EditableText never got its
+        blur-commit and the edit was silently discarded. Waiting for mouseup
+        lets the commit land first, for free. */}
+    <div
+      className="detail-overlay"
+      onMouseDown={(e) => { downOnBackdrop.current = e.target === e.currentTarget; }}
+      onMouseUp={(e) => {
+        const dismiss = downOnBackdrop.current && e.target === e.currentTarget;
+        downOnBackdrop.current = false;
+        if (dismiss) onClose();
+      }}
+    >
       <div className={`detail-sheet tex-vellum ${isArchived(entity) ? "is-archived" : ""} ${isHidden(entity) ? "is-veiled" : ""}`}>
         <button className="detail-close" onClick={onClose}><Icon name="close" size={16} /></button>
         {/* Wraps rather than overflows: the DM's row can reach nine controls
@@ -1685,21 +1700,15 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                 ))}
               </div>
 
-              {canEdit && <div
-                className={`add-note${draft ? "" : " is-empty"}`}
-                data-placeholder="Leave a note in the margin… (⌘↵ to pin)"
-                contentEditable
-                suppressContentEditableWarning
-                ref={draftRef}
-                onInput={(e) => setDraft(e.currentTarget.textContent || "")}
-                onBlur={addNote}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                    e.preventDefault();
-                    addNote();
-                    (e.currentTarget as HTMLDivElement).textContent = "";
-                  }
-                }}
+              {/* Prose, so plain Enter makes a paragraph and ⌘/Ctrl+Enter pins.
+                  Never sends on blur — see the rule on NoteComposer. */}
+              {canEdit && <NoteComposer
+                draftKey={noteDraftKey}
+                placeholder="Leave a note in the margin…"
+                sendOn="modEnter"
+                submitLabel={<ThemedLabel parchment="Pin the note" atlas="Add note" />}
+                submitTitle="Pin this note to the margin (⌘/Ctrl + Enter)"
+                onSubmit={addNote}
               />}
             </div>
 
