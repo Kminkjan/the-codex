@@ -164,6 +164,7 @@ const mapPerson = (r: any) => ({
   faction: r.faction_id ?? undefined,
   lastSeen: r.last_seen_session_id ?? undefined,
   imageUrl: r.image_url ?? undefined,
+  imageFocus: r.image_focus ?? undefined,
   notes: r.notes ?? undefined,
   ...archiveFields(r),
 });
@@ -176,6 +177,7 @@ const mapLocation = (r: any) => ({
   region: r.region ?? undefined,
   ruler: r.ruler ?? undefined,
   imageUrl: r.image_url ?? undefined,
+  imageFocus: r.image_focus ?? undefined,
   notes: r.notes ?? undefined,
   ...archiveFields(r),
 });
@@ -209,6 +211,7 @@ const mapFaction = (r: any) => ({
   desc: r.desc ?? undefined,
   allegiance: r.allegiance ?? undefined,
   imageUrl: r.image_url ?? undefined,
+  imageFocus: r.image_focus ?? undefined,
   ...archiveFields(r),
 });
 
@@ -218,6 +221,7 @@ const mapItem = (r: any) => ({
   kind: r.kind,
   desc: r.desc ?? undefined,
   imageUrl: r.image_url ?? undefined,
+  imageFocus: r.image_focus ?? undefined,
   ...archiveFields(r),
 });
 
@@ -236,6 +240,7 @@ const mapMonster = (r: any) => ({
   habitat: r.habitat ?? undefined,
   desc: r.desc ?? undefined,
   imageUrl: r.image_url ?? undefined,
+  imageFocus: r.image_focus ?? undefined,
   notes: r.notes ?? undefined,
   ...archiveFields(r),
 });
@@ -247,6 +252,7 @@ const mapSession = (r: any) => ({
   date: r.date,
   summary: r.summary ?? undefined,
   imageUrl: r.image_url ?? undefined,
+  imageFocus: r.image_focus ?? undefined,
   inGameDate: r.in_game_date ?? undefined,
   arc: r.arc_id ?? undefined,
 });

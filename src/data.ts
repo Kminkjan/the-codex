@@ -34,6 +34,8 @@ export interface Session {
   date: string;
   summary?: string;
   imageUrl?: string;
+  /** Focal point for `imageUrl`. See Person.imageFocus / src/imageFocus.ts. */
+  imageFocus?: string;
   inGameDate?: string;
   arc?: string;
 }
@@ -102,6 +104,14 @@ export interface Person extends ArchivableFields {
   faction?: string;
   lastSeen?: string;
   imageUrl?: string;
+  /**
+   * Where the subject sits in `imageUrl`, as `"<x> <y>"` percentages — the one
+   * value that keeps `object-fit: cover` from cropping through a face. Absent
+   * means centred, which is what CSS already does. One point serves every crop
+   * box in the app; see src/imageFocus.ts, which owns parsing it, and note that
+   * the raw string must never reach CSS unparsed.
+   */
+  imageFocus?: string;
   notes?: string;
 }
 
@@ -113,6 +123,8 @@ export interface Location extends ArchivableFields {
   region?: string;
   ruler?: string;
   imageUrl?: string;
+  /** Focal point for `imageUrl`. See Person.imageFocus / src/imageFocus.ts. */
+  imageFocus?: string;
   notes?: string;
 }
 
@@ -143,6 +155,8 @@ export interface Faction extends ArchivableFields {
   desc?: string;
   allegiance?: string;
   imageUrl?: string;
+  /** Focal point for `imageUrl`. See Person.imageFocus / src/imageFocus.ts. */
+  imageFocus?: string;
 }
 
 export interface Item extends ArchivableFields {
@@ -151,6 +165,8 @@ export interface Item extends ArchivableFields {
   kind: string;
   desc?: string;
   imageUrl?: string;
+  /** Focal point for `imageUrl`. See Person.imageFocus / src/imageFocus.ts. */
+  imageFocus?: string;
 }
 
 export interface Lore extends ArchivableFields {
@@ -170,6 +186,8 @@ export interface Monster extends ArchivableFields {
   habitat?: string;
   desc?: string;
   imageUrl?: string;
+  /** Focal point for `imageUrl` (the plate). See src/imageFocus.ts. */
+  imageFocus?: string;
   notes?: string;
 }
 

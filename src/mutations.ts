@@ -59,6 +59,7 @@ const fieldAlias: Record<KindKey, Record<string, string>> = {
     faction: "faction_id",
     lastSeen: "last_seen_session_id",
     imageUrl: "image_url",
+    imageFocus: "image_focus",
     isPc: "is_pc",
     playerUserId: "player_user_id",
   },
@@ -69,20 +70,25 @@ const fieldAlias: Record<KindKey, Record<string, string>> = {
   },
   locations: {
     imageUrl: "image_url",
+    imageFocus: "image_focus",
   },
   goals: {},
   factions: {
     imageUrl: "image_url",
+    imageFocus: "image_focus",
   },
   items: {
     imageUrl: "image_url",
+    imageFocus: "image_focus",
   },
   lore: {},
   monsters: {
     imageUrl: "image_url",
+    imageFocus: "image_focus",
   },
   sessions: {
     imageUrl: "image_url",
+    imageFocus: "image_focus",
     inGameDate: "in_game_date",
     arc: "arc_id",
   },

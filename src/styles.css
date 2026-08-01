@@ -1681,6 +1681,83 @@ button.session-pin { line-height: 1; }
 }
 .plate-lightbox-close:hover { color: #f2e6c9; }
 
+/* Reframe editor — set an image's focal point (src/imageFocus.ts).
+   Deliberately built on the lightbox's geometry rather than beside it: the
+   crosshair maps a pointer position to a percentage of the artwork, so the
+   <img> element's box must BE the artwork's box, with no padding or fixed
+   width to subtract. `max-width`/`max-height` with `contain` and a
+   width:auto element is exactly that, which is why .reframe-img mirrors
+   .plate-lightbox-img instead of inventing its own sizing.
+   z 79: one above the plate lightbox, since reframing can be reached from a
+   sheet that already has the plate up. */
+.reframe {
+  position: fixed; inset: 0;
+  z-index: 79;
+  background: rgba(12,8,4,.94);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 16px;
+  padding: 40px;
+}
+.reframe-stage {
+  position: relative;
+  line-height: 0;          /* no inline-descender gap under the image */
+  cursor: crosshair;
+  touch-action: none;      /* a drag must not scroll the page on touch */
+  border: 1px solid rgba(220,205,160,.25);
+  box-shadow: 0 30px 90px rgba(0,0,0,.7);
+}
+.reframe-stage:focus-visible { outline: 2px solid #d0a548; outline-offset: 3px; }
+.reframe-img {
+  display: block;
+  max-width: min(100%, 900px);
+  max-height: 62vh;
+  object-fit: contain;
+  user-select: none; -webkit-user-drag: none;
+}
+/* The point itself. Centred on its own coordinates via the translate, so the
+   crosshair's intersection is the focal point rather than its top-left. */
+.reframe-dot {
+  position: absolute;
+  width: 22px; height: 22px;
+  margin: -11px 0 0 -11px;
+  border-radius: 50%;
+  border: 2px solid #f2e6c9;
+  box-shadow: 0 0 0 1px rgba(0,0,0,.6), 0 0 10px rgba(0,0,0,.5);
+  pointer-events: none;
+}
+.reframe-dot::before, .reframe-dot::after {
+  content: '';
+  position: absolute;
+  background: rgba(242,230,201,.55);
+}
+.reframe-dot::before { left: 9px; top: -1000px; width: 2px; height: 2000px; }
+.reframe-dot::after { top: 9px; left: -1000px; height: 2px; width: 2000px; }
+.reframe-previews { display: flex; align-items: flex-end; gap: 14px; }
+/* Two tiles, not one. There is no single crop box to preview — the same stored
+   point is read by a 1:1 well (parchment portrait), a 16:10 well (every Atlas
+   art well), a 4:3 plate and a 56px square thumb. Showing the squarest and the
+   widest makes that two-crop reality legible while aiming. */
+.reframe-preview {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(220,205,160,.25);
+  background: rgba(0,0,0,.35);
+}
+.reframe-preview img {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+}
+.reframe-hint {
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  color: #c9b285;
+  text-align: center;
+  max-width: 460px;
+}
+.reframe-actions { display: flex; align-items: center; gap: 10px; }
+
 .card-lore {
   width: 190px;
   background: var(--paper-cream);
@@ -1876,6 +1953,10 @@ button.session-pin { line-height: 1; }
   position: absolute;
   left: 6px; right: 6px; bottom: 6px;
   display: flex;
+  /* Wraps because the row is only 158px wide and a monster carries four chips
+     (⛶ Reframe Replace ✕) — in Atlas, where Inter is wider than Fell SC, the
+     unwrapped row would clip its last chip out of reach. */
+  flex-wrap: wrap;
   gap: 4px;
   justify-content: flex-end;
   opacity: 0;
