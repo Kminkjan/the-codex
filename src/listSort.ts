@@ -94,8 +94,18 @@ export function applyListSort<T extends Sortable>(items: T[], key: SortKey, ctx:
         // Unrated last rather than first: "the worst thing we ever fought"
         // should not open on the creatures nobody has rated.
         return ((b as any).cr ?? -1) - ((a as any).cr ?? -1);
-      case "met":
-        return (ctx.firstMetNum?.(a.id) ?? Infinity) - (ctx.firstMetNum?.(b.id) ?? Infinity);
+      case "met": {
+        // Subtraction would be wrong here, not merely inelegant: un-inked
+        // plates resolve to Infinity, and Infinity - Infinity is NaN. The
+        // caller below treats any non-zero result as decisive, so a NaN would
+        // ride out to Array.sort, which coerces it to +0 — silently skipping
+        // the updatedAt tiebreaker for the entire un-inked tail. That tail is
+        // most of the bestiary, so this is the common case, not an edge one.
+        const na = ctx.firstMetNum?.(a.id) ?? Infinity;
+        const nb = ctx.firstMetNum?.(b.id) ?? Infinity;
+        if (na === nb) return 0; // both un-inked (or same session) → tiebreak
+        return na < nb ? -1 : 1;
+      }
       default:
         return 0;
     }

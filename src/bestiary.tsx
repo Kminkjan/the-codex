@@ -230,7 +230,12 @@ export function BestiaryPage({ onOpenEntity }: { onOpenEntity: (id: string) => v
     return applyListSort(list, sort, { kind: "monsters", firstMetNum });
   }, [campaign.monsters, campaign.sessions, showArchived, typeFacet, threatFacet, showUninked, met, query, sort]);
 
-  const facetsActive = typeFacet !== ALL || threatFacet !== ALL || !showUninked || !!query.trim() || sort !== "default";
+  // Sort is NOT part of this, and stopped being part of it when the choice
+  // became sticky: a remembered "by CR" would otherwise light this button up on
+  // every future visit with nothing actually filtered, and clicking it would
+  // quietly un-remember the choice. The select is its own way back. Same rule
+  // as KindList's row, so the two pages agree.
+  const facetsActive = typeFacet !== ALL || threatFacet !== ALL || !showUninked || !!query.trim();
 
   const onNew = () => {
     const id = crypto.randomUUID();
@@ -301,7 +306,7 @@ export function BestiaryPage({ onOpenEntity }: { onOpenEntity: (id: string) => v
             {facetsActive && (
               <button
                 className="cleanup-link-btn"
-                onClick={() => { setTypeFacet(ALL); setThreatFacet(ALL); setShowUninked(true); setQuery(""); setSort("default"); }}
+                onClick={() => { setTypeFacet(ALL); setThreatFacet(ALL); setShowUninked(true); setQuery(""); }}
               >
                 clear filters
               </button>

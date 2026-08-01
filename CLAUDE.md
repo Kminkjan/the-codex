@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run check` — chains every wired harness below; run it alongside `build` before calling a change done
 - `npm run preview` — serve the production build
 
-There's no test *framework*, but there are four assertion harnesses in [scripts/](scripts/), each runnable as `npx tsx scripts/<name>.ts` and exiting non-zero on failure:
+There's no test *framework*, but there are seven assertion harnesses in [scripts/](scripts/), each runnable as `npx tsx scripts/<name>.ts` and exiting non-zero on failure:
 
 | harness | guards | wired into `npm run check` |
 | --- | --- | --- |

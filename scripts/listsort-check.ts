@@ -126,6 +126,30 @@ console.log("\napplyListSort: unknown values sort LAST, never first");
   check("met: earliest encounter first, un-inked plates last",
     ids(applyListSort(plates, "met", { kind: "monsters", firstMetNum })) === "s02,s09,never",
     ids(applyListSort(plates, "met", { kind: "monsters", firstMetNum })));
+
+  // TWO un-inked plates, not one — the single-un-inked fixture above can never
+  // form the pair that matters. Un-inked resolves to Infinity, so subtracting
+  // gives NaN, and a NaN escaping the comparator makes Array.sort treat the
+  // pair as equal and skip the updatedAt tiebreaker. The imported bestiary is
+  // overwhelmingly un-inked, so that tail is the bulk of the wall, not a
+  // corner. Expected: the one inked plate leads, then the rest newest-first.
+  const mostlyUninked: Row[] = [
+    { id: "uninked-oldest", name: "A", updatedAt: at("2024-01-01") },
+    { id: "inked-s02", name: "B", updatedAt: at("2019-01-01") },
+    { id: "uninked-newest", name: "C", updatedAt: at("2026-01-01") },
+    { id: "uninked-mid", name: "D", updatedAt: at("2025-01-01") },
+  ];
+  const sparseMet = (id: string) => (id === "inked-s02" ? 2 : Infinity);
+  check("met: the un-inked tail still falls through to the updatedAt tiebreaker",
+    ids(applyListSort(mostlyUninked, "met", { kind: "monsters", firstMetNum: sparseMet }))
+      === "inked-s02,uninked-newest,uninked-mid,uninked-oldest",
+    ids(applyListSort(mostlyUninked, "met", { kind: "monsters", firstMetNum: sparseMet })));
+  // Nothing inked at all — every pair is Infinity/Infinity, so if the
+  // comparator can produce a NaN this ordering collapses to input order.
+  check("met: an entirely un-inked wall still orders by updatedAt",
+    ids(applyListSort(mostlyUninked, "met", { kind: "monsters", firstMetNum: () => Infinity }))
+      === "uninked-newest,uninked-mid,uninked-oldest,inked-s02",
+    ids(applyListSort(mostlyUninked, "met", { kind: "monsters", firstMetNum: () => Infinity })));
 }
 
 console.log("\napplyListSort: pinned/archived precedence holds in EVERY order");
