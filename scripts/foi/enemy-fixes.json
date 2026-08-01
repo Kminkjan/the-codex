@@ -9,6 +9,25 @@
     "the DM's aggregate list (enemy-totals.tsv) is only ever a cross-check."
   ],
 
+  "_live_comment": [
+    "Rows that already exist in the LIVE database because someone made them in the app. The generator",
+    "can only see the seed migrations, so without these two maps it invents a duplicate — which is",
+    "exactly what 0034 did before 0035 cleaned up after it. Add to these whenever the DM has already",
+    "written up a session or a plate by hand.",
+    "",
+    "sessionIds: session number (or 'N.5' for a side session) -> the existing session's id. A number",
+    "listed here gets NO placeholder row, and every creature fought in it links to the real session.",
+    "monsterIds: creature name -> the existing plate's id, so the ledger's numbers land on the plate",
+    "that already carries the DM's artwork instead of beside it."
+  ],
+  "sessionIds": {
+    "192": "45993809-14f8-47ff-a52f-465f9c8390ee"
+  },
+  "monsterIds": {
+    "Aarakocra": "e60602d4-1bc5-40a3-a222-479bfa65f103",
+    "Aberrant Cultist": "ffcad972-9e3f-4dc9-a054-0863e7c0f428"
+  },
+
   "_cr_comment": "Rows in enemies.tsv that disagree with themselves about a creature's CR. Only a name listed here may have more than one CR in the doc, and the value below is the one that ships.",
   "cr": {
     "Ogre": 2
