@@ -1702,6 +1702,11 @@ button.session-pin { line-height: 1; }
 .reframe-stage {
   position: relative;
   line-height: 0;          /* no inline-descender gap under the image */
+  /* Clips the crosshair's guide lines to the artwork. They are drawn long
+     enough to span any image (.reframe-dot::before/after), so without this they
+     run the full height and width of the viewport and cross the preview tiles
+     and the buttons — reading as a rendering fault rather than a guide. */
+  overflow: hidden;
   cursor: crosshair;
   touch-action: none;      /* a drag must not scroll the page on touch */
   border: 1px solid rgba(220,205,160,.25);

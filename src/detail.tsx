@@ -255,6 +255,15 @@ function EntityPortrait({
   const [uploading, setUploading] = useState(false);
   const [reframing, setReframing] = useState(false);
 
+  // A reframe session belongs to the image it was opened on. When the artwork
+  // changes under it — this editor hit Replace, or another editor's realtime
+  // edit landed — the session is stale, so it closes rather than re-anchoring a
+  // crosshair placed on a picture that is no longer there. This also stops
+  // `reframing` from surviving a Remove: the empty-portrait branch returns
+  // before the overlay renders, so the flag would otherwise sit true and reopen
+  // the editor by itself the moment a new image arrived.
+  useEffect(() => { setReframing(false); }, [imageUrl]);
+
   const pick = () => fileRef.current?.click();
 
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1256,6 +1265,12 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
         <div className="detail-sheet-inner">
 
           <div className="statblock">
+            {/* A focal point belongs to the IMAGE, not to the entity, so
+                onSave clears it in the same write that replaces or removes the
+                artwork. Without that a new portrait inherits the old one's
+                crosshair and silently crops to a point taken from a different
+                picture — the exact bug this feature exists to fix, reintroduced
+                by a stale value. ("" → NULL via toRow.) */}
             {isUploadable(kind) ? (
               <EntityPortrait
                 kind={kind}
@@ -1263,7 +1278,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                 imageUrl={(entity as any).imageUrl}
                 imageFocus={(entity as any).imageFocus}
                 label={entityLabel(entity)}
-                onSave={(url) => patch({ imageUrl: url })}
+                onSave={(url) => patch({ imageUrl: url, imageFocus: "" })}
                 onSaveFocus={(value) => patch({ imageFocus: value })}
                 onZoom={kind === "monsters" && (entity as any).imageUrl
                   ? () => setPlateOpen(true)
