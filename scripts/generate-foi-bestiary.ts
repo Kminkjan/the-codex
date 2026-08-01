@@ -28,10 +28,27 @@
 //      what inks the plate (inkedMonsters in src/monsters.ts derives discovery
 //      from the feed, so this is the same fact the DM's RELEASE ceremony writes)
 //
+// WHAT THIS SCRIPT CANNOT SEE, learned the hard way. It works out which sessions
+// exist by grepping the seed migrations — which is every session the JOURNAL
+// imported, not every session that EXISTS. The DM has been using the app since
+// those seeds landed, so a session or a plate he created there is invisible here,
+// and 0034 duplicated two of them: a placeholder for session 192 next to the real
+// "Worm Storm", and slug-id twins of two plates he had already drawn and
+// illustrated. Migration 0035 reconciles that; `sessionIds` and `monsterIds` in
+// enemy-fixes.json are how you tell this script about such rows so it can't
+// happen twice. When the ledger next grows, check the live database for sessions
+// and plates made in the app FIRST, and add them there.
+//
+// Consequence: this script no longer reproduces the applied 0034 byte-for-byte
+// (it would now emit 31 placeholders, not 32, and point session 192's creatures at
+// the real session). That is deliberate — 0034 is in the remote history and must
+// not change — and the write below refuses to overwrite it.
+//
 // Usage: npx tsx scripts/generate-foi-bestiary.ts   (exits non-zero on any
 // failed assertion; prints a review report for the DM)
+//        ... --out supabase/migrations/00NN_name.sql   to emit a NEW migration
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { join, dirname, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 import { crToThreat, crLabel } from "../src/monsters";
 
@@ -45,9 +62,10 @@ const CAMPAIGN = "fist-of-ilmater";
 // changed in the ledger first.
 // 554 = the doc's rows minus its 15 per-session "Total" subtotals; 454 creatures
 // after aliasing; 546 pairs because 8 rows are a second encounter with the same
-// creature in the same session; 32 placeholders = nums 1-30, the side session
-// 33.5, and 192.
-const EXPECT = { rows: 554, monsters: 454, pairs: 546, sessionsMissing: 32 };
+// creature in the same session; 31 placeholders = nums 1-30 plus the side session
+// 33.5. (It was 32 when 0034 was emitted, before session 192 was known to exist
+// already — see the sessionIds note in enemy-fixes.json and migration 0035.)
+const EXPECT = { rows: 554, monsters: 454, pairs: 546, sessionsMissing: 31 };
 // The ledger's own coverage claim ("Updated up to s192"), quoted in the notes.
 const LEDGER_THROUGH = 192;
 
@@ -57,8 +75,16 @@ const fail = (msg: string) => { failures.push(msg); };
 // ── source ──────────────────────────────────────────────────────────────────
 type Row = { name: string; amount: number; cr: string; encounter: string; session: string; fate: string };
 
+// Split on /\r?\n/, not "\n". These files are committed with LF, but git's
+// autocrlf rewrites them to CRLF in a Windows working tree, and then the LAST
+// column of every row keeps a trailing \r. That is not a cosmetic bug: the last
+// column of enemy-totals.tsv is `cr`, so the header key becomes "cr\r" and every
+// lookup returns undefined (448 spurious "CR disagreement" failures) — and the
+// last column of enemies.tsv is `fate`, where the same thing would have been
+// SILENT, handing every creature the "party put them all down" sentence no matter
+// what colour the DM marked it.
 const tsv = <T,>(file: string): T[] => {
-  const lines = readFileSync(join(FOI, file), "utf8").trim().split("\n");
+  const lines = readFileSync(join(FOI, file), "utf8").trim().split(/\r?\n/);
   const head = lines[0].split("\t");
   return lines.slice(1).map((l) => Object.fromEntries(l.split("\t").map((v, i) => [head[i], v])) as T);
 };
@@ -105,17 +131,27 @@ const HALF = /^S\d+\/(\d+),(\d+)$/;
 const PLAIN = /^S?(\d+)$/;
 const halfNotes: string[] = [];
 
+// Sessions that exist in the live database under an app-generated id, from
+// enemy-fixes.json. These get NO placeholder row: see the header note about 0034
+// duplicating session 192.
+const liveSessionIds: Record<string, string> = fixes.sessionIds ?? {};
+const overriddenSessions = new Set<string>();
+
 const resolveSession = (cell: string): { id: string; num: number; label: string } | null => {
   const t = cell.trim();
   const plain = PLAIN.exec(t);
   if (plain) {
     const num = Number(plain[1]);
+    const live = liveSessionIds[String(num)];
+    if (live) { overriddenSessions.add(String(num)); return { id: live, num, label: String(num) }; }
     return { id: `foi-s${num}`, num, label: String(num) };
   }
   const half = HALF.exec(t);
   if (half) {
     if (half[2] !== "5") { fail(`session cell "${cell}": only ",5" side sessions exist`); return null; }
     const num = Number(half[1]);
+    const live = liveSessionIds[`${num}.5`];
+    if (live) { overriddenSessions.add(`${num}.5`); return { id: live, num, label: `${num}.5` }; }
     return { id: `foi-s${num}b`, num, label: `${num}.5` };
   }
   fail(`unparseable session cell: "${cell}"`);
@@ -171,19 +207,26 @@ for (const r of rawRows) {
 }
 
 // Every resolved session must exist, or be one we're about to create.
-const missingNums = [...Array(LEDGER_THROUGH).keys()].map((i) => i + 1).filter((n) => !knownNums.has(n));
+const missingNums = [...Array(LEDGER_THROUGH).keys()]
+  .map((i) => i + 1)
+  .filter((n) => !knownNums.has(n) && !liveSessionIds[String(n)]);
 const stubs: Array<{ id: string; num: number; title: string; side?: boolean }> = [
   ...missingNums.map((n) => ({ id: `foi-s${n}`, num: n, title: `Session ${n}` })),
 ];
+const liveIds = new Set(Object.values(liveSessionIds));
 for (const r of rows) {
-  if (knownSessionIds.has(r.session.id) || stubs.some((s) => s.id === r.session.id)) continue;
+  if (knownSessionIds.has(r.session.id) || liveIds.has(r.session.id)) continue;
+  if (stubs.some((s) => s.id === r.session.id)) continue;
   // A side session the ledger knows about and the journal doesn't (33.5).
   stubs.push({ id: r.session.id, num: r.session.num, title: `Session ${r.session.label}`, side: true });
 }
 stubs.sort((a, b) => a.num - b.num || a.id.localeCompare(b.id));
 for (const r of rows) {
-  const known = knownSessionIds.has(r.session.id) || stubs.some((s) => s.id === r.session.id);
-  if (!known) fail(`${r.canon}: session ${r.session.id} is neither seeded nor stubbed`);
+  const known = knownSessionIds.has(r.session.id) || liveIds.has(r.session.id) || stubs.some((s) => s.id === r.session.id);
+  if (!known) fail(`${r.canon}: session ${r.session.id} is neither seeded, stubbed, nor listed in sessionIds`);
+}
+for (const n of Object.keys(liveSessionIds)) {
+  if (!overriddenSessions.has(n)) fail(`sessionIds lists session ${n}, which no encounter refers to — drop it`);
 }
 for (const r of rawRows) {
   const t = r.session.trim();
@@ -269,9 +312,19 @@ const slug = (name: string) =>
   name.normalize("NFKD").replace(/[̀-ͯ]/g, "")   // Mwaxanaré → mwaxanare
     .replace(/['’]/g, "")                                   // Lysaga's → lysagas, not lysaga-s
     .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+// Plates that already exist in the live database because the DM wrote them up in
+// the app, from enemy-fixes.json. Using his id means the ledger's numbers land ON
+// his plate (artwork and description intact) rather than beside it.
+const liveMonsterIds: Record<string, string> = fixes.monsterIds ?? {};
+for (const name of Object.keys(liveMonsterIds)) {
+  if (!byName.has(name)) fail(`monsterIds lists "${name}", which is not a creature in the ledger`);
+}
+
 const idOf = new Map<string, string>();
 const slugSeen = new Map<string, string>();
 for (const name of [...byName.keys()].sort((a, b) => a.localeCompare(b))) {
+  const live = liveMonsterIds[name];
+  if (live) { idOf.set(name, live); continue; }
   const s = slug(name);
   if (!s) { fail(`${name} slugs to nothing`); continue; }
   const clash = slugSeen.get(s);
@@ -530,5 +583,22 @@ if (failures.length) {
   process.exit(1);
 }
 
-writeFileSync(join(ROOT, MIGRATION), migration);
-console.log(`\nwrote ${MIGRATION} — ${(migration.length / 1024).toFixed(0)} KB, 4 statements`);
+// 0034 is applied to prod, and a migration in the remote history must never
+// change (supabase/migrations/README.md). Regenerating this file is how you'd
+// notice the source has moved on — so say so and refuse, rather than rewriting an
+// applied migration and letting `git diff` be the only warning. Pass an explicit
+// --out for the NEXT migration number when the ledger grows.
+const outArg = process.argv.indexOf("--out");
+const target = outArg > -1 ? process.argv[outArg + 1] : MIGRATION;
+// Repo-relative by default (that's what the migration path is), but an absolute
+// path passes through so a dry run can write somewhere harmless.
+const targetPath = isAbsolute(target) ? target : join(ROOT, target);
+if (existsSync(targetPath) && readFileSync(targetPath, "utf8") !== migration) {
+  console.log(`\n${target} already exists and differs from what this run produced.`);
+  console.log(`If that version is applied to prod (0034 is), do NOT overwrite it — corrections belong`);
+  console.log(`in a new migration, the way 0035 reconciles 0034. To emit a fresh file:`);
+  console.log(`  npx tsx scripts/generate-foi-bestiary.ts --out supabase/migrations/00NN_name.sql`);
+  process.exit(1);
+}
+writeFileSync(targetPath, migration);
+console.log(`\nwrote ${target} — ${(migration.length / 1024).toFixed(0)} KB, 4 statements`);
