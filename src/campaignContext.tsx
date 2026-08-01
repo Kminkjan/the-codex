@@ -237,6 +237,11 @@ const mapMonster = (r: any) => ({
   desc: r.desc ?? undefined,
   imageUrl: r.image_url ?? undefined,
   notes: r.notes ?? undefined,
+  // Coerce, don't pass through: `cr` is `numeric` (0033), and PostgREST is free
+  // to serialise numeric as a string. `?? undefined` alone would let "0.5"
+  // reach the UI, where `cr > 7` and sorting would then work only by accident.
+  cr: r.cr == null ? undefined : Number(r.cr),
+  encountered: r.encountered == null ? undefined : Number(r.encountered),
   ...archiveFields(r),
 });
 
@@ -385,7 +390,13 @@ async function fetchCampaign(id: string): Promise<Campaign> {
     supabase.from("factions").select("*").eq("campaign_id", id),
     supabase.from("items").select("*").eq("campaign_id", id),
     supabase.from("lore").select("*").eq("campaign_id", id),
-    supabase.from("monsters").select("*").eq("campaign_id", id),
+    // ORDER BY name for the same reason connections gets ORDER BY id below: it
+    // had no order at all. That was invisible while the Bestiary held three
+    // plates, but the Fist of Ilmater import (0034) writes 454 rows that all
+    // share an updated_at, so sortForDisplay's tiebreak can't separate them and
+    // Array.sort is stable — the wall would render in physical row order and
+    // reshuffle after any single edit.
+    supabase.from("monsters").select("*").eq("campaign_id", id).order("name"),
     // ORDER BY id so this select returns a stable order at all; it never had
     // one. deriveRelations' provenance fold does NOT depend on this (it takes
     // the earliest createdAt either way, which relations-check asserts in both
@@ -492,6 +503,9 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
   // every push: track() before the first join throws in realtime-js.
   const channelRef = useRef<RealtimeChannel | null>(null);
   const subscribedRef = useRef(false);
+  // Pending trailing refetches, so the effect's teardown can drop them (see the
+  // debounce helper inside it).
+  const burstTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>> | null>(null);
   const authRef = useRef({ userId: null as string | null, displayName: null as string | null, canEdit: false });
   authRef.current = { userId: user?.id ?? null, displayName, canEdit: isEditorAccount };
 
@@ -744,6 +758,21 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
             setCampaign((c) => c && c.id === campaignId ? { ...c, board: Object.fromEntries((data ?? []).map(mapBoardPosition)) } : c);
           });
         };
+        // Both refetches above pull a WHOLE table, which is the deliberate v1
+        // simplification — but they fire once per row event, and a bulk write
+        // can be thousands of events. The Bestiary import (0034) is 546
+        // connections plus 454 reveals, and because a reveal ALSO triggers both
+        // refetches that's ~1,000 full-table reads per open client from a single
+        // migration. Collapse a burst into one trailing read; a lone event still
+        // lands within a frame or two, which is invisible at the table.
+        const burst = new Map<string, ReturnType<typeof setTimeout>>();
+        const debounce = (name: string, fn: () => void) => () => {
+          clearTimeout(burst.get(name));
+          burst.set(name, setTimeout(() => { if (!cancelled) fn(); }, 250));
+        };
+        burstTimersRef.current = burst;
+        const refetchConnectionsSoon = debounce("connections", refetchConnections);
+        const refetchBoardSoon = debounce("board", refetchBoard);
 
         // The shared pin lives on the campaigns row itself, so it's filtered by
         // `id`, not `campaign_id`. Keep both the React state and the module-level
@@ -917,8 +946,8 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
             // Unconditional (DM clients refetch redundantly but harmlessly —
             // reveals are rare) because isDm isn't in this effect's scope.
             if (payload.eventType === "INSERT" && payload.new?.type === "reveal") {
-              refetchConnections();
-              refetchBoard();
+              refetchConnectionsSoon();
+              refetchBoardSoon();
             }
           },
         );
@@ -944,12 +973,12 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
           // bigserial), so there's nothing to splice against. Refetch. Since
           // 0031 the row does have a stable id available — converting this to an
           // incremental splice is possible now, just not done.
-          refetchConnections,
+          refetchConnectionsSoon,
         );
         channel.on(
           "postgres_changes" as any,
           { event: "*", schema: "public", table: "board_positions", filter },
-          refetchBoard,
+          refetchBoardSoon,
         );
         channel.on(
           "postgres_changes" as any,
@@ -989,6 +1018,11 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
       // everyone else — no explicit untrack needed.
       channelRef.current = null;
       subscribedRef.current = false;
+      // A trailing refetch that fires after a campaign switch would read the old
+      // campaign's tables; `cancelled` already discards the result, but dropping
+      // the timer keeps the request itself from going out.
+      burstTimersRef.current?.forEach(clearTimeout);
+      burstTimersRef.current = null;
       if (channel) supabase.removeChannel(channel);
     };
   }, [campaignId]);
