@@ -45,7 +45,7 @@ const shell = (over: Partial<Campaign>): Campaign => ({
   id: "c1", title: "T", subtitle: "",
   people: [], locations: [], quests: [], goals: [], factions: [],
   items: [], lore: [], monsters: [], sessions: [], arcs: [],
-  events: [], eventParticipants: {}, sessionParticipants: {},
+  events: [], eventParticipants: {}, sessionParticipants: {}, sessionAttendance: {},
   connections: [], sessionStaging: [], sessionEvents: [], dmNotes: {},
   board: {}, notes: {},
   ...over,

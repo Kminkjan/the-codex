@@ -260,6 +260,7 @@ const mapSession = (r: any) => ({
   imageFocus: r.image_focus ?? undefined,
   inGameDate: r.in_game_date ?? undefined,
   arc: r.arc_id ?? undefined,
+  attendanceTakenAt: r.attendance_taken_at ?? undefined,
 });
 
 const mapArc = (r: any) => ({
@@ -293,6 +294,18 @@ const buildParticipants = (rows: any[]): Record<string, string[]> => {
 
 // session id → person ids seen in that session (session_participants junction).
 const buildSessionParticipants = (rows: any[]): Record<string, string[]> => {
+  const bySession: Record<string, string[]> = {};
+  rows.forEach((r: any) => {
+    (bySession[r.session_id] = bySession[r.session_id] || []).push(r.person_id);
+  });
+  return bySession;
+};
+
+// session id → person ids who were at the table (session_attendance, 0039).
+// Same shape as the appearance junction above and a different fact — see the
+// Campaign type. Kept as its own builder rather than a generic one so the two
+// never get wired to the same table by a careless refactor.
+const buildSessionAttendance = (rows: any[]): Record<string, string[]> => {
   const bySession: Record<string, string[]> = {};
   rows.forEach((r: any) => {
     (bySession[r.session_id] = bySession[r.session_id] || []).push(r.person_id);
@@ -364,6 +377,7 @@ async function fetchCampaign(id: string): Promise<Campaign> {
     eventsRes,
     participantsRes,
     sessionParticipantsRes,
+    sessionAttendanceRes,
     sessionStagingRes,
     sessionEventsRes,
     dmNotesRes,
@@ -385,6 +399,7 @@ async function fetchCampaign(id: string): Promise<Campaign> {
     supabase.from("events").select("*").eq("campaign_id", id).order("order_num"),
     supabase.from("event_participants").select("*").eq("campaign_id", id),
     supabase.from("session_participants").select("*").eq("campaign_id", id),
+    supabase.from("session_attendance").select("*").eq("campaign_id", id),
     supabase.from("session_staging").select("*").eq("campaign_id", id),
     supabase.from("session_events").select("*").eq("campaign_id", id).order("created_at").order("id"),
     // DM-only read policy (0018): returns rows on the DM's client, [] on all others.
@@ -416,7 +431,7 @@ async function fetchCampaign(id: string): Promise<Campaign> {
 
   const first = [
     campaignRes, sessionsRes, arcsRes, eventsRes, participantsRes,
-    sessionParticipantsRes, sessionStagingRes, sessionEventsRes, dmNotesRes,
+    sessionParticipantsRes, sessionAttendanceRes, sessionStagingRes, sessionEventsRes, dmNotesRes,
     peopleRes, locationsRes, questsRes, goalsRes, factionsRes, itemsRes,
     loreRes, monstersRes, connectionsRes, boardRes, notesRes,
   ].find((r) => r.error);
@@ -438,6 +453,7 @@ async function fetchCampaign(id: string): Promise<Campaign> {
     events: (eventsRes.data ?? []).map(mapEvent),
     eventParticipants: buildParticipants(participantsRes.data ?? []),
     sessionParticipants: buildSessionParticipants(sessionParticipantsRes.data ?? []),
+    sessionAttendance: buildSessionAttendance(sessionAttendanceRes.data ?? []),
     sessionStaging: (sessionStagingRes.data ?? []).map(mapSessionStaging),
     sessionEvents: (sessionEventsRes.data ?? []).map(mapSessionEvent),
     activeSessionId: campaignRes.data.active_session_id ?? undefined,
@@ -910,6 +926,22 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
             supabase.from("session_participants").select("*").eq("campaign_id", campaignId).then(({ data }) => {
               if (cancelled) return;
               setCampaign((c) => c && c.id === campaignId ? { ...c, sessionParticipants: buildSessionParticipants(data ?? []) } : c);
+            });
+          },
+        );
+        channel.on(
+          "postgres_changes" as any,
+          // Filterless for the same reason as session_staging below: clearing
+          // attendance is a hard DELETE whose old-row payload carries only the
+          // composite PK (session_id, person_id), so a campaign_id filter can
+          // never match it and the row would linger on other clients until a
+          // reload. The refetch is campaign-scoped and campaign-guarded either
+          // way. (The stamp's sessions UPDATE arrives via the sessions handler.)
+          { event: "*", schema: "public", table: "session_attendance" },
+          () => {
+            supabase.from("session_attendance").select("*").eq("campaign_id", campaignId).then(({ data }) => {
+              if (cancelled) return;
+              setCampaign((c) => c && c.id === campaignId ? { ...c, sessionAttendance: buildSessionAttendance(data ?? []) } : c);
             });
           },
         );

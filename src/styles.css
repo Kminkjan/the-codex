@@ -690,6 +690,55 @@ button.session-pin { line-height: 1; }
   color: var(--ink-secondary);
 }
 
+/* "Those Who Sat" — the attendance register on a session sheet. A chip is a
+   two-state control, so absent must read as a real (empty) slot rather than as
+   missing: dashed and faded, the same grammar as the .seen-toggle above. */
+.attend-register {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  margin-bottom: 8px;
+}
+.attend-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 11px;
+  background: transparent;
+  border: 1px dashed var(--ink-faded);
+  border-radius: 13px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--ink-faded);
+  cursor: pointer;
+  white-space: nowrap;
+}
+button.attend-chip:hover { border-color: var(--mustard); color: var(--mustard-deep); }
+.attend-chip.is-present {
+  background: var(--paper-cream);
+  border-style: solid;
+  border-color: var(--forest);
+  color: var(--ink);
+}
+button.attend-chip.is-present:hover { border-color: var(--mustard); color: var(--mustard-deep); }
+.attend-tick { color: var(--forest); font-size: 12px; }
+.attend-note {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 13px;
+  color: var(--ink-secondary);
+}
+/* The presence-derived suggestion. Deliberately quiet — it proposes a write. */
+.attend-propose {
+  padding: 2px 9px;
+  background: transparent;
+  border: 1px solid var(--ink-ghost);
+  border-radius: 11px;
+  font-family: var(--font-body);
+  font-style: normal;
+  font-size: 12px;
+  color: var(--ink-secondary);
+  cursor: pointer;
+}
+.attend-propose:hover { border-color: var(--mustard); color: var(--mustard-deep); }
+
 /* Presence avatars */
 .presence {
   display: flex; align-items: center;
@@ -4428,6 +4477,36 @@ button.session-pin { line-height: 1; }
 }
 [data-theme="modern"] .seen-toggle.seen { background: rgba(127,174,110,.12); border-color: transparent; color: var(--forest); }
 [data-theme="modern"] .session-ribbon { clip-path: none; border-radius: 10px; font-size: 10px; font-weight: 600; }
+
+/* Attendance register: Atlas keeps the dashed/solid distinction (it's the state
+   signal) and drops the paper fill for the flat tinted pill it uses elsewhere
+   for "on" — see .seen-toggle.seen just above. */
+[data-theme="modern"] .attend-chip {
+  border-radius: 8px;
+  border-color: #3d4353;
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  /* NOT --ink-faded/--ink-ghost, even though this is an off-state: the chip's
+     content is a person's name at 12.5px, and ghost measures 2.91:1 on Atlas's
+     canvas. The dashed border carries "absent"; the text keeps the --ink-secondary
+     floor. Parchment keeps --ink-faded, where contrast is ample. */
+  color: var(--ink-secondary);
+}
+[data-theme="modern"] button.attend-chip:hover { border-color: #4a5162; color: var(--ink-body); }
+[data-theme="modern"] .attend-chip.is-present {
+  background: rgba(127,174,110,.12);
+  border-color: transparent;
+  color: var(--forest);
+}
+[data-theme="modern"] button.attend-chip.is-present:hover { border-color: var(--forest); color: var(--forest); }
+[data-theme="modern"] .attend-note { font-style: normal; font-size: 12px; color: var(--ink-secondary); }
+[data-theme="modern"] .attend-propose {
+  border-radius: 6px;
+  border-color: var(--card-edge);
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+}
+[data-theme="modern"] .attend-propose:hover { border-color: #3d4353; color: var(--ink-body); }
 
 /* ── Live session panel ──────────────────── */
 [data-theme="modern"] .live-panel { width: 300px; box-shadow: none; }
