@@ -869,6 +869,23 @@ export async function redeemCampaignInvite(code: string): Promise<{
   };
 }
 
+// The DM seats an account the app already knows (0038) — the counterpart to
+// redeem, which only the joiner can drive. Idempotent server-side, and
+// `alreadyMember` distinguishes "seated" from "was already on the charter"
+// so the caller doesn't report a no-op as a change.
+export async function addMember(
+  userId: string,
+  role: "dm" | "player" = "player",
+): Promise<{ alreadyMember: boolean }> {
+  const { data, error } = await supabase.rpc("add_campaign_member", {
+    cid: getActiveCampaignId(),
+    uid: userId,
+    new_role: role,
+  });
+  if (error) throw error;
+  return { alreadyMember: !!data?.already_member };
+}
+
 export async function setMemberRole(userId: string, role: "dm" | "player"): Promise<void> {
   const { error } = await supabase.rpc("set_member_role", {
     cid: getActiveCampaignId(),

@@ -5,7 +5,7 @@ import { useCampaign, useCampaignSwitcher, useIsDm, useKinds, useMembershipRefre
 import { useAuth } from "./auth";
 import { EditableText, EntitySelect, EnumSelect, ThemedLabel } from "./components";
 import {
-  updateCampaign, archiveCampaign, removeMember, setMemberRole,
+  updateCampaign, archiveCampaign, addMember, removeMember, setMemberRole,
   bindPlayerCharacter,
   listCampaignInvites, createCampaignInvite, revokeCampaignInvite,
   type CampaignInvite,
@@ -175,6 +175,151 @@ function SectionHeading({ children }: { children: string }) {
       color: "var(--ink-secondary)", marginTop: 38, marginBottom: 14,
     }}>
       ✦ {children} ✦
+    </div>
+  );
+}
+
+// DM-only: seat someone the app already knows, without the invite round-trip.
+// An invite link is the right tool for a stranger; it's the wrong one for a
+// player sitting in presence right now, whose auth uuid and name are already
+// on screen. Both stay — this is the direct path, InviteCard is the link path.
+//
+// The directory is profilesById (issue #114), which already holds every
+// account that has ever signed in, so there is no new fetch and no new read
+// surface: profiles is world-readable by design (0020). Candidates are named
+// profiles that aren't already on the charter — an unnamed row is either a
+// stale mirror or an account nobody could identify in a picker anyway.
+//
+// Mounted only under isDm, matching add_campaign_member's DM gate (0038).
+function SeatMemberCard({
+  memberIds,
+  onSeat,
+}: {
+  memberIds: Set<string>;
+  onSeat: (userId: string, name: string) => void;
+}) {
+  const profilesById = useProfiles();
+  const atTheTable = usePresence();
+  const [query, setQuery] = useState("");
+
+  // Everyone present but not seated. Presence is the whole point of this
+  // card — these are the people the DM is most likely reaching for — so they
+  // get their own row of one-click chips above the search.
+  const presentCandidates = useMemo(
+    () => atTheTable.filter((p) => !memberIds.has(p.id)),
+    [atTheTable, memberIds],
+  );
+
+  // Presence ids are already offered above, so they're filtered out here to
+  // keep one candidate in one place.
+  const candidates = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const present = new Set(presentCandidates.map((p) => p.id));
+    return [...profilesById.values()]
+      .filter((p) =>
+        p.displayName
+        && !memberIds.has(p.userId)
+        && !present.has(p.userId)
+        && (!q || p.displayName.toLowerCase().includes(q)))
+      .sort((a, b) => (a.displayName ?? "").localeCompare(b.displayName ?? ""));
+  }, [profilesById, memberIds, presentCandidates, query]);
+
+  // Untruncated only while searching: the unfiltered directory grows with
+  // every account that ever signs in, and this card is an aside on the
+  // charter, not a user-management screen.
+  const LIST_PREVIEW = 6;
+  const shown = query.trim() ? candidates : candidates.slice(0, LIST_PREVIEW);
+  const hiddenCount = candidates.length - shown.length;
+
+  return (
+    <div style={{
+      marginTop: 18, padding: "14px 18px",
+      background: "var(--paper-cream)", border: "1px solid var(--vellum-deep)",
+      borderRadius: 6,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+        <span style={{
+          fontFamily: "var(--font-fell-sc)", letterSpacing: ".18em", fontSize: 11,
+          color: "var(--ink-secondary)",
+        }}>
+          <ThemedLabel parchment="SEAT AN ADVENTURER" atlas="Add a member" />
+        </span>
+        <input
+          className="parchment-input"
+          style={{ fontSize: 13, padding: "4px 8px", width: 180 }}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="search by name…"
+          aria-label="Search known adventurers by name"
+        />
+      </div>
+
+      {presentCandidates.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+          <span style={{
+            fontFamily: "var(--font-fell-sc)", letterSpacing: ".16em", fontSize: 10,
+            color: "var(--ink-secondary)",
+          }}>
+            <ThemedLabel parchment="AT THE TABLE" atlas="At the table" />
+          </span>
+          {presentCandidates.map((p) => (
+            <button
+              key={p.id}
+              className="cleanup-link-btn"
+              style={{ fontStyle: "normal" }}
+              onClick={() => onSeat(p.id, p.name)}
+            >
+              + {p.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {shown.length === 0 ? (
+        <div style={{ fontFamily: "var(--font-body)", fontStyle: "italic", fontSize: 13, color: "var(--ink-secondary)", marginTop: 10 }}>
+          {query.trim() ? (
+            <ThemedLabel
+              parchment="No known adventurer by that name."
+              atlas="No account matches that name."
+            />
+          ) : presentCandidates.length > 0 ? (
+            <ThemedLabel
+              parchment="Everyone else the codex knows is already on this charter."
+              atlas="Everyone else with an account is already a member."
+            />
+          ) : (
+            <ThemedLabel
+              parchment="Everyone the codex knows is already on this charter. Forge an invite link for a newcomer."
+              atlas="Everyone with an account is already a member. Use an invite link for someone new."
+            />
+          )}
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+          {shown.map((p) => (
+            <button
+              key={p.userId}
+              className="cleanup-link-btn"
+              style={{ fontStyle: "normal", display: "flex", alignItems: "center", gap: 6 }}
+              onClick={() => onSeat(p.userId, p.displayName!)}
+            >
+              {p.avatarUrl ? (
+                <img
+                  src={p.avatarUrl}
+                  alt=""
+                  style={{ width: 18, height: 18, borderRadius: "50%", objectFit: "cover" }}
+                />
+              ) : null}
+              + {p.displayName}
+            </button>
+          ))}
+        </div>
+      )}
+      {hiddenCount > 0 && (
+        <div style={{ fontFamily: "var(--font-body)", fontStyle: "italic", fontSize: 12, color: "var(--ink-faded)", marginTop: 8 }}>
+          …and {hiddenCount} more — search by name.
+        </div>
+      )}
     </div>
   );
 }
@@ -424,6 +569,13 @@ export function CampaignCharterPage({ onOpenEntity }: { onOpenEntity: (id: strin
       .sort((a, b) =>
         a.role !== b.role ? (a.role === "dm" ? -1 : 1) : (a.name ?? "￿").localeCompare(b.name ?? "￿"));
   }, [roster, profilesById]);
+
+  // Who's already seated, for the add-member picker's exclusion filter. Keyed
+  // off `roster` (not namedRoster) so it doesn't churn on profiles refreshes.
+  const memberIds = useMemo(
+    () => new Set((roster ?? []).map((m) => m.userId)),
+    [roster],
+  );
 
   // Characters a member can be bound to (issue #114). Only people already
   // marked as PCs on their detail sheet: the charter binds a player to a
@@ -726,6 +878,25 @@ export function CampaignCharterPage({ onOpenEntity }: { onOpenEntity: (id: strin
               });
             })()}
           </div>
+        )}
+        {/* Gated on a loaded roster, not just isDm: memberIds is the picker's
+            exclusion filter, and an empty one (roster still null) would offer
+            people who are already seated. The RPC is idempotent so a click
+            there is harmless, but the card shouldn't contradict the "Consulting
+            the rolls…" line directly above it. */}
+        {isDm && roster !== null && (
+          <SeatMemberCard
+            memberIds={memberIds}
+            onSeat={(userId, name) => {
+              void mutateMembership(async () => {
+                const { alreadyMember } = await addMember(userId);
+                // The RPC is idempotent, so a stale roster (membership isn't
+                // realtime) turns a double-click into a silent no-op. Say so
+                // rather than let the DM think the click missed.
+                if (alreadyMember) window.alert(`${name} is already on this charter.`);
+              });
+            }}
+          />
         )}
         {isDm && <InviteCard />}
         {atTheTable.length > 0 && (
