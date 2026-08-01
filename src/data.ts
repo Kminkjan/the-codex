@@ -8,9 +8,18 @@ export type PersonStatus = "alive" | "dead" | "missing" | "unknown";
 export const PERSON_TIER_OPTIONS = ["major", "supporting", "background"] as const;
 export const PERSON_STATUS_OPTIONS = ["alive", "dead", "missing", "unknown"] as const;
 
-// Monsters-only: how much of a fight it is. Deliberately not CR — the Bestiary
-// is a glossary for artwork and notes, not a statblock, so this is the one
-// at-a-glance signal and it stays readable to players.
+// Monsters-only: how much of a fight it is. The Bestiary is a glossary for
+// artwork and notes, not a statblock, so this coarse band is what a plate wears
+// and it stays readable to players.
+//
+// It is NOT the source of truth. This comment used to say "deliberately not CR";
+// since migration 0033 a monster may carry a real `cr`, because the DM's ledger
+// of enemies fought records one for all 454 creatures the party has met and
+// keeping only a band derived FROM it would have been lossy. The direction is
+// fixed: cr is the datum, threat is the reading, and crToThreat() in
+// ./monsters.ts is the single spelling of the table (shared with the seed
+// generator, so a plate can't disagree with the migration that wrote it).
+// Whoever writes `cr` writes `crToThreat(cr)` with it.
 export type MonsterThreat = "harmless" | "risky" | "deadly" | "legendary";
 export const MONSTER_THREAT_OPTIONS = ["harmless", "risky", "deadly", "legendary"] as const;
 
@@ -189,6 +198,15 @@ export interface Monster extends ArchivableFields {
   /** Focal point for `imageUrl` (the plate). See src/imageFocus.ts. */
   imageFocus?: string;
   notes?: string;
+  // Challenge rating (0033). Fractional at the low end (0.125 is CR 1/8), hence
+  // `numeric` in the DB and a real number here — mapMonster coerces, because a
+  // string would make `cr > 7` and sorting work only by accident. Undefined
+  // means unrecorded, never 0: CR 0 is a real rating.
+  cr?: number;
+  // How many individual creatures of this kind the party has faced in total,
+  // summed over every encounter — not the number of fights, which is derivable
+  // from its monster->session rows in `connections`.
+  encountered?: number;
 }
 
 export const ARCHIVABLE_KINDS: ReadonlyArray<KindKey> = [

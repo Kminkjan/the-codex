@@ -7,7 +7,7 @@ import { Icon } from "./icons";
 import { Fleurons, ThemedLabel } from "./components";
 import { NEW_ENTITY_DEFAULTS } from "./board";
 import { createEntity } from "./mutations";
-import { creatureTypes, inkedMonsters, type Encounter } from "./monsters";
+import { creatureTypes, crLabel, inkedMonsters, type Encounter } from "./monsters";
 import { focusToObjectPosition } from "./imageFocus";
 
 // ============================================================================
@@ -100,6 +100,11 @@ function Plate({ monster, met, onOpen, onZoom }: {
     ? campaign.sessions.find((s) => s.id === met.firstSessionId)
     : undefined;
 
+  // How many the party has faced in all, appended to the stamp rather than given
+  // its own line — it's the same fact as "first met", one register down. Voice
+  // is identical in both themes, so it stays outside <ThemedLabel>.
+  const tally = monster.encountered != null ? ` · ${monster.encountered} in all` : "";
+
   const classes = [
     "plate",
     inked ? "" : "is-uninked",
@@ -137,6 +142,10 @@ function Plate({ monster, met, onOpen, onZoom }: {
           </span>
         )}
         {inked && monster.threat && <span className={`m-threat ${monster.threat}`}>{monster.threat}</span>}
+        {/* Same gate as the threat band: what a plate says about the creature is
+            part of what un-inking withholds. On a wall where most frames are
+            empty, the rating is what makes the row scannable. */}
+        {inked && monster.cr != null && <span className="m-cr">CR {crLabel(monster.cr)}</span>}
       </div>
       <div className="plate-body">
         {!!monster.kind?.trim() && <div className="m-type"><Fleurons>{monster.kind}</Fleurons></div>}
@@ -145,10 +154,10 @@ function Plate({ monster, met, onOpen, onZoom }: {
           <div className="plate-stamp">
             {firstSession
               ? <ThemedLabel
-                  parchment={`First met — Session ${firstSession.num}`}
-                  atlas={`First met ${sessionLabel(firstSession.num)}`}
+                  parchment={`First met — Session ${firstSession.num}${tally}`}
+                  atlas={`First met ${sessionLabel(firstSession.num)}${tally}`}
                 />
-              : <ThemedLabel parchment="Met by the party" atlas="Encountered" />}
+              : <ThemedLabel parchment={`Met by the party${tally}`} atlas={`Encountered${tally}`} />}
           </div>
         ) : (
           <div className="plate-stamp is-uninked">
@@ -169,6 +178,18 @@ export function BestiaryPage({ onOpenEntity }: { onOpenEntity: (id: string) => v
   const isDm = useIsDm();
   const [typeFacet, setTypeFacet] = useState(ALL);
   const [threatFacet, setThreatFacet] = useState(ALL);
+  // What breaks on a wall of 450 plates isn't filtering — the type and threat
+  // facets already cover that — it's finding one creature and asking "what was
+  // the worst thing we ever fought". Hence a name search and a sort, both local
+  // like the facets. No CR facet: the threat bands ARE the CR ranges, so it
+  // would be the same filter spelled twice.
+  const [query, setQuery] = useState("");
+  // "default" is sortForDisplay's own order (pinned, then most recently
+  // touched), which is what every other list in the app shows. Alphabetical is
+  // offered explicitly rather than relied on: the seeded rows arrive ordered by
+  // name and share an updatedAt, so default LOOKS alphabetical until the first
+  // edit lifts one plate to the top.
+  const [sort, setSort] = useState<"default" | "name" | "cr" | "met">("default");
   // The un-inked frames are the whole point of the wall, so they're on by
   // default; the toggle is for a DM who wants to see only what's been met.
   const [showUninked, setShowUninked] = useState(true);
@@ -189,10 +210,30 @@ export function BestiaryPage({ onOpenEntity }: { onOpenEntity: (id: string) => v
     if (typeFacet !== ALL) list = list.filter((m) => m.kind?.trim().toLowerCase() === typeFacet);
     if (threatFacet !== ALL) list = list.filter((m) => m.threat === threatFacet);
     if (!showUninked) list = list.filter((m) => met.has(m.id));
-    return sortForDisplay(list, { kind: "monsters" });
-  }, [campaign.monsters, showArchived, typeFacet, threatFacet, showUninked, met]);
+    const q = query.trim().toLowerCase();
+    if (q) list = list.filter((m) => m.name.toLowerCase().includes(q));
+    // sortForDisplay first, always: it carries the pinned-then-archived
+    // precedence every list in the app shares. The re-sorts below are stable, so
+    // that precedence survives inside each rank.
+    const ordered = sortForDisplay(list, { kind: "monsters" });
+    if (sort === "name") return [...ordered].sort((a, b) => a.name.localeCompare(b.name));
+    if (sort === "cr") {
+      // Unrated last rather than first — otherwise "worst thing we fought" opens
+      // on the creatures nobody has rated.
+      return [...ordered].sort((a, b) => (b.cr ?? -1) - (a.cr ?? -1));
+    }
+    if (sort === "met") {
+      // Indexed once, not scanned per comparison: a sort of 450 plates against
+      // 190 sessions would otherwise do six figures of array walking.
+      const numById = new Map(campaign.sessions.map((s) => [s.id, s.num]));
+      // Un-inked plates (and a reveal whose session was deleted) sort to the end.
+      const num = (id: string) => numById.get(met.get(id)?.firstSessionId ?? "") ?? Infinity;
+      return [...ordered].sort((a, b) => num(a.id) - num(b.id));
+    }
+    return ordered;
+  }, [campaign.monsters, campaign.sessions, showArchived, typeFacet, threatFacet, showUninked, met, query, sort]);
 
-  const facetsActive = typeFacet !== ALL || threatFacet !== ALL || !showUninked;
+  const facetsActive = typeFacet !== ALL || threatFacet !== ALL || !showUninked || !!query.trim() || sort !== "default";
 
   const onNew = () => {
     const id = crypto.randomUUID();
@@ -237,6 +278,13 @@ export function BestiaryPage({ onOpenEntity }: { onOpenEntity: (id: string) => v
 
         {campaign.monsters.length > 0 && (
           <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", marginBottom: 8 }}>
+            <input
+              className="facet-input"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="find a creature"
+              aria-label="Find a creature by name"
+            />
             {types.length > 0 && (
               <select className="facet-select" value={typeFacet} onChange={(e) => setTypeFacet(e.target.value)} title="Filter by creature type">
                 <option value={ALL}>every type</option>
@@ -247,11 +295,20 @@ export function BestiaryPage({ onOpenEntity }: { onOpenEntity: (id: string) => v
               <option value={ALL}>any threat</option>
               {MONSTER_THREAT_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
+            <select className="facet-select" value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} title="Order the wall">
+              <option value="default">most recently touched</option>
+              <option value="name">by name</option>
+              <option value="cr">by CR, worst first</option>
+              <option value="met">by when first met</option>
+            </select>
             <button className="cleanup-link-btn" onClick={() => setShowUninked((v) => !v)}>
               {showUninked ? "hide un-inked plates" : "show un-inked plates"}
             </button>
             {facetsActive && (
-              <button className="cleanup-link-btn" onClick={() => { setTypeFacet(ALL); setThreatFacet(ALL); setShowUninked(true); }}>
+              <button
+                className="cleanup-link-btn"
+                onClick={() => { setTypeFacet(ALL); setThreatFacet(ALL); setShowUninked(true); setQuery(""); setSort("default"); }}
+              >
                 clear filters
               </button>
             )}

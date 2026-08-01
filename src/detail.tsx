@@ -25,6 +25,7 @@ import {
 } from "./mutations";
 import { findFreeSpot } from "./boardLayout";
 import { PlateLightbox } from "./bestiary";
+import { crLabel, crToThreat, parseCr } from "./monsters";
 import { FeedRow } from "./livePanel";
 import { uploadEntityImage, type UploadableKind } from "./upload";
 import { deriveRelations } from "./relations";
@@ -389,10 +390,13 @@ const PC_TYPE_OPTIONS = ["player character", "npc"] as const;
 
 // Integer-only EditableText: non-numeric input is rejected (no write, the
 // display reverts on blur), matching sessions.num being NOT NULL integer.
-function EditableNumber({ value, onSave }: { value: number; onSave: (n: number) => void }) {
+// `pad` defaults to 2 for session numbers ("07"), which is a session-number
+// convention and not a numeric one — a tally must pass pad={0} or 7 creatures
+// read as "07".
+function EditableNumber({ value, pad = 2, onSave }: { value: number; pad?: number; onSave: (n: number) => void }) {
   return (
     <EditableText
-      value={String(value).padStart(2, "0")}
+      value={String(value).padStart(pad, "0")}
       onSave={(v) => {
         const trimmed = v.trim();
         if (!/^\d+$/.test(trimmed)) return false;
@@ -1392,6 +1396,27 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                   <>
                     <Stat label="Type" empty={!(entity as any).kind?.trim()}><EditableText value={(entity as any).kind ?? ""} onSave={(v) => patch({ kind: v })} placeholder="—" /></Stat>
                     <Stat label="Threat" empty={!(entity as any).threat} valueStyle={{ textTransform: "capitalize" }}><EnumSelect value={(entity as any).threat} options={MONSTER_THREAT_OPTIONS} allowClear onSave={(v) => patch({ threat: v })} /></Stat>
+                    {/* Writing CR rewrites the band with it, because threat is
+                        the reading of cr and not an independent field (see the
+                        MonsterThreat comment in data.ts). Editing Threat alone
+                        above is still allowed — that's the escape hatch for a
+                        creature with no CR recorded. */}
+                    <Stat label="CR" empty={(entity as any).cr == null}>
+                      <EditableText
+                        value={crLabel((entity as any).cr) ?? ""}
+                        onSave={(v) => {
+                          const typed = v.trim();
+                          if (!typed) return patch({ cr: null, threat: null });
+                          const cr = parseCr(typed);
+                          if (cr === null) return false; // unreadable — revert, don't clear
+                          patch({ cr, threat: crToThreat(cr) ?? null });
+                        }}
+                        placeholder="—"
+                      />
+                    </Stat>
+                    <Stat label="Faced in all" empty={(entity as any).encountered == null}>
+                      <EditableNumber value={(entity as any).encountered ?? 0} pad={0} onSave={(n) => patch({ encountered: n })} />
+                    </Stat>
                     <Stat label="Habitat" empty={!(entity as any).habitat?.trim()} span={2} valueStyle={{ fontSize: 14 }}><EditableText value={(entity as any).habitat ?? ""} onSave={(v) => patch({ habitat: v })} placeholder="— where it is met —" /></Stat>
                   </>
                 )}

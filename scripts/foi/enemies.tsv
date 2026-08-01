@@ -1,0 +1,555 @@
+name	amount	cr	encounter	session	fate
+Aarakocra	1	0.25	1	1	killed
+Drow*	1	0.25	1	1	killed-later
+Deep Gnome (Svirfneblin)	1	0.5	1	1	killed
+Bandit	1	0.125	1	1	killed
+Kobold	1	0.125	1	1	killed
+Returned Drifter	2	0.25	2	1	killed
+Returned Sentry	1	1	2	1	killed
+Harpy	1	1	3	2	killed
+Blood-Toll Harpy	2	0.125	3	2	killed
+Violet Fungus	1	0.25	3	2	killed
+Broken King Antigonos	1	3	4	2	killed
+Amphisbaena	1	0.5	5	3	killed
+Returned Sentry	2	1	1	3	killed
+Skulk	1	0.5	1	3	killed
+Indentured Spirit	1	1	2	3	killed
+Lampad	1	3	2	3	killed
+Quasit	1	1	3	5	killed
+Crawling Claw	4	0	4	5	killed
+Slaad Tadpole	1	0.125	4	5	killed
+Swarm of Animated Books	1	0.25	5	5	killed
+Animated Broom	1	0.25	6	5	killed
+Animated Chained Library	1	1	7	6	killed
+Flying Sword	2	0.25	8	6	killed
+Imp	1	1	9	6	killed
+Goblin	2	0.25	10	6	killed
+Hobgoblin	2	0.5	10	6	killed
+Bugbear Gardener	1	1	11	6	killed
+Koalinth	1	0.5	11	6	killed
+Dire Wolf	1	1	12	6	killed
+Wolf	2	0.25	12	6	killed
+Goblin	1	0.25	1	7	killed
+Goblin Boss*	1	1	2	7	killed-later
+Koalinth	2	0.5	2	7	killed
+Grenl*	2	0.25	2	7	killed-later
+Bugbear	1	1	2	7	killed
+Grabstab	1	1	3	7	killed
+Nilbog	1	1	3	7	killed
+Koalinth Sergeant	1	2	3	7	killed
+Bugbear Chief	1	3	4	7	killed
+Winter Wolf	1	3	4	7	killed
+Booyahg Caster	2	0.25	4	7	killed
+Duergar Hammerer	1	2	5	7	killed
+Tabaxi Minstrel	1	0.25	5	7	survived
+Drow	1	0.25	5	7	survived
+Kalashtar	1	0.25	5	7	survived
+Giant Poisonous Snake	1	0.25	5	7	killed
+Gas Spore	1	0.5	5	7	killed
+Redbrand Ruffian	2	0.5	6	8	killed
+Drow Spy	1	1	6	8	killed
+Black Earth Guard	1	2	6	8	killed
+Bandagh	1	0.5	7	8	killed
+Orog	1	2	8	8	killed
+Orc War Chief	1	4	8	8	killed
+Orc	4	0.5	8	8	killed
+Young Ogre Servant	1	0.5	8	8	killed
+Nothic	1	2	9	9	killed
+Pirate Bosun	1	0.5	10	9	killed
+Sacred Stone Monk	1	0.5	10	9	killed
+Rakdos Performer, Fire Eater	1	1	10	9	killed
+Skeleton Key	2	0.25	11	9	killed
+Ogre Skeleton	1	2	11	9	killed
+Bandit Captain	1	2	12	10	killed
+Pirate Deck Wizard	1	1	12	10	killed
+Bugbear Lieutenant	2	1	13	10	killed
+Illusionist	1	3	13	10	killed
+Horncaller	1	1	14	11	killed
+Rakdos Performer, Blade Juggler	2	1	14	11	killed
+Berserker	1	2	14	11	killed
+Evil Mage	1	1	15	11	survived
+Hobgoblin	2	0.5	16	12	killed
+Hobgoblin Devastator	1	4	16	12	killed
+Durnn	1	1	16	12	killed
+Twig Blight	2	0.125	17	12	killed
+Tribal Warrior Spore Servant	4	0.125	17	12	killed
+Phase Spider	1	3	18	13	killed
+Swarm of Spiders	1	0.5	18	13	killed
+Girallon Zombie	2	3	19	13	killed
+Husk Zombie	2	1	1	14	killed
+Ash Zombie	4	0.25	1	14	killed
+Ogre Zombie	1	2	1	14	killed
+Venomfang	1	8	2	14	killed
+Sken Zabriss	1	1	3	15	survived
+Gorvan Ironheart*	1	2	3	15	killed-later
+Dagdra Deepforge	1	2	3	15	killed
+Great Chief Halric Bonesnapper*	1	2	3	15	killed-later
+Corrin Delmaco	1	1	3	15	survived
+Musharib	1	1	3	15	survived
+Ankheg	4	2	4	15	killed
+Fiendish Giant Spider	4	0.5	5	16	killed
+Spider King	1	1	5	16	killed
+Swarm of Zombie Limbs	2	1	6	16	killed
+Boneless	4	1	6	16	killed
+Stomping Foot	4	0	7	17	killed
+Zombie	3	0.25	7	17	killed
+Ghast	1	2	7	17	killed
+Swarm of Bats	1	0.25	8	17	killed
+Tomb Dwarf	1	3	9	17	killed
+Ghoul	7	1	10	18	killed
+Stirge	6	0.125	11	18	killed
+Banshee	1	4	12	18	killed
+Gorvan Ironheart	1	2	13	20	killed
+Lord’s Alliance Guard	1	0.25	13	20	killed
+Panopticus Wizard	2	0.25	13	20	killed
+Khalessa Draga	1	1	13	20	killed
+Berserker	1	2	13	20	killed
+Guard	4	0.125	13	20	killed
+Shield Dwarf Guard	3	0.125	13	20	killed
+Noble	1	0.125	13	20	killed
+Mwaxanaré	1	0.125	13	20	killed
+Drow Noble	1	0.125	13	20	killed
+Blistercoil Weird	1	4	13	20	killed
+Great Chief Halric Bonesnapper	1	2	14	21	killed
+Felbarren Dwarf	2	0.125	14	21	killed
+Ront	1	0.5	14	21	killed
+Rakdos Performer, Blade Juggler	2	1	14	21	killed
+Savid	1	0.5	14	21	killed
+Devil Dog	1	0.25	14	21	killed
+Cultist	4	0.125	14	21	killed
+Drow Guard	4	0.125	14	21	killed
+Howling Hatred Initiate	3	0.125	14	21	killed
+Tribal Warrior	4	0.125	14	21	killed
+Battleforce Angel	1	5	15	21	killed
+Flitterstep Eidolon	1	3	15	21	killed
+Skulk	1	0.5	1	23	killed
+Goblin Boss	1	1	2	24	killed
+Koalinth	3	0.5	2	24	killed
+Goblin Gang Member	8	0.25	2	24	killed
+Drow Spy	1	1	2	24	killed
+Shield Dwarf Guard	4	0.125	2	24	killed
+Shield Dwarf Noble	4	0.125	2	24	killed
+Shadow	2	0.5	3	24	killed
+Shadow Horror*	1	9	3	24	killed-later
+Undying Soldier	2	2	4	25	killed
+Skeletal Swarm	1	2	4	25	killed
+Green Hag	1	3	4	25	killed
+Dread Doppelganger	2	5	5	26	killed
+Hamadryad	1	2	6	28	killed
+Dolgaunt	1	3	6	28	killed
+Darkling Elder	2	2	6	28	killed
+Detached Shadow	2	0.5	7	29	killed
+Shadow Horror	1	9	7	29	killed
+Endelyn Moongrave	1	6	8	30	killed
+Carionette	1	1	8	30	killed
+Living Doll	1	2	8	30	killed
+Flying Rocking Horse	1	0.125	8	30	killed
+Grenl	6	0.25	8	30	killed
+Blood-Toll Harpy	1	0.125	8	30	killed
+Mud Mephit	1	0.25	8	30	killed
+Smoke Mephit	3	0.25	8	30	killed
+Inkling Mascot	1	0.25	8	30	killed
+Sprite	2	0.25	8	30	killed
+Black Gauntlet of Bane	1	6	9	32	killed
+Fist of Bane	2	0.5	9	32	killed
+Iron Consul	1	2	9	32	killed
+Hobgoblin Captain	2	3	10	33	killed
+Owlbear	1	3	10	33	killed
+Drow Bandit	6	0.125	11	S3/33,5	killed
+Drow Cultist	6	0.125	11	S3/33,5	killed
+Drow Guard	6	0.125	11	S3/33,5	killed
+Drow Noble	6	0.125	11	S3/33,5	killed
+Snow Golem	1	3	12	S3/33,5	killed
+Glasswork Golem	1	2	12	S3/33,5	killed
+Keg Robot	1	2	12	S3/33,5	killed
+Allowak Yeti	1	3	12	S3/33,5	killed
+Minotaur	1	3	13	S3/33,5	killed
+Abominable Yeti	1	9	13	S3/33,5	killed
+Booyahg Slave of the Archfey	1	4	14	34	killed
+Grenl	6	0.25	14	34	killed
+Grenl	1	0.25	14	34	survived
+Derro	2	0.25	14	34	killed
+Rakdos Performer, Blade Juggler	1	1	14	34	killed
+Rakdos Performer, Fire Eater	1	1	14	34	survived
+Rakdos Performer, High-Wire Acrobat	1	1	14	34	killed
+Grick Alpha	1	7	15	34	killed
+Koalinth Sergeant	1	2	15	34	killed
+Bugbear Lieutenant	1	1	15	34	killed
+Bugbear Lieutenant	1	1	15	34	survived
+Hobgoblin Warlord	1	6	1	35	killed
+Winter Wolf	1	3	1	35	killed
+Junior Drow Priestess of Lolth	1	2	1	35	killed
+Goblin Boss	1	1	1	35	killed
+Yuk Yuk	1	0.25	1	35	killed
+Hill Giant	2	5	2	37	killed
+Wereboar	1	4	3	S4/37,5	killed
+Tabaxi Hunter	5	1	3	S4/37,5	killed
+Skeemo Weirdbottle	1	6	4	38	survived
+Pirate Captain	3	2	5	39	killed
+Leonin Iconoclast	1	5	5	39	survived
+Willifort Crowelle	1	3	6	40	killed
+Rubblebelt Stalker	1	0.5	6	40	killed
+Howling Hatred Initiate	4	0.125	6	40	killed
+Nimblewright	1	4	7	41	survived
+Drow Gunslinger	1	4	7	41	killed
+Night Blade	2	0.25	7	41	killed
+Dragonborn of Tiamat	1	7	8	42	killed
+Hybrid Flier	1	2	8	42	killed
+Hybrid Poisoner	1	1	8	42	killed
+Prismari Pledgemage	1	4	8	42	killed
+Adult Oblex	1	5	8	42	killed
+Oblex Spawn	1	0.25	8	42	killed
+Orc Blade of Ilneval	2	4	9	45	killed
+Orc Blade of Ilneval*	1	4	9	45	killed-later
+Harpy Monarch	1	5	10	46	killed
+Harpy	2	1	10	46	killed
+Witherbloom Professor of Decay	1	7	11	46	killed
+Reckoner	1	4	12	47	killed
+Giant Shark	1	5	13	47	killed
+Reef Shark	2	0.5	13	47	killed
+Will-o’-Wisp	3	2	14	48	killed
+Sword Wraith Warrior	1	3	15	49	killed
+Dragonbone Golem	1	11	15	49	killed
+Dragonblood Ooze	1	5	1	50	killed
+Archer	1	3	2	50	killed
+Gnoll Hunter	3	0.5	2	50	killed
+Gnoll Pack Lord	1	2	2	50	killed
+Kobold Elite	20	0.125	3	51	killed
+Orc Claw of Luthic	1	2	3	51	killed
+Ogre Chain Brute	1	3	3	51	killed
+Ogre Bolt Launcher	1	2	3	51	killed
+Ogre	1	2	3	51	killed
+Hrabbaz	1	5	3	51	killed
+Strahd Zombie	4	1	4	53	killed
+Husk Zombie	4	1	4	53	killed
+Ash Zombie	4	0.25	4	53	killed
+Cave Fisher	1	3	5	54	killed
+Black Earth Priest*	1	3	6	55	killed-later
+Yuan-Ti Broodguard	2	2	6	55	killed
+Dwarven Worker	8	0.125	7	55	killed
+Flameskull	1	4	7	55	killed
+Doppelganger	1	3	8	55	killed
+Iron Consul	3	2	8	55	killed
+Nezznar the Black Spider	1	2	9	56	killed
+Sword Spider	1	3	9	56	killed
+Bugbear Lieutenant	2	1	9	56	killed
+Gloom Weaver	1	9	10	56	killed
+Swarm of Cranium Rats	1	5	10	56	killed
+Enormous Tentacle	6	2	11	57	killed
+Warlord	1	12	11	57	killed
+Skeleton Warrior	1	5	12	58	killed
+Flaming Skeleton	4	0.5	12	58	killed
+Black Earth Priest	1	3	12	58	killed
+Mormesk the Wraith	1	3	13	59	killed
+Boneless	1	1	13	59	killed
+Yellow Musk Zombie	5	0.25	14	60	killed
+Zombie Clot	1	6	14	60	killed
+Ghoul	3	1	15	60	killed
+Ogre Zombie	1	2	15	60	killed
+The Wretched	6	0.25	16	61	killed
+Piercer	3	0.5	16	61	killed
+Draconian Mage	1	2	16	61	killed
+Stirge	3	0.125	1	64	killed
+Coldlight Walker	2	5	2	65	killed
+Frost Druid	1	5	2	65	killed
+Animated Breath	1	6	3	66	killed
+Isendraug	1	13	3	66	killed
+Thought Spy	2	1	4	68	killed
+Gremlin	1	0.5	4	68	killed
+Lightning Golem	1	5	4	68	killed
+Fire Snake	1	1	4	68	killed
+Needle Lord	1	3	4	68	killed
+Maw Demon	12	1	5	69	killed
+Bulezau	1	3	5	69	killed
+Minsc & Boo!	1	10	6	71	survived
+Veteran	5	3	7	73	killed
+Warduke	1	5	8	74	killed
+Feathergale Knight	8	1	9	74	killed
+Emberhorn Minotaur	1	3	9	74	killed
+Giant Snail	1	0.25	10	75	killed
+Priest	1	2	11	76	killed
+Grippli Warrior	20	0.25	11	76	killed
+Eater of Hope	1	6	11	76	killed
+Nupperibo	20	0.5	11	76	killed
+Venom Troll	1	7	12	77	killed
+Crab Folk	2	3	12	77	killed
+Strahd Zombie	3	1	13	78	killed
+Winter Wolf	2	3	14	79	killed
+Young Winter Wolf	5	1	14	79	killed
+Druid of the Old Ways	1	7	15	80	killed
+Ashen Shambling Mound	1	5	15	80	killed
+Giant Wasp	4	0.5	15	80	killed
+Twig Blight	8	0.125	15	80	killed
+Morgantha (coven)	1	7	16	82	killed
+Night Hag (coven)	2	7	16	82	killed
+Ettercap	1	2	16	82	killed
+Dretch	3	0.25	16	82	killed
+Xilonen	1	5	16	82	killed
+Shadow	1	0.5	16	82	killed
+Shoosuva	1	8	1	83	killed
+Gnoll Hunter	2	0.5	1	83	killed
+Gnoll Witherling	2	0.25	1	83	killed
+Black Pudding	2	4	2	84	killed
+Gladiator	1	5	3	86	killed
+Guard	12	0.125	3	86	killed
+Vampire Spawn	6	5	4	88	killed
+Imp	1	1	5	89	killed
+Succubus	1	4	5	89	killed
+Izek Strazni	1	5	5	89	killed
+Shadow Mastiff	2	2	5	89	killed
+Assassin	1	8	6	91	killed
+Incubus	2	4	7	92	killed
+Skeleton Warrior	1	5	7	92	killed
+Cult Fanatic	5	2	7	92	killed
+Yalaga Maladwyn	1	8	8	94	killed
+Skeletal Alchemist	1	0.5	8	94	killed
+Mummy	2	3	8	94	killed
+Ghoul	18	1	9	95	killed
+Will-o’-Wisp	1	2	9	95	killed
+Malformed Kraken	1	10	10	97	killed
+Kraken Priest	1	5	10	97	killed
+Scarecrow	7	1	11	99	killed
+Baba Lysaga	1	11	11	99	killed
+Baba Lysaga’s Creeping Hut	1	11	11	99	killed
+Skeleton	4	0.25	11	99	killed
+Flying Horror	2	3	1	101	killed
+Arcanaloth	1	12	1	101	killed
+Nothic	4	2	2	102	killed
+Spirit	1	4	3	102	killed
+Master Thief	3	5	4	102	killed
+Mad Golem	1	12	5	102	killed
+Animated Broom	1	0.25	6	103	killed
+Dusk Hag	1	6	6	103	killed
+Flameskull	3	4	6	103	killed
+Vilnius*	1	6	7	103	killed-later
+Quasit	1	1	7	103	killed
+Werebat	1	2	7	103	killed
+Amber Golem	1	10	8	104	killed
+Blaze	3	5	8	104	killed
+Ghast	7	2	9	104	killed
+Mind Drinker Vampire	6	4	10	105	killed
+Vrock	2	6	11	106	killed
+Roc	1	11	12	107	killed
+Coldlight Walker	1	5	12	107	killed
+Twig Blight	25	0.125	13	108	killed
+Needle Blight	17	0.25	13	108	killed
+Vine Blight	5	0.25	13	108	killed
+Blight Totem Elemental	3	0.5	13	108	killed
+Razorvine Blight	3	1	13	108	killed
+Astral Blight	1	1	13	108	killed
+Druid	2	2	13	108	killed
+Groff	1	4	13	108	killed
+Withers	1	4	13	108	killed
+Tree Blight	1	7	13	108	killed
+Witherbloom Professor of Growth	1	7	13	108	killed
+Ordeal Tree	1	12	1	110	killed
+Urban Ranger	2	3	1	110	killed
+Haze Wight	7	3	2	112	killed
+The Abbot	1	10	3	113	killed
+Vasilka	1	5	3	113	killed
+Fire Hellion	1	11	3	113	killed
+Demonfeed Spider	1	8	4	114	killed
+Demonfeed Spiderling	2	1	4	114	killed
+Clay Gladiator	4	5	5	115	killed
+Werewolf Ravager	1	7	6	116	killed
+Werewolf (Krallenhorde)	3	3	6	116	killed
+Dire Wolf	3	1	6	116	killed
+Wolfwere	2	4	7	117	killed
+Wolfwere Alpha	1	6	7	117	killed
+Werewolf	1	3	7	117	killed
+Leonin Iconoclast	1	5	7	117	killed
+Redtooth Werefox	1	3	7	117	killed
+Death Dog	1	1	7	117	killed
+Wolf of the Overworld	4	0.25	7	117	killed
+Heralds of Dust Exorcist	1	6	8	119	killed
+Sword Wraith Warrior	3	3	8	119	killed
+Adult Kruthik	2	2	8	119	killed
+Corpse Mound	1	11	9	120	killed
+Zombie Plague Spreader	1	4	9	120	killed
+Undying Soldier	3	2	9	120	killed
+Grim Jester	1	11	10	121	killed
+Nightveil Specter	2	10	10	121	killed
+Shatter Corpse	5	1	10	121	killed
+Greater Shadow Horror	1	12	1	122	killed
+Shadow fey Guardian	3	4	1	122	killed
+Mindrot Thrall	1	3	2	124	killed
+Astral Blight	2	1	2	124	killed
+Shockerstomper	1	14	2	124	killed
+Kas the Betrayer	1	23	3	126	survived
+Undying Soldier	4	2	3	126	killed
+Vampiric Mist	1	3	3	126	killed
+Vampire Spawn	1	5	4	127	killed
+Banshee	1	4	5	127	killed
+Giant Wolf Spider	3	0.25	6	127	killed
+Swarm of Emberbats	4	0.5	6	127	killed
+Doomguard Doom Lord	1	12	7	128	killed
+Humanoid Mutate	3	4	7	128	killed
+Moonlit King	1	17	8	129	killed
+Queen of Witches	1	17	8	129	killed
+Large Mimic	1	3	9	131	killed
+Gargoyle	8	2	9	131	killed
+Scarecrow	14	1	9	131	killed
+Slithering Tracker	1	3	10	132	killed
+Chitine	5	0.5	10	132	killed
+Strahd Zombie	2	1	11	133	killed
+Deathlock Wight	4	3	12	134	killed
+Cave Fisher	1	3	12	134	killed
+Skeleton Lord	1	9	12	134	killed
+Iron Golem	2	16	13	134	killed
+Yochlol	1	10	1	135	killed
+Demon Ichor	1	4	1	135	killed
+Animated Halberd	10	0.25	2	137	killed
+Vampirate	4	2	2	137	killed
+Swarm of Fire Dancers	1	7	2	137	killed
+Swarm of Emberbats	10	0.5	3	138	killed
+Red Dragon Wyrmling	4	4	4	139	killed
+Half-Red Dragon Veteran	1	5	4	139	killed
+Gray Ooze	1	0.5	5	139	killed
+Huge Gray Ooze	1	8	5	139	killed
+Alkilith	1	11	6	140	killed
+Guardian Portrait	1	1	6	140	killed
+Rug of Smothering	1	2	6	140	killed
+Abominable Yeti	1	9	7	140	survived
+Swarm of Cranium Rats	4	5	8	140	killed
+Knight	2	3	8	140	killed
+Invisible Stalker	1	6	9	140	killed
+Mask Wight	1	13	10	141	killed
+Eldritch Priest	6	2	10	141	killed
+Oculo Swarm	1	4	11	142	killed
+Whirling Chandelier	1	7	11	142	killed
+Queen of Night and Magic	1	21	11	142	killed
+Diseased Grick	2	2	11	142	killed
+Helga Ruvak	1	5	12	142	killed
+Strahd, Master of Death House	1	15	12	142	killed
+Ezmerelda d’Avenir	1	8	12	142	killed
+Kasimir Velikov	1	6	12	142	killed
+Drow Acolyte	5	0.25	12	142	killed
+Urwin Martikov	1	2	12	142	killed
+Umbral Vampire	3	7	13	143	killed
+Acidic Mist Apparition	1	5	14	144	killed
+Skeleton Rifler	5	0.5	15	144	killed
+Skeleton Cannoneer	2	2	15	144	killed
+Skeleton Commander	1	3	15	144	killed
+Master Thief	1	5	16	145	killed
+Ashen Heir Veteran	2	3	16	145	killed
+Terracotta Warrior	3	1	16	145	killed
+Troll Amalgam	1	17	17	146	killed
+Lich Troll	1	14	17	146	killed
+Zombie Troll	2	4	17	146	killed
+Solar Dragon Wyrmling	1	3	18a	147	killed
+Topaz Dragon Wyrmling	1	2	18b	147	killed
+Cave Dragon Wyrmling	1	2	18c	147	killed
+Emerald Dragon Wyrmling	1	2	18d	148	killed
+Flame Dragon Wyrmling	1	2	18e	154	killed
+Howling Hatred Priest	4	2	19	148	killed
+Giant Vulture	4	1	19	148	killed
+Cavil Zaltobar	1	6	20	149	killed
+Duergar Screamer	5	3	20	149	killed
+Dwarf Skeleton	10	0.5	20	149	killed
+Vampiric Jade Statue	2	8	21	151	killed
+Advanced Detention Drone	2	7	1	151	killed
+Drannin Splithelm	1	7	1	151	killed
+Wolf Reaver Dwarf	2	3	1	151	killed
+Doppelganger	1	3	1	151	killed
+Primeval Owlbear	1	7	2	152	killed
+Sarcophagus Slime	1	5	2	152	killed
+Hobgoblin Warrior	4	0.5	3	153	killed
+Goblin Gang Member	6	0.25	4	153	killed
+Hobgoblin Devastator	1	4	4	153	killed
+Hobgoblin Captain	1	3	5	153	killed
+Nilbog	2	1	5	153	killed
+Fomorian	1	8	6	154	killed
+Fiendish Orc	5	4	6	154	killed
+Kalaman Soldier	5	0.5	6	154	killed
+Dum-Dum Goblin	6	0.25	7	155	killed
+Orc	6	0.5	7	155	killed
+Wolf	2	0.25	7	155	killed
+Wolf	2	0.25	7	155	survived
+Ogre	1	2	7	155	killed
+Ogre	2	2	7	155	survived
+Bugbear Warrior	1	1	7	155	killed
+Bugbear Warrior	1	1	7	155	survived
+Hill Giant	3	5	7	155	survived
+Wyvern	1	6	8	155	killed
+Tarkanan Assassin	1	2	8	155	killed
+Young Hill Giant	2	0.5	9	156	killed
+Ogrillon Ogre	1	1	9	156	killed
+Hill Giant Subchief	1	7	9	156	killed
+Mouth of Grolantor	1	6	9	156	killed
+Otyugh	1	5	9	156	killed
+Ettin Ceremorph	1	8	9	156	killed
+Wolf	2	0.25	10	157	killed
+Ogre	2	3	10	157	killed
+Bugbear Warrior	8	1	10	157	killed
+Hill Giant	3	5	10	157	killed
+Goblin Hexer	1	3	10	157	killed
+Hill Giant Avalancher	1	12	10	157	killed
+Zombie Plague Spreader	4	4	11	159	killed
+Marid	1	11	12	160	killed
+Water Weird	2	3	12	160	killed
+Pale Man	1	13	13	160	killed
+Choker	2	1	13	160	killed
+Frost Giant Everlasting One	1	12	14	164	killed
+Huge Giant Crab	2	8	15	165	killed
+Assassin Vine	3	3	15	165	killed
+Corpse Flower	1	8	15	165	killed
+Deadbark Dryad	1	13	16	167	killed
+Flesh Meld	1	7	16	167	killed
+Flesh Meld	1	7	16	167	survived
+Boneless	8	1	16	167	killed
+Swarm of Stirges	4	2	1	169	killed
+Troll	3	5	2	169	killed
+Cloaker	1	8	3	170	killed
+Clay Golem	1	9	4	170	killed
+Swarm of Bats	5	0.25	5	170	killed
+Giant Lightning Eel	4	3	6	171	killed
+Fomorian Deep Crawler	2	10	6	171	killed
+Dao	1	11	7	172	killed
+Earth Elemental Myrmidon	1	7	7	172	killed
+Chimera	1	6	8	172	killed
+Gorgon	1	5	8	172	killed
+Hezrou	1	8	9	173	killed
+Troglodyte	18	0.25	9	173	killed
+Dretch	7	0.25	9	173	killed
+Stone Giant	1	7	10	174	killed
+Rhinoceros	2	2	10	174	killed
+Roper	2	5	11	175	killed
+Phaerimm Elder	1	14	12	175	killed
+Phaerimm Scout	4	2	12	175	killed
+Gas Spore	2	0.5	13	175	killed
+Barlgura	4	5	14	176	killed
+Mimic	1	2	15	177	killed
+Regular Orthoclath	1	16	15	177	killed
+The Lost	4	7	16	177	killed
+Adult Black Dragon	1	14	17	178	killed
+Salamander	2	5	18	180	killed
+Fire Giant of Evil Fire	1	10	18	180	killed
+Fire Giant Forgecaller	1	18	18	180	killed
+Fire Giant Servant	4	5	19	182	killed
+Adult Red Dragon	1	17	19	182	killed
+Adult Red Dracolich	1	17	19	183	killed
+Choldrith	1	3	20	185	killed
+Lost Sorrowsworn	1	7	21	185	killed
+Lonely Sorrowsworn	1	9	22	185	killed
+Marid	1	11	1	187	killed
+Kobold Vampire Spawn	8	3	2	188	killed
+Cultist Hierophant	1	10	3	188	killed
+Cult Fanatic	7	2	3	188	killed
+Spy	2	1	3	188	killed
+Shadow Demon	2	4	3	188	killed
+Wight Lifedrinker	5	3	4	190	killed
+Undead Soldier	4	3	4	190	killed
+Aberrant Cultist	1	8	4	190	killed
+Oriq Blood Mage	2	9	4	190	killed
+Precognitive Mage	3	3	5	191	killed
+Precognitive Mage	1	3	5	191	survived
+Amonkhet Mummy	2	3	5	191	killed
+Barlgura	2	5	5	191	killed
+Sword Wraith Commander	2	8	6	192	killed
+Sword Wraith Warrior	1	3	6	192	killed
+Mind Flayer Nothic	2	2	7	192	killed
+Jerot Galgin	1	9	7	192	killed
+Spawn of Kyuss	1	5	8	192	killed
+Cultist Fanatic	6	2	8	192	killed
+Nothic	5	2	8	192	killed
+Star Spawn Larva Mage	1	16	8	192	killed

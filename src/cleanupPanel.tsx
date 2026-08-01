@@ -27,6 +27,8 @@ function computeSuggestions(campaign: Campaign, n: number): Suggestion[] {
   const recentSessionIds = new Set(sessionsByNum.slice(-n).map((s) => s.id));
   const lastTwoSessionIds = new Set(sessionsByNum.slice(-2).map((s) => s.id));
 
+  const edges = deriveRelations(campaign);
+
   const touchedByRecent = new Set<string>();
   for (const p of campaign.people) {
     if (p.lastSeen && recentSessionIds.has(p.lastSeen)) touchedByRecent.add(p.id);
@@ -34,12 +36,23 @@ function computeSuggestions(campaign: Campaign, n: number): Suggestion[] {
   for (const q of campaign.quests) {
     if (q.session && recentSessionIds.has(q.session)) touchedByRecent.add(q.id);
   }
+  // A session is an entity like any other in `connections`, so a string drawn to
+  // a recent session IS a recency fact — the same fact `lastSeen` carries for a
+  // person, just recorded the other way round. Reading it here is what keeps the
+  // Bestiary's imported "fought in" strings (0034) from offering 454 creatures
+  // for archiving on the grounds that nothing recent connects them, when what
+  // connects them is the sessions they were fought in. Runs before
+  // activeByConnection so the one-hop expansion below still applies to them.
+  for (const { a, b } of edges) {
+    if (recentSessionIds.has(a)) touchedByRecent.add(b);
+    if (recentSessionIds.has(b)) touchedByRecent.add(a);
+  }
 
   // Neighbours from the unified edge set (manual strings + FK relations), so an
   // entity kept alive only by an FK link (e.g. a location a recently-seen person
   // resides at) also gets "kept alive by association" protection.
   const connectionNeighbours = new Map<string, Set<string>>();
-  for (const { a, b } of deriveRelations(campaign)) {
+  for (const { a, b } of edges) {
     if (!connectionNeighbours.has(a)) connectionNeighbours.set(a, new Set());
     if (!connectionNeighbours.has(b)) connectionNeighbours.set(b, new Set());
     connectionNeighbours.get(a)!.add(b);

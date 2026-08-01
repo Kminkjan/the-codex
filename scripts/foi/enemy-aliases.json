@@ -1,0 +1,18 @@
+{
+  "_comment": [
+    "Spelling variants -> canonical enemy name, for the Bestiary import (generate-foi-bestiary.ts).",
+    "Keys are matched after normalisation (NFC, curly quotes straightened, whitespace collapsed,",
+    "trailing '*' stripped) but are otherwise case- and punctuation-sensitive, because the two",
+    "sources disagree in exactly these seven places and nowhere else. Case folding everything",
+    "would hide a real second creature behind a casing difference, so each pair is listed by hand.",
+    "The generator FAILS on an unused alias: that means a source was corrected upstream and this",
+    "file is now lying about it."
+  ],
+  "Broken King Antifonos": "Broken King Antigonos",
+  "Fie Giant Servant": "Fire Giant Servant",
+  "Succubes": "Succubus",
+  "Morgantha (coven)": "Morgantha (Coven)",
+  "Night Hag (coven)": "Night Hag (Coven)",
+  "Shadow fey Guardian": "Shadow Fey Guardian",
+  "Slithering tracker": "Slithering Tracker"
+}

@@ -1,4 +1,16 @@
--- 0033: image focal point
+-- 0036: image focal point
+--
+-- Numbered 0036, not 0033. Written as 0033 on a branch forked before
+-- monster_cr_and_encountered (0033) and the two FOI bestiary migrations (0034,
+-- 0035) landed on main — the README's rule (c) biting exactly as advertised,
+-- and invisibly, because colliding files have different names so git reports no
+-- conflict. Worth recording what the collision would have cost rather than just
+-- the fix: a duplicate prefix hard-fails every preview branch, and since 0033
+-- is already registered in the remote history the integration would have
+-- treated this file as applied and skipped it on merge — image_focus would
+-- never have been created in prod, and the feature would have looked broken
+-- rather than unshipped. This file's own version was never applied anywhere,
+-- so renumbering it is allowed; renumbering an applied one never is.
 --
 -- Every entity image renders `object-fit: cover` with no `object-position`, so
 -- all six cropping surfaces crop from the dead centre and tall character art

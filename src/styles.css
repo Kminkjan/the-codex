@@ -1512,6 +1512,22 @@ button.session-pin { line-height: 1; }
   position: absolute; bottom: 0; left: 0; right: 0;
   padding: 2px 0 1px;
 }
+/* Challenge rating (0033), the band's numeric sibling. Same shape and the same
+   pinned pale ink for the same reason — it carries its own dark background, so
+   --vellum-light would flip it dark-on-dark on grimoire. Corner tag rather than
+   a ribbon so it can't collide with the threat band along the foot. */
+.m-cr {
+  font-family: var(--font-fell-sc);
+  font-size: 10px;
+  letter-spacing: .1em;
+  padding: 2px 6px 1px;
+  background: rgba(31,22,14,.72);
+  color: #f2e6c9;
+}
+.card-monster .m-plate .m-cr,
+.plate-art .m-cr {
+  position: absolute; top: 0; left: 0;
+}
 .card-monster .m-body {
   padding: 8px 12px 12px;
   margin-top: 8px;
@@ -3616,7 +3632,7 @@ button.session-pin { line-height: 1; }
   .i-label, .l-label, .card-poster .wanted, .card-poster .deceased-tag,
   .status-chip, .seen-toggle, .veil-badge, .portrait-caption, .session-ribbon,
   .entity-combobox-kind,
-  .m-type, .m-threat, .plate-stamp, .plate-lightbox-type,
+  .m-type, .m-threat, .m-cr, .plate-stamp, .plate-lightbox-type,
   .saga-meta, .arc-meta, .saga-seal, .saga-step, .saga-choice,
   .saga-wizard-label, .saga-wizard-facts dt, .saga-unclaimed-head,
   .cleanup-window-label) {

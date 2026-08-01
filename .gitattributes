@@ -1,0 +1,9 @@
+# Keep the data the generators read, and the SQL they emit, at LF in every working
+# tree. Without this, git's autocrlf rewrites them on checkout and two things break
+# on Windows: a TSV's last column keeps a trailing \r (see the tsv() note in
+# scripts/generate-foi-bestiary.ts — silently wrong output, not an error), and a
+# regenerated migration differs from the committed one by line endings alone, which
+# makes the "don't overwrite an applied migration" guard cry wolf on every run.
+scripts/foi/*.tsv           text eol=lf
+scripts/foi/*.json          text eol=lf
+supabase/migrations/*.sql   text eol=lf
