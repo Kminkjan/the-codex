@@ -72,3 +72,12 @@ export function writeDraft(key: string, text: string): void {
 export function clearDraft(key: string): void {
   drafts.delete(key);
 }
+
+// How many drafts are held. Exists for scripts/drafts-check.ts: readDraft
+// returns "" for both an absent key and a stored empty string, so "clearing a
+// composer leaves no key behind" and "the cap evicts" are not otherwise
+// observable through this module's API. Not for UI use — nothing should render
+// a count of other people's unsent notes.
+export function draftCount(): number {
+  return drafts.size;
+}

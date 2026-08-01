@@ -24,7 +24,7 @@
 // returns (see the saga-check.ts cautionary tale in CLAUDE.md).
 //
 // Usage: npx tsx scripts/drafts-check.ts   (exits non-zero on any failure)
-import { clearDraft, entityDraftKey, liveDraftKey, readDraft, writeDraft } from "../src/noteDrafts";
+import { clearDraft, draftCount, entityDraftKey, liveDraftKey, readDraft, writeDraft } from "../src/noteDrafts";
 
 let failures = 0;
 const check = (name: string, cond: boolean, extra?: unknown) => {
@@ -55,41 +55,50 @@ console.log("\nround-trip: a draft comes back under its own key");
 
 console.log("\nempty means absence, not a stored empty value");
 {
+  // draftCount, not readDraft, is the discriminating observation here: readDraft
+  // returns "" for an absent key AND for a stored empty string, so "leaves no key
+  // behind" is invisible without it. Counting also makes this section independent
+  // of what earlier sections left in the map.
+  const before = draftCount();
   const k = entityDraftKey(C, "vex");
   writeDraft(k, "something");
+  check("a real draft occupies a slot", draftCount() === before + 1, draftCount());
   writeDraft(k, "");
   check("writing \"\" clears the draft", readDraft(k) === "", readDraft(k));
-  // The observable consequence: a cleared draft must not occupy a slot, or a
-  // composer the user emptied would push a real draft out of the map.
-  for (let i = 0; i < MAX_KEYS; i++) writeDraft(entityDraftKey(C, `filler-${i}`), `note ${i}`);
-  check("a cleared key didn't consume a slot",
-    readDraft(entityDraftKey(C, "filler-0")) === "note 0", readDraft(entityDraftKey(C, "filler-0")));
-  for (let i = 0; i < MAX_KEYS; i++) clearDraft(entityDraftKey(C, `filler-${i}`));
+  check("and leaves no key behind", draftCount() === before, draftCount());
+  clearDraft(k);
+  check("clearDraft on an absent key is a no-op", draftCount() === before, draftCount());
 }
 
 console.log("\neviction drops the oldest, and never the draft being typed");
 {
-  // Fill exactly to the ceiling, then keep typing into the FIRST composer — the
-  // one that would be evicted first by insertion order. It must survive, and the
-  // second-oldest must be the one to go.
-  for (let i = 0; i < MAX_KEYS; i++) writeDraft(entityDraftKey(C, `e${i}`), `draft ${i}`);
-  check("at the ceiling, the oldest is still present",
-    readDraft(entityDraftKey(C, "e0")) === "draft 0", readDraft(entityDraftKey(C, "e0")));
+  // Own namespace, and no assumption that the map starts empty: anything already
+  // in it is OLDER, so it is evicted before these keys — whatever the starting
+  // state, filling MAX_KEYS fresh keys leaves exactly those alive.
+  const E = "campaign-evict";
+  for (let i = 0; i < MAX_KEYS; i++) writeDraft(entityDraftKey(E, `e${i}`), `draft ${i}`);
+  check("the cap holds the map at MAX_KEYS", draftCount() === MAX_KEYS, draftCount());
+  check("at the ceiling, the oldest of them is still present",
+    readDraft(entityDraftKey(E, "e0")) === "draft 0", readDraft(entityDraftKey(E, "e0")));
 
-  writeDraft(entityDraftKey(C, "e0"), "still typing here");
-  writeDraft(entityDraftKey(C, "overflow"), "the newest note");
+  // Keep typing into the FIRST composer — the one insertion order would evict
+  // next — then overflow the cap by one.
+  writeDraft(entityDraftKey(E, "e0"), "still typing here");
+  writeDraft(entityDraftKey(E, "overflow"), "the newest note");
 
   check("the draft being typed survives the overflow",
-    readDraft(entityDraftKey(C, "e0")) === "still typing here", readDraft(entityDraftKey(C, "e0")));
+    readDraft(entityDraftKey(E, "e0")) === "still typing here", readDraft(entityDraftKey(E, "e0")));
   check("the newest write survives the overflow",
-    readDraft(entityDraftKey(C, "overflow")) === "the newest note",
-    readDraft(entityDraftKey(C, "overflow")));
+    readDraft(entityDraftKey(E, "overflow")) === "the newest note",
+    readDraft(entityDraftKey(E, "overflow")));
   check("the least-recently-touched draft is the one evicted",
-    readDraft(entityDraftKey(C, "e1")) === "", readDraft(entityDraftKey(C, "e1")));
+    readDraft(entityDraftKey(E, "e1")) === "", readDraft(entityDraftKey(E, "e1")));
+  check("the cap still holds after the overflow", draftCount() === MAX_KEYS, draftCount());
 
-  writeDraft(entityDraftKey(C, "e0"), "");
-  writeDraft(entityDraftKey(C, "overflow"), "");
-  for (let i = 0; i < MAX_KEYS; i++) writeDraft(entityDraftKey(C, `e${i}`), "");
+  clearDraft(entityDraftKey(E, "e0"));
+  clearDraft(entityDraftKey(E, "overflow"));
+  for (let i = 0; i < MAX_KEYS; i++) clearDraft(entityDraftKey(E, `e${i}`));
+  check("the section cleaned up after itself", draftCount() === 0, draftCount());
 }
 
 console.log("\nkeys cannot collide across namespace or campaign");
