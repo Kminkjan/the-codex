@@ -5,7 +5,7 @@ import remarkGfm from "remark-gfm";
 import { sessionLabel, type KindKey, type PresenceUser } from "./data";
 import { Icon, MapScribble, kindIcon } from "./icons";
 import { rankIndex, KIND_LABEL, type Indexed } from "./entitySearch";
-import { focusToObjectPosition } from "./imageFocus";
+import { focusImageStyle } from "./imageFocus";
 import { arcSubtreeIds, sagaTree } from "./saga";
 import { useCampaign, useCampaignSwitcher, useDismiss, useKinds, usePresence, useSeatless, useViewAsPlayer } from "./hooks";
 import { createCampaign, createEntity, endLiveSession, setActiveSession, startLiveSession, switchLiveSession } from "./mutations";
@@ -243,7 +243,7 @@ export function PosterCard({ person }: { person: any }) {
               src={person.imageUrl}
               alt={person.name}
               className="portrait-img"
-              style={{ objectPosition: focusToObjectPosition(person.imageFocus) }}
+              style={focusImageStyle(person.imageFocus)}
             />
           : <span className="silhouette" />}
       </div>
@@ -338,7 +338,7 @@ export function MonsterCard({ m }: { m: any }) {
               src={m.imageUrl}
               alt={m.name}
               className="m-plate-img"
-              style={{ objectPosition: focusToObjectPosition(m.imageFocus) }}
+              style={focusImageStyle(m.imageFocus)}
             />
           : <span className="m-plate-empty"><Icon name="monster" size={44} strokeWidth={1.1} /></span>}
         {m.threat && <span className={`m-threat ${m.threat}`}>{m.threat}</span>}

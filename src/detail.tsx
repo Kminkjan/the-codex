@@ -31,11 +31,15 @@ import { uploadEntityImage, type UploadableKind } from "./upload";
 import { deriveRelations } from "./relations";
 import {
   CENTER,
+  MAX_ZOOM,
+  MIN_ZOOM,
   focusFromPoint,
-  focusToObjectPosition,
+  focusImageStyle,
+  isDefaultFocus,
   nudgeFocus,
   parseFocus,
   serializeFocus,
+  zoomFocus,
   type Focus,
 } from "./imageFocus";
 
@@ -137,7 +141,9 @@ function ReframeOverlay({
   const aim = (clientX: number, clientY: number) => {
     const el = imgRef.current;
     if (!el) return;
-    setFocus(focusFromPoint(el.getBoundingClientRect(), clientX, clientY));
+    // Zoom is carried through: aiming and zooming are separate gestures, and a
+    // click after zooming must move the point, not reset the tightness.
+    setFocus((f) => focusFromPoint(el.getBoundingClientRect(), clientX, clientY, f.z));
   };
 
   const onPointerDown = (e: React.PointerEvent) => {
@@ -153,6 +159,10 @@ function ReframeOverlay({
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
+    // +/- zoom, arrows aim. Both accept the bare and the shifted spellings the
+    // key produces on different layouts (= and + are the same physical key).
+    if (e.key === "+" || e.key === "=") { e.preventDefault(); setFocus((f) => zoomFocus(f, 0.1)); return; }
+    if (e.key === "-" || e.key === "_") { e.preventDefault(); setFocus((f) => zoomFocus(f, -0.1)); return; }
     const step = e.shiftKey ? 10 : 1;
     const d: Record<string, [number, number]> = {
       ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1],
@@ -163,18 +173,37 @@ function ReframeOverlay({
     setFocus((f) => nudgeFocus(f, move[0], move[1], step));
   };
 
-  // Centre is expressible as "no focal point", and that is the value worth
-  // storing: it keeps `null` meaning centred for every untouched row instead of
-  // scattering "50 50" through the tables to mean the same thing. Identical
-  // render either way — the difference is only whether a row claims to have
-  // been reframed. (toRow coerces "" → null on the way to the DB.)
-  const value = focus.x === CENTER.x && focus.y === CENTER.y ? "" : serializeFocus(focus);
-  const objectPosition = focusToObjectPosition(value);
+  // Zooming toward a point you can't see is guesswork, so the wheel zooms about
+  // wherever the cursor is and moves the point there in the same gesture — the
+  // one place aiming and zooming are deliberately fused, because it matches what
+  // every map does. Passive listeners can't preventDefault, hence onWheel on a
+  // non-passive React handler; the scrim behind has nothing to scroll anyway.
+  const onWheel = (e: React.WheelEvent) => {
+    const el = imgRef.current;
+    if (!el) return;
+    e.preventDefault();
+    const rect = el.getBoundingClientRect();
+    setFocus((f) => {
+      const next = focusFromPoint(rect, e.clientX, e.clientY, f.z + (e.deltaY < 0 ? 0.1 : -0.1));
+      // Below 1x the point would drift while nothing visibly changes; hold it.
+      return next.z === f.z ? f : next;
+    });
+  };
+
+  // Dead centre at 1x is expressible as "no focus at all", and that is the value
+  // worth storing: it keeps `null` meaning unframed for every untouched row
+  // instead of scattering "50 50" through the tables to mean the same thing.
+  // Identical render either way — the difference is only whether a row claims to
+  // have been reframed. (toRow coerces "" → null on the way to the DB.)
+  const value = isDefaultFocus(focus) ? "" : serializeFocus(focus);
+  // The previews render through exactly the same helper as the five real
+  // surfaces, so what you aim at is what ships — no second spelling to drift.
+  const previewStyle = focusImageStyle(value);
 
   const preview = (w: number, h: number, caption: string) => (
     <div>
       <div className="reframe-preview" style={{ width: w, height: h }}>
-        <img src={imageUrl} alt="" style={{ objectPosition }} />
+        <img src={imageUrl} alt="" style={previewStyle} />
       </div>
       <div className="reframe-hint" style={{ marginTop: 5 }}>{caption}</div>
     </div>
@@ -184,8 +213,8 @@ function ReframeOverlay({
     <div className="reframe" role="dialog" aria-label={`Reframe ${label}`}>
       <div className="reframe-hint">
         <ThemedLabel
-          parchment="Mark where the eye should fall. Every frame in the codex crops to this point."
-          atlas="Click or drag to set the focal point. Every cropped view uses it."
+          parchment="Mark where the eye should fall, and how close. Every frame in the codex crops to it."
+          atlas="Click or drag to set the focal point, then zoom. Every cropped view uses both."
         />
       </div>
       <div
@@ -196,10 +225,32 @@ function ReframeOverlay({
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onKeyDown={onKeyDown}
+        onWheel={onWheel}
       >
+        {/* The stage always shows the WHOLE artwork, unzoomed — it is the map you
+            aim on, not a preview of the result. Scaling it here would hide the
+            parts you might want to aim at next, and the tiles below already show
+            the zoom truthfully. */}
         <img ref={imgRef} className="reframe-img" src={imageUrl} alt={label} draggable={false} />
         <span className="reframe-dot" style={{ left: `${focus.x}%`, top: `${focus.y}%` }} />
       </div>
+      <label className="reframe-zoom">
+        <span className="reframe-hint">
+          <ThemedLabel parchment="Draw in" atlas="Zoom" />
+        </span>
+        <input
+          type="range"
+          min={MIN_ZOOM}
+          max={MAX_ZOOM}
+          step={0.1}
+          value={focus.z}
+          onChange={(e) => setFocus((f) => zoomFocus({ ...f, z: MIN_ZOOM }, Number(e.target.value) - MIN_ZOOM))}
+          aria-label="Zoom toward the focal point"
+        />
+        {/* toFixed(1) so 1 reads as "1.0x" and the number doesn't change width as
+            you drag — a jittering label makes a smooth slider feel broken. */}
+        <span className="reframe-hint reframe-zoom-value">{focus.z.toFixed(1)}×</span>
+      </label>
       {/* Squarest and widest of the boxes this point feeds; the 4:3 plate and the
           56px thumb fall between them. */}
       <div className="reframe-previews">
@@ -210,8 +261,10 @@ function ReframeOverlay({
         <button onClick={() => onSave(value)} style={{ ...chipStyle, padding: "6px 14px" }}>
           <ThemedLabel parchment="Set the focus" atlas="Save" />
         </button>
+        {/* Resets zoom as well as the point — "centre" means back to how an
+            untouched image renders, which is the value Save then stores as NULL. */}
         <button onClick={() => setFocus(CENTER)} style={{ ...chipStyle, padding: "6px 14px" }}>
-          <ThemedLabel parchment="Centre it" atlas="Centre" />
+          <ThemedLabel parchment="Centre it" atlas="Reset" />
         </button>
         <button onClick={onClose} style={{ ...chipStyle, padding: "6px 14px" }}>
           <ThemedLabel parchment="Leave it be" atlas="Cancel" />
@@ -219,8 +272,8 @@ function ReframeOverlay({
       </div>
       <div className="reframe-hint">
         <ThemedLabel
-          parchment="Arrow keys nudge · hold Shift for a longer step · Esc to leave"
-          atlas="Arrow keys nudge · Shift for a bigger step · Esc to close"
+          parchment="Arrow keys nudge · hold Shift for a longer step · scroll or +/− to draw in · Esc to leave"
+          atlas="Arrow keys nudge · Shift for a bigger step · scroll or +/− to zoom · Esc to close"
         />
       </div>
     </div>,
@@ -323,7 +376,7 @@ function EntityPortrait({
         src={imageUrl}
         alt={label}
         className="sb-portrait-img"
-        style={{ objectPosition: focusToObjectPosition(imageFocus) }}
+        style={focusImageStyle(imageFocus)}
       />
       {/* Viewers can't edit, so for them the image itself is the zoom target;
           editors get an explicit chip instead (a click on the image is not

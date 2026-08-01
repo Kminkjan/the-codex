@@ -5,7 +5,7 @@ import { useCampaign, useFindEntity, useIsDm, usePresence } from "./hooks";
 import { useAuth } from "./auth";
 import { Fleurons, ThemedLabel } from "./components";
 import { endLiveSession, insertSessionEvent, releaseEntity, showEntity } from "./mutations";
-import { focusToObjectPosition } from "./imageFocus";
+import { focusImageStyle } from "./imageFocus";
 
 // The at-the-table surface (issue #67): a docked right panel that opens when a
 // session is live (campaigns.active_session_id) and closes when it isn't. It
@@ -311,12 +311,17 @@ export function LivePanel({ onOpenEntity }: { onOpenEntity: (id: string) => void
           title="Open in the codex"
         >
           {shownEnt.imageUrl ? (
-            <img
-              className="live-spotlight-img"
-              src={shownEnt.imageUrl}
-              alt={entityLabel(shownEnt)}
-              style={{ objectPosition: focusToObjectPosition(shownEnt.imageFocus) }}
-            />
+            /* The wrapper exists to clip. A zoomed focus scales the <img>, and an
+               element cannot clip its own transform, so without a box around it a
+               zoomed thumb would spill over the kicker beside it. */
+            <span className="live-spotlight-thumb">
+              <img
+                className="live-spotlight-img"
+                src={shownEnt.imageUrl}
+                alt={entityLabel(shownEnt)}
+                style={focusImageStyle(shownEnt.imageFocus)}
+              />
+            </span>
           ) : (
             <div className="live-spotlight-icon">
               <Icon name={kindIcon[shownEnt._kind as KindKey]} size={22} />
