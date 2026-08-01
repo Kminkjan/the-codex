@@ -3,7 +3,8 @@ import { entityLabel, isHidden, isShowEvent, stripShowMark, type Entity, type Ki
 import { Icon, kindIcon } from "./icons";
 import { useCampaign, useFindEntity, useIsDm, usePresence } from "./hooks";
 import { useAuth } from "./auth";
-import { Fleurons, ThemedLabel } from "./components";
+import { Fleurons, NoteComposer, ThemedLabel } from "./components";
+import { liveDraftKey } from "./noteDrafts";
 import { endLiveSession, insertSessionEvent, releaseEntity, showEntity } from "./mutations";
 import { focusImageStyle } from "./imageFocus";
 
@@ -12,7 +13,8 @@ import { focusImageStyle } from "./imageFocus";
 // occupies its own grid column in .app — shrinking .main rather than overlaying
 // it, so the board's pan/zoom yarn coordinates stay correct. Everything here
 // reads from useCampaign() and writes through mutations; there is no local
-// mirror of any DB state (collapse, draft and in-flight release are UI-only).
+// mirror of any DB state (collapse and in-flight release are UI-only, and the
+// composer's unsent draft is pre-DB by definition — see src/noteDrafts.ts).
 
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -99,7 +101,7 @@ export function FeedRow({ ev, onOpenEntity }: { ev: SessionEvent; onOpenEntity: 
   }
   return (
     <div className="live-note">
-      <div>{ev.text}</div>
+      <div className="note-body">{ev.text}</div>
       <div className="live-meta"><span>— {ev.author || "Anonymous"}</span><span>{fmtTime(ev.createdAt)}</span></div>
     </div>
   );
@@ -223,8 +225,6 @@ export function LivePanel({ onOpenEntity }: { onOpenEntity: (id: string) => void
   const isDm = useIsDm();
   const { canEdit, displayName } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
-  const [draft, setDraft] = useState("");
-  const composerRef = useRef<HTMLDivElement>(null);
   const feedRef = useRef<HTMLDivElement>(null);
   // Chat-style stickiness: follow new rows only while the reader is already at
   // the bottom; never yank someone who scrolled up to reread.
@@ -269,24 +269,6 @@ export function LivePanel({ onOpenEntity }: { onOpenEntity: (id: string) => void
       </aside>
     );
   }
-
-  const send = () => {
-    // Read the body from `draft` (set only by real typing), not el.textContent.
-    // The placeholder is a ::before pseudo-element now, so textContent is
-    // honest either way — but `draft` stays the single source of truth, and
-    // it's what drives the is-empty class the placeholder hangs off.
-    const text = draft.trim();
-    if (!text) return;
-    insertSessionEvent({
-      type: "note",
-      sessionId,
-      author: displayName || "Anonymous",
-      text,
-    }).catch(console.error);
-    const el = composerRef.current;
-    if (el) el.textContent = "";
-    setDraft("");
-  };
 
   return (
     <aside className="live-panel">
@@ -356,25 +338,25 @@ export function LivePanel({ onOpenEntity }: { onOpenEntity: (id: string) => void
 
       {isDm && <DmSection sessionId={sessionId} onOpenEntity={onOpenEntity} />}
 
+      {/* One-line chat rows, so Enter sends (issue #67) and Shift+Enter breaks.
+          Never sends on blur — see the rule on NoteComposer. */}
       {canEdit && (
         <div className="live-composer">
-          <div
-            className={`add-note live-input${draft ? "" : " is-empty"}`}
-            data-placeholder="Note for the record… (↵ to send)"
-            contentEditable
-            suppressContentEditableWarning
-            ref={composerRef}
-            onInput={(e) => setDraft(e.currentTarget.textContent || "")}
-            onKeyDown={(e) => {
-              // Enter sends (one-line chat rows, issue #67). Deliberately no
-              // send-on-blur, unlike the party-notes composer: the feed is
-              // append-only — clicking away must keep the draft, never commit
-              // a half-typed note nobody can edit or delete.
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                send();
-              }
-            }}
+          <NoteComposer
+            draftKey={liveDraftKey(campaign.id, sessionId)}
+            className="live-input"
+            placeholder="Note for the record…"
+            sendOn="enter"
+            submitLabel={<ThemedLabel parchment="Set it down" atlas="Send" />}
+            submitTitle="Add to the record (Enter)"
+            onSubmit={(text) =>
+              insertSessionEvent({
+                type: "note",
+                sessionId,
+                author: displayName || "Anonymous",
+                text,
+              })
+            }
           />
         </div>
       )}

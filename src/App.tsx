@@ -261,7 +261,12 @@ function AppLoaded() {
   useEffect(() => {
     const onHashChange = () => {
       const { campaignId: cid, entityId } = parseHash();
-      if (cid === campaign.id) setOpenId(entityId && findEntity(entityId) ? entityId : null);
+      if (cid !== campaign.id) return;
+      // Back/forward can swap the sheet out from under a focused editable, and
+      // an unmount never fires its blur-commit. blur() is synchronous, so the
+      // field commits first and the edit survives the navigation.
+      (document.activeElement as HTMLElement | null)?.blur();
+      setOpenId(entityId && findEntity(entityId) ? entityId : null);
     };
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
@@ -325,8 +330,17 @@ function AppLoaded() {
         <LivePanel onOpenEntity={setOpenId} />
       </div>
 
+      {/* Keyed on the entity: navigating the relations rail keeps this component
+          mounted otherwise, and its per-entity state would carry over. That is
+          not cosmetic — an EditableText left mid-edit keeps entity A's DOM text
+          while entityId becomes B, and its next blur writes A's prose over B's
+          field. Remounting also resets the sheet's scroll position, which
+          previously left you mid-page on a fresh entity. Unsent note drafts
+          survive the remount by living in src/noteDrafts.ts. No entry animation
+          on the overlay, so the remount is invisible. */}
       {openId && (
         <DetailSheet
+          key={openId}
           entityId={openId}
           onClose={() => setOpenId(null)}
           onOpen={(id) => setOpenId(id)}

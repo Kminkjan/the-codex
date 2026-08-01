@@ -2210,6 +2210,12 @@ button.attend-chip.is-present:hover { border-color: var(--mustard); color: var(-
   display: flex; justify-content: space-between;
 }
 .note-scrap.typed { font-family: var(--font-body); font-size: 14px; font-style: italic; }
+/* The prose half of a note scrap / feed row. Scoped to the body rather than set
+   on the whole card, so the flex meta row underneath keeps collapsing its
+   whitespace. Without it a saved two-paragraph note renders as one line —
+   pasted multi-line text could always reach the DB, so this covers the
+   back-catalogue too, not just newly written notes. */
+.note-body { white-space: pre-wrap; }
 
 .add-note {
   margin-top: 12px;
@@ -2221,6 +2227,11 @@ button.attend-chip.is-present:hover { border-color: var(--mustard); color: var(-
   font-style: italic;
   font-size: 14px;
   color: var(--ink-ghost);
+  /* Party notes are prose and ⌘↵ (not ↵) sends, so a draft can hold paragraph
+     breaks. Restoring one seeds textContent with "\n" characters, which
+     collapse to spaces under the default white-space — the break would vanish
+     between blurring and coming back. */
+  white-space: pre-wrap;
 }
 /* The placeholder is a pseudo-element, never a real child. A text node inside
    the contentEditable takes the caret on click, so the first keystroke lands
@@ -2233,7 +2244,12 @@ button.attend-chip.is-present:hover { border-color: var(--mustard); color: var(-
   color: var(--ink-ghost);
   pointer-events: none;
 }
-.add-note:focus {
+/* .has-draft rides the focus dress so a KEPT but unsent draft goes on looking
+   like live writing after you click away — the cheapest "this isn't sent yet"
+   cue, and it means no reflow on blur. Notes never send on focus loss (see
+   NoteComposer), so the box holding text is exactly the unsent state. */
+.add-note:focus,
+.add-note.has-draft {
   outline: none;
   background: var(--paper-note);
   border-style: solid;
@@ -2242,6 +2258,26 @@ button.attend-chip.is-present:hover { border-color: var(--mustard); color: var(-
   font-size: 17px;
   font-style: normal;
 }
+
+/* The explicit send affordance both composers now carry. Dressed as
+   .draft-recap-btn — same quiet chrome button, same sheet. */
+.note-composer-actions {
+  display: flex; justify-content: flex-end;
+  margin-top: 8px;
+}
+.note-send-btn {
+  background: transparent;
+  border: 1px solid var(--vellum-deep);
+  border-radius: 2px;
+  font-family: var(--font-fell-sc);
+  letter-spacing: .14em;
+  font-size: 10px;
+  color: var(--ink-secondary);
+  padding: 5px 12px;
+  cursor: pointer;
+}
+.note-send-btn:hover:not(:disabled) { border-color: var(--bloodred); color: var(--bloodred); }
+.note-send-btn:disabled { opacity: .45; cursor: default; }
 
 /* DM-only notes (issue #70): the veiled block on the detail sheet. Dashed
    secondary-ink frame — deliberately quieter than .note-scrap (party) and
@@ -3715,7 +3751,7 @@ button.attend-chip.is-present:hover { border-color: var(--mustard); color: var(-
   .m-type, .m-threat, .m-cr, .plate-stamp, .plate-lightbox-type,
   .saga-meta, .arc-meta, .saga-seal, .saga-step, .saga-choice,
   .saga-wizard-label, .saga-wizard-facts dt, .saga-unclaimed-head,
-  .cleanup-window-label) {
+  .cleanup-window-label, .note-send-btn) {
   text-transform: uppercase;
 }
 
@@ -4456,12 +4492,20 @@ button.attend-chip.is-present:hover { border-color: var(--mustard); color: var(-
   font-size: 12.5px;
   color: var(--ink-ghost);
 }
-[data-theme="modern"] .add-note:focus {
+[data-theme="modern"] .add-note:focus,
+[data-theme="modern"] .add-note.has-draft {
   background: var(--paper-cream);
   border-color: #3d4353;
   color: var(--ink);
   font-family: var(--font-ui);
   font-size: 13px;
+}
+[data-theme="modern"] .note-send-btn {
+  border-radius: 5px;
+  border-color: var(--card-edge);
+  font-size: 10.5px;
+  letter-spacing: .06em;
+  font-weight: 600;
 }
 [data-theme="modern"] .dm-note { border-radius: 8px; border-color: #3d4353; background: rgba(154,163,181,.04); }
 [data-theme="modern"] .dm-note-head { font-size: 9.5px; font-weight: 600; letter-spacing: .12em; }
