@@ -8,7 +8,7 @@ import { Fleurons, ThemedLabel } from "./components";
 import { NEW_ENTITY_DEFAULTS } from "./board";
 import { createEntity } from "./mutations";
 import { creatureTypes, crLabel, inkedMonsters, type Encounter } from "./monsters";
-import { focusToObjectPosition } from "./imageFocus";
+import { focusImageStyle } from "./imageFocus";
 
 // ============================================================================
 // The Bestiary — the monsters kind's bespoke page (the generic KindList grid is
@@ -124,7 +124,7 @@ function Plate({ monster, met, onOpen, onZoom }: {
               className="plate-art-img"
               src={monster.imageUrl}
               alt={monster.name}
-              style={{ objectPosition: focusToObjectPosition(monster.imageFocus) }}
+              style={focusImageStyle(monster.imageFocus)}
             />
             <button
               className="plate-zoom"

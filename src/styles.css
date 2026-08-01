@@ -1194,6 +1194,10 @@ button.session-pin { line-height: 1; }
   font-family: var(--font-body);
   font-size: 12px;
   position: relative;
+  /* A zoomed focal point (0037) scales the portrait past this well, and only the
+     Atlas override of this rule was clipping. No effect on an unzoomed image,
+     whose <img> is already inset: 0. */
+  overflow: hidden;
 }
 .card-poster .portrait .silhouette {
   width: 60%; height: 70%;
@@ -1778,6 +1782,21 @@ button.session-pin { line-height: 1; }
   max-width: 460px;
 }
 .reframe-actions { display: flex; align-items: center; gap: 10px; }
+.reframe-zoom {
+  display: flex; align-items: center; gap: 10px;
+  /* Matches .reframe-img's cap so the slider reads as belonging to the artwork
+     above it rather than floating at its own width. */
+  width: min(100%, 900px);
+}
+.reframe-zoom input[type="range"] { flex: 1; accent-color: #d0a548; cursor: pointer; }
+/* Tabular figures and a reserved width: the value changes every 100ms while
+   dragging, and a label that reflows makes a smooth slider feel like it's
+   stuttering. */
+.reframe-zoom-value {
+  min-width: 3.2em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
 
 .card-lore {
   width: 190px;
@@ -3469,13 +3488,22 @@ button.session-pin { line-height: 1; }
 .live-spotlight:hover {
   background: color-mix(in srgb, var(--mustard) 28%, var(--vellum-light));
 }
-.live-spotlight-img,
+/* The 56px box moved from the <img> to a wrapper when zoom landed (0037): a
+   zoomed focus scales the image, and an element can't clip its own transform.
+   The wrapper owns the size, border and clip; the image just fills it. */
+.live-spotlight-thumb,
 .live-spotlight-icon {
   width: 56px; height: 56px;
   flex-shrink: 0;
   border: 1px solid var(--ink);
 }
+.live-spotlight-thumb {
+  display: block;
+  overflow: hidden;
+}
 .live-spotlight-img {
+  display: block;
+  width: 100%; height: 100%;
   object-fit: cover;
   filter: sepia(.2) contrast(.95);
 }
@@ -4422,7 +4450,9 @@ button.session-pin { line-height: 1; }
   border-radius: 10px;
 }
 [data-theme="modern"] .live-spotlight:hover { background: rgba(208,165,72,.14); }
-[data-theme="modern"] .live-spotlight-img,
+/* Follows the box to the wrapper — left on the inner <img> it would draw a
+   second border inside the first, and the radius would not clip the zoom. */
+[data-theme="modern"] .live-spotlight-thumb,
 [data-theme="modern"] .live-spotlight-icon {
   border: 1px solid var(--card-edge);
   border-radius: 6px;
