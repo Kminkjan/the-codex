@@ -9,6 +9,7 @@ import { useAuth } from "./auth";
 import {
   insertPartyNote,
   updateEntity,
+  setEntityImage,
   updateDmNotes,
   deleteEntity,
   insertConnection,
@@ -1459,7 +1460,14 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                 imageUrl={(entity as any).imageUrl}
                 imageFocus={(entity as any).imageFocus}
                 label={entityLabel(entity)}
-                onSave={(url) => patch({ imageUrl: url, imageFocus: "" })}
+                onSave={(url) => {
+                  // setEntityImage rather than patch: it clears the focus AND
+                  // sweeps the object the entity was using, but only once the
+                  // row write has landed. See mutations.ts.
+                  setEntityImage(kind, entityId, url, (entity as any).imageUrl).catch((e) =>
+                    console.error(`setEntityImage(${kind}) failed`, e),
+                  );
+                }}
                 onSaveFocus={(value) => patch({ imageFocus: value })}
                 onZoom={kind === "monsters" && (entity as any).imageUrl
                   ? () => setPlateOpen(true)
