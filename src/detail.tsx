@@ -1142,7 +1142,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
   );
   const sessionOptions = useMemo(
     () => campaign.sessions
-      .map((s) => ({ id: s.id, label: `${sessionLabel(s.num)} — ${s.title}`, kind: "sessions" as const })),
+      .map((s) => ({ id: s.id, label: `${sessionLabel(s.num)} — ${s.title}`, kind: "sessions" as const, num: s.num })),
     [campaign.sessions],
   );
   const locationOptions = useMemo(
