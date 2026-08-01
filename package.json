@@ -7,13 +7,14 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "check": "npm run check:ui && npm run check:saga && npm run check:relations && npm run check:feed && npm run check:bestiary && npm run check:focus",
+    "check": "npm run check:ui && npm run check:saga && npm run check:relations && npm run check:feed && npm run check:bestiary && npm run check:focus && npm run check:listsort",
     "check:ui": "npx tsx scripts/ui-check.ts",
     "check:saga": "npx tsx scripts/saga-check.ts",
     "check:relations": "npx tsx scripts/relations-check.ts",
     "check:feed": "npx tsx scripts/feed-check.ts",
     "check:bestiary": "npx tsx scripts/bestiary-check.ts",
-    "check:focus": "npx tsx scripts/focus-check.ts"
+    "check:focus": "npx tsx scripts/focus-check.ts",
+    "check:listsort": "npx tsx scripts/listsort-check.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

@@ -16,6 +16,7 @@ There's no test *framework*, but there are four assertion harnesses in [scripts/
 | `saga-check.ts` | the pure derivations in [src/saga.ts](src/saga.ts) — the Complete Saga wizard's rules | yes (`check:saga`) |
 | `ui-check.ts` | theme drift (see [docs/design-atlas.md](docs/design-atlas.md)) | yes (`check:ui`) |
 | `relations-check.ts` | the read-projection in [src/relations.ts](src/relations.ts) — `source` (which decides whether a rail chip gets a delete control), the unordered-pair dedupe that makes one edge stand for a mirrored row pair, and the provenance fold across that pair | yes (`check:relations`) |
+| `listsort-check.ts` | the pure derivations in [src/listSort.ts](src/listSort.ts) — the sort catalogue the overview pages offer, and the comparator's two silent rules: unknown values (no `updatedAt`, unrated CR, un-inked plate) sort **last** in every direction, and pinned/archived precedence holds in **every** order, not just `default` | yes (`check:listsort`) |
 | `feed-check.ts` | `projectCampaignForViewers` and `sessionFeedToMarkdown` in [src/data.ts](src/data.ts) — both are `SessionEventType` if-chains ending in a fallthrough to the plain-note shape, so a new event type silently renders as a bare note, and the digest lands in the **public** `sessions.summary` | yes (`check:feed`) |
 | `layout-check.ts` | board layout | **no — run it by hand** after touching [src/boardLayout.ts](src/boardLayout.ts) |
 
@@ -70,6 +71,8 @@ The monsters kind exists for artwork and notes, so it bypasses the generic `Kind
 ### Host-page integration
 
 The app supports an "edit mode" handshake with a parent window via `window.__TWEAKS__` and `postMessage` (see [src/App.tsx](src/App.tsx)). Theme / presence / density live here. Do not use `localStorage` for these — the parent page owns persistence through the `__edit_mode_set_keys` message.
+
+That rule is about *host-owned* state, not a ban on `localStorage`. Two things are deliberately browser-local and go through it instead: the pending invite code ([src/join.tsx](src/join.tsx)) and the remembered list sort ([src/listPrefs.ts](src/listPrefs.ts)). The latter persists **sort only, never the facets or the name query** — a remembered filter means reopening a page with rows missing and nothing on screen explaining why.
 
 ## Conventions
 
