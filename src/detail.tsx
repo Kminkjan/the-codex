@@ -482,7 +482,9 @@ function AddRelationForm({ fromId }: { fromId: string }) {
       ...campaign.items.map((i) => ({ id: i.id, label: i.name, kind: "items" as const, archived: i.archived, hidden: i.hidden })),
       ...campaign.lore.map((l) => ({ id: l.id, label: l.title, kind: "lore" as const, archived: l.archived, hidden: l.hidden })),
       ...campaign.monsters.map((m) => ({ id: m.id, label: m.name, kind: "monsters" as const, archived: m.archived, hidden: m.hidden })),
-      ...campaign.sessions.map((s) => ({ id: s.id, label: s.title, kind: "sessions" as const })),
+      // Sessions lead with their code: it's how the DM refers to a past
+      // sitting, and it's what a "S120" search matched on (see `num`).
+      ...campaign.sessions.map((s) => ({ id: s.id, label: `${sessionLabel(s.num)} · ${s.title}`, kind: "sessions" as const, num: s.num })),
       ...campaign.arcs.map((a) => ({ id: a.id, label: a.title, kind: "arcs" as const })),
       ...campaign.events.map((e) => ({ id: e.id, label: e.title, kind: "events" as const })),
     ].filter((o) => o.id !== fromId),
@@ -1140,7 +1142,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
   );
   const sessionOptions = useMemo(
     () => campaign.sessions
-      .map((s) => ({ id: s.id, label: `${sessionLabel(s.num)} — ${s.title}`, kind: "sessions" as const })),
+      .map((s) => ({ id: s.id, label: `${sessionLabel(s.num)} — ${s.title}`, kind: "sessions" as const, num: s.num })),
     [campaign.sessions],
   );
   const locationOptions = useMemo(

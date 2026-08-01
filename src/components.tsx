@@ -1463,6 +1463,9 @@ export interface EntityOption {
   kind: KindKey;
   archived?: boolean;
   hidden?: boolean;
+  // Sessions only: lets a "S120" query resolve by sitting number (entitySearch's
+  // parseSessionCode) instead of hunting the session's title.
+  num?: number;
 }
 
 interface EntityComboboxProps {
@@ -1506,7 +1509,7 @@ export function EntityCombobox({
   const [rect, setRect] = useState<{ left: number; top: number; minWidth: number; maxWidth: number; flip: boolean; maxHeight: number } | null>(null);
 
   const index = useMemo<Indexed[]>(
-    () => options.map((o) => ({ id: o.id, kind: o.kind, label: o.label, primary: o.label, secondary: "", archived: o.archived, hidden: o.hidden })),
+    () => options.map((o) => ({ id: o.id, kind: o.kind, label: o.label, primary: o.label, secondary: "", archived: o.archived, hidden: o.hidden, num: o.num })),
     [options],
   );
   const results = useMemo(() => rankIndex(index, query), [index, query]);

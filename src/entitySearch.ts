@@ -1,4 +1,4 @@
-import { entityLabel, personTier, type Campaign, type KindKey } from "./data";
+import { entityLabel, personTier, sessionLabel, type Campaign, type KindKey } from "./data";
 
 // Shared entity search: the command palette and the entity combobox both index
 // the campaign and rank substring matches through this one implementation so
@@ -43,6 +43,9 @@ export interface Indexed {
   // DM-only flag: non-DM users never index hidden rows (projected out of the
   // campaign upstream), so this is only ever true for the DM's own view.
   hidden?: boolean;
+  // Sessions only: the sitting number behind the "S07" code, matched
+  // numerically by parseSessionCode below.
+  num?: number;
   // Structured facet values for palette operators (people only, all
   // lowercased). Entries without facets never match an operator query.
   facets?: { tier: string; status?: string; race?: string; factionName?: string };
@@ -165,6 +168,7 @@ export function buildIndex(campaign: Campaign): Indexed[] {
       label: entityLabel(s),
       primary: s.title ?? "",
       secondary: joinFields(s.date, s.inGameDate, `Session ${s.num}`, s.summary),
+      num: s.num,
     });
   }
   for (const a of campaign.arcs) {
@@ -206,11 +210,33 @@ export function keepBest(best: Map<string, RankedHit>, hit: RankedHit) {
   if (!prev || hit.rank < prev.rank) best.set(hit.id, hit);
 }
 
+// A session is referred to by its code, not its title — the DM relating
+// something to an earlier sitting types "S120", so a code-shaped query resolves
+// to that session *number* rather than hunting the string. Deliberately loose
+// about the shapes that mean the same sitting: "s7", "S07", "#7", "7" all read
+// as session 7, because sessionLabel() zero-pads to two digits and nobody types
+// the padding back. Returns undefined for anything else (including a bare "s",
+// which must keep behaving like plain text).
+const SESSION_CODE_RE = /^[s#]?\s*0*(\d+)$/;
+
+export function parseSessionCode(queryLower: string): number | undefined {
+  const m = queryLower.trim().match(SESSION_CODE_RE);
+  return m ? Number(m[1]) : undefined;
+}
+
 // Tier every entry by its primary field (startsWith → 0, includes → 1) then its
 // secondary field (includes → 2), writing the best hit per id into `best`. The
 // caller owns sorting, slicing, and any extra passes (e.g. party notes).
 export function rankEntities(index: Indexed[], queryLower: string, best: Map<string, RankedHit>) {
+  const code = parseSessionCode(queryLower);
   for (const e of index) {
+    // Exact session-number hit outranks any substring match: "120" typed at a
+    // campaign with a session 120 means that session, not every entity whose
+    // notes happen to contain the digits.
+    if (code !== undefined && e.num === code) {
+      keepBest(best, { id: e.id, kind: e.kind, label: e.label, snippet: sessionLabel(e.num), matchSource: "primary", rank: 0, archived: e.archived, hidden: e.hidden });
+      continue;
+    }
     const primary = e.primary.toLowerCase();
     if (primary.startsWith(queryLower)) {
       keepBest(best, { id: e.id, kind: e.kind, label: e.label, matchSource: "primary", rank: 0, archived: e.archived, hidden: e.hidden });
