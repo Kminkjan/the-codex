@@ -892,7 +892,14 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
         );
         channel.on(
           "postgres_changes" as any,
-          { event: "*", schema: "public", table: "event_participants", filter },
+          // NO server-side campaign_id filter here (see session_staging below).
+          // removeEventParticipant() is a hard DELETE and the PK is
+          // (event_id, person_id) with default REPLICA IDENTITY, so the
+          // old-row payload carries neither campaign_id nor anything else the
+          // filter could match — Supabase would drop the event and the removed
+          // person would linger in "Those Present" until a reload. Safe because
+          // the handler refetches campaign-scoped and guards on the campaign id.
+          { event: "*", schema: "public", table: "event_participants" },
           () => {
             // Composite PK, no client-side id — refetch, same as connections.
             supabase.from("event_participants").select("*").eq("campaign_id", campaignId).then(({ data }) => {
@@ -903,7 +910,14 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
         );
         channel.on(
           "postgres_changes" as any,
-          { event: "*", schema: "public", table: "session_participants", filter },
+          // NO server-side campaign_id filter here, for the same reason as
+          // event_participants above: unmarkSeen() is a hard DELETE and the PK
+          // is (session_id, person_id) with default REPLICA IDENTITY, so the
+          // old-row payload can't satisfy a campaign_id filter. Without this,
+          // an unmark never reaches other clients — the person keeps showing in
+          // the sidebar "This Session" roster, the board seen-live-dot and the
+          // detail sheet's seen toggle until a reload.
+          { event: "*", schema: "public", table: "session_participants" },
           () => {
             // Composite PK, no client-side id — refetch, same as event_participants.
             // (The trigger's downstream people UPDATE arrives via the people handler.)
