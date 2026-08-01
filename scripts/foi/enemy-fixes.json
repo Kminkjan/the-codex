@@ -1,0 +1,28 @@
+{
+  "_comment": [
+    "Hand-resolved disagreements in the source material, for generate-foi-bestiary.ts.",
+    "Everything here is an assertion, not a preference: the generator FAILS on any conflict it",
+    "finds that is not listed below, so a future source edit can't silently bake a guess into a",
+    "migration. Each entry needs a reason.",
+    "",
+    "The per-encounter doc (enemies.tsv) is the source of truth for CR and for the running tally;",
+    "the DM's aggregate list (enemy-totals.tsv) is only ever a cross-check."
+  ],
+
+  "_cr_comment": "Rows in enemies.tsv that disagree with themselves about a creature's CR. Only a name listed here may have more than one CR in the doc, and the value below is the one that ships.",
+  "cr": {
+    "Ogre": 2
+  },
+
+  "_docOnly_comment": "Creatures in the per-encounter doc that the aggregate list has not caught up with. They still get imported — the doc is the record of what was actually fought.",
+  "allowDocOnly": ["Flame Dragon Wyrmling", "Ettin Ceremorph"],
+
+  "_totalsOnly_comment": "Creatures in the aggregate list with no encounter in the doc. They are NOT imported: without a session there is nothing to link them to.",
+  "allowTotalsOnly": [],
+
+  "_amount_comment": "Names where the doc's summed amount and the aggregate list's Amount column disagree. The doc's sum ships as `encountered`.",
+  "allowAmountMismatch": ["Kraken Priest", "Ogre", "Scarecrow", "Skulk", "Wolf", "Wyvern"],
+
+  "_crMismatch_comment": "Names where the doc's CR and the aggregate list's CR disagree. The doc's CR ships.",
+  "allowCrMismatch": ["Dwarven Worker", "Kraken Priest", "Tribal Warrior Spore Servant", "Wyvern"]
+}

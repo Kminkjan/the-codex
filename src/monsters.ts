@@ -1,4 +1,4 @@
-import type { Campaign, Monster } from "./data";
+import type { Campaign, Monster, MonsterThreat } from "./data";
 
 // Derivations behind the Bestiary (the monsters kind's bespoke page). Pure over
 // the campaign object, like saga.ts — no strings that carry UI voice, because a
@@ -54,6 +54,71 @@ export function inkedMonsters(campaign: Campaign): Map<string, Encounter> {
     met.set(ev.entityId, { firstSessionId: ev.sessionId });
   }
   return met;
+}
+
+// ============================================================================
+// Challenge rating
+//
+// `cr` is the datum and `threat` is the reading of it (see the MonsterThreat
+// comment in data.ts). The band table lives here, once, because two writers
+// depend on it: the detail sheet, which rewrites `threat` whenever someone edits
+// `cr`, and scripts/generate-foi-bestiary.ts, which imports this function so a
+// seeded plate can't wear a band the app would disagree with.
+// ============================================================================
+
+/**
+ * CR → threat band: 0–2 harmless, 3–7 risky, 8–16 deadly, 17+ legendary.
+ *
+ * Undefined in, undefined out — "no CR recorded" must not become a band, or an
+ * unrated creature would silently read as harmless. CR 0 is a real rating
+ * (Crawling Claw), so only nullish counts as unknown.
+ */
+export function crToThreat(cr: number | undefined | null): MonsterThreat | undefined {
+  if (cr == null || !Number.isFinite(cr)) return undefined;
+  if (cr < 3) return "harmless";
+  if (cr < 8) return "risky";
+  if (cr < 17) return "deadly";
+  return "legendary";
+}
+
+// The fractions 5e actually uses below CR 1. Kept as an explicit table rather
+// than a generic decimal-to-fraction routine: these four are the whole domain,
+// and a rounding surprise on a plate is worse than a missing one.
+const CR_FRACTIONS: ReadonlyArray<[number, string]> = [
+  [0.125, "1/8"],
+  [0.25, "1/4"],
+  [0.5, "1/2"],
+  [0.75, "3/4"],
+];
+
+/**
+ * CR as the books write it: 0.125 → "1/8", 5 → "5". Undefined for no CR, so
+ * callers can distinguish it from "CR 0" — which renders as "0".
+ */
+export function crLabel(cr: number | undefined | null): string | undefined {
+  if (cr == null || !Number.isFinite(cr)) return undefined;
+  const frac = CR_FRACTIONS.find(([n]) => n === cr);
+  if (frac) return frac[1];
+  // Anything else the source might hold (an oddly precise average) prints as-is
+  // rather than being rounded into a rating that doesn't exist.
+  return String(cr);
+}
+
+/**
+ * The inverse of crLabel for the editable CR field: accepts "1/8", "0.5", "5",
+ * with or without a leading "CR". Returns null for anything it can't read, so
+ * the caller can reject the edit instead of storing a guess — including the
+ * fractions 5e doesn't use ("1/3"), which are far more likely to be a typo than
+ * an intent.
+ */
+export function parseCr(input: string): number | null {
+  const t = input.trim().replace(/^cr\s*/i, "");
+  if (!t) return null;
+  const frac = CR_FRACTIONS.find(([, label]) => label === t);
+  if (frac) return frac[0];
+  if (!/^\d+(\.\d+)?$/.test(t)) return null;
+  const n = Number(t);
+  return Number.isFinite(n) && n >= 0 && n <= 40 ? n : null;
 }
 
 // ============================================================================
