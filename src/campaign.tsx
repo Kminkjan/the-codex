@@ -277,11 +277,22 @@ function SeatMemberCard({
 
       {shown.length === 0 ? (
         <div style={{ fontFamily: "var(--font-body)", fontStyle: "italic", fontSize: 13, color: "var(--ink-secondary)", marginTop: 10 }}>
-          {query.trim()
-            ? "No known adventurer by that name."
-            : presentCandidates.length > 0
-              ? "Everyone else the codex knows is already on this charter."
-              : "Everyone the codex knows is already on this charter. Forge an invite link for a newcomer."}
+          {query.trim() ? (
+            <ThemedLabel
+              parchment="No known adventurer by that name."
+              atlas="No account matches that name."
+            />
+          ) : presentCandidates.length > 0 ? (
+            <ThemedLabel
+              parchment="Everyone else the codex knows is already on this charter."
+              atlas="Everyone else with an account is already a member."
+            />
+          ) : (
+            <ThemedLabel
+              parchment="Everyone the codex knows is already on this charter. Forge an invite link for a newcomer."
+              atlas="Everyone with an account is already a member. Use an invite link for someone new."
+            />
+          )}
         </div>
       ) : (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
@@ -868,7 +879,12 @@ export function CampaignCharterPage({ onOpenEntity }: { onOpenEntity: (id: strin
             })()}
           </div>
         )}
-        {isDm && (
+        {/* Gated on a loaded roster, not just isDm: memberIds is the picker's
+            exclusion filter, and an empty one (roster still null) would offer
+            people who are already seated. The RPC is idempotent so a click
+            there is harmless, but the card shouldn't contradict the "Consulting
+            the rolls…" line directly above it. */}
+        {isDm && roster !== null && (
           <SeatMemberCard
             memberIds={memberIds}
             onSeat={(userId, name) => {
