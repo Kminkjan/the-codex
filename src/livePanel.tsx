@@ -5,6 +5,7 @@ import { useCampaign, useFindEntity, useIsDm, usePresence } from "./hooks";
 import { useAuth } from "./auth";
 import { Fleurons, ThemedLabel } from "./components";
 import { endLiveSession, insertSessionEvent, releaseEntity, showEntity } from "./mutations";
+import { focusToObjectPosition } from "./imageFocus";
 
 // The at-the-table surface (issue #67): a docked right panel that opens when a
 // session is live (campaigns.active_session_id) and closes when it isn't. It
@@ -310,7 +311,12 @@ export function LivePanel({ onOpenEntity }: { onOpenEntity: (id: string) => void
           title="Open in the codex"
         >
           {shownEnt.imageUrl ? (
-            <img className="live-spotlight-img" src={shownEnt.imageUrl} alt={entityLabel(shownEnt)} />
+            <img
+              className="live-spotlight-img"
+              src={shownEnt.imageUrl}
+              alt={entityLabel(shownEnt)}
+              style={{ objectPosition: focusToObjectPosition(shownEnt.imageFocus) }}
+            />
           ) : (
             <div className="live-spotlight-icon">
               <Icon name={kindIcon[shownEnt._kind as KindKey]} size={22} />

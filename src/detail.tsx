@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ARCHIVABLE_KINDS, type KindKey, MONSTER_THREAT_OPTIONS, PERSON_STATUS_OPTIONS, PERSON_TIER_OPTIONS, bothVisible, entityLabel, isArchivableKind, isArchived, isHidden, isPc, isPinned, isVisible, personTier, sessionFeedToMarkdown, sessionLabel } from "./data";
 import { Icon, kindIcon } from "./icons";
 import { StatusChip, EditableText, EditableMarkdown, EnumSelect, EntitySelect, EntityCombobox, type EntityOption, Fleurons, ThemedLabel } from "./components";
@@ -28,6 +29,15 @@ import { crLabel, crToThreat, parseCr } from "./monsters";
 import { FeedRow } from "./livePanel";
 import { uploadEntityImage, type UploadableKind } from "./upload";
 import { deriveRelations } from "./relations";
+import {
+  CENTER,
+  focusFromPoint,
+  focusToObjectPosition,
+  nudgeFocus,
+  parseFocus,
+  serializeFocus,
+  type Focus,
+} from "./imageFocus";
 
 const UPLOADABLE_KINDS = ["people", "locations", "factions", "items", "monsters", "sessions"] as const;
 const isUploadable = (k: KindKey): k is UploadableKind =>
@@ -75,19 +85,166 @@ function PortraitFallback({ kind }: { kind: KindKey }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Reframe: place an image's focal point so `object-fit: cover` stops cropping
+// through faces. One point per image serves every crop box in the app — see the
+// header of src/imageFocus.ts for why that works and scripts/focus-check.ts for
+// what it guarantees.
+//
+// Portalled to <body> for PlateLightbox's reasons: it has to escape the detail
+// sheet's overflow container and backdrop-filter. Not folded into that
+// component, though — the plate is a viewing surface with a zoom-out cursor and
+// a click-anywhere-to-close backdrop, and both of those are exactly wrong for a
+// surface whose whole job is receiving a precise click.
+// ---------------------------------------------------------------------------
+function ReframeOverlay({
+  imageUrl,
+  imageFocus,
+  label,
+  onSave,
+  onClose,
+}: {
+  imageUrl: string;
+  imageFocus: string | undefined;
+  label: string;
+  /** Receives a value for image_focus: a serialized point, or "" to clear it. */
+  onSave: (value: string) => void;
+  onClose: () => void;
+}) {
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  // An uncommitted edit buffer, not mirrored DB state — the same category as
+  // EditableText's contentEditable, and the reason the no-local-state rule
+  // doesn't apply. Nothing outside this overlay reads it, and it dies on close.
+  const [focus, setFocus] = useState<Focus>(() => parseFocus(imageFocus) ?? CENTER);
+
+  // Esc closes the editor and only the editor, in the capture phase, for the
+  // reason spelled out in PlateLightbox: the detail sheet's own bubble-phase Esc
+  // listener was registered first, so registration order alone would close the
+  // sheet out from under an open overlay.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      e.preventDefault();
+      onClose();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [onClose]);
+
+  // The rect of the <img> itself — .reframe-img is sized by max-width/max-height
+  // with no padding, so its box is the artwork's box and focusFromPoint needs no
+  // letterbox arithmetic.
+  const aim = (clientX: number, clientY: number) => {
+    const el = imgRef.current;
+    if (!el) return;
+    setFocus(focusFromPoint(el.getBoundingClientRect(), clientX, clientY));
+  };
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    // Capture on the stage, so a drag that wanders off the artwork keeps
+    // delivering moves here (clamped) instead of being swallowed by the scrim.
+    e.currentTarget.setPointerCapture(e.pointerId);
+    aim(e.clientX, e.clientY);
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
+    aim(e.clientX, e.clientY);
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    const step = e.shiftKey ? 10 : 1;
+    const d: Record<string, [number, number]> = {
+      ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1],
+    };
+    const move = d[e.key];
+    if (!move) return;
+    e.preventDefault();
+    setFocus((f) => nudgeFocus(f, move[0], move[1], step));
+  };
+
+  // Centre is expressible as "no focal point", and that is the value worth
+  // storing: it keeps `null` meaning centred for every untouched row instead of
+  // scattering "50 50" through the tables to mean the same thing. Identical
+  // render either way — the difference is only whether a row claims to have
+  // been reframed. (toRow coerces "" → null on the way to the DB.)
+  const value = focus.x === CENTER.x && focus.y === CENTER.y ? "" : serializeFocus(focus);
+  const objectPosition = focusToObjectPosition(value);
+
+  const preview = (w: number, h: number, caption: string) => (
+    <div>
+      <div className="reframe-preview" style={{ width: w, height: h }}>
+        <img src={imageUrl} alt="" style={{ objectPosition }} />
+      </div>
+      <div className="reframe-hint" style={{ marginTop: 5 }}>{caption}</div>
+    </div>
+  );
+
+  return createPortal(
+    <div className="reframe" role="dialog" aria-label={`Reframe ${label}`}>
+      <div className="reframe-hint">
+        <ThemedLabel
+          parchment="Mark where the eye should fall. Every frame in the codex crops to this point."
+          atlas="Click or drag to set the focal point. Every cropped view uses it."
+        />
+      </div>
+      <div
+        className="reframe-stage"
+        tabIndex={0}
+        role="application"
+        aria-label="Focal point"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onKeyDown={onKeyDown}
+      >
+        <img ref={imgRef} className="reframe-img" src={imageUrl} alt={label} draggable={false} />
+        <span className="reframe-dot" style={{ left: `${focus.x}%`, top: `${focus.y}%` }} />
+      </div>
+      {/* Squarest and widest of the boxes this point feeds; the 4:3 plate and the
+          56px thumb fall between them. */}
+      <div className="reframe-previews">
+        {preview(96, 96, "1:1")}
+        {preview(154, 96, "16:10")}
+      </div>
+      <div className="reframe-actions">
+        <button onClick={() => onSave(value)} style={{ ...chipStyle, padding: "6px 14px" }}>
+          <ThemedLabel parchment="Set the focus" atlas="Save" />
+        </button>
+        <button onClick={() => setFocus(CENTER)} style={{ ...chipStyle, padding: "6px 14px" }}>
+          <ThemedLabel parchment="Centre it" atlas="Centre" />
+        </button>
+        <button onClick={onClose} style={{ ...chipStyle, padding: "6px 14px" }}>
+          <ThemedLabel parchment="Leave it be" atlas="Cancel" />
+        </button>
+      </div>
+      <div className="reframe-hint">
+        <ThemedLabel
+          parchment="Arrow keys nudge · hold Shift for a longer step · Esc to leave"
+          atlas="Arrow keys nudge · Shift for a bigger step · Esc to close"
+        />
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 function EntityPortrait({
   kind,
   entityId,
   imageUrl,
+  imageFocus,
   label,
   onSave,
+  onSaveFocus,
   onZoom,
 }: {
   kind: UploadableKind;
   entityId: string;
   imageUrl: string | undefined;
+  imageFocus: string | undefined;
   label: string;
   onSave: (url: string | null) => void;
+  onSaveFocus: (value: string) => void;
   // Optional "see it full size" affordance. Only the Bestiary passes it — that
   // kind exists for its artwork, so the plate has somewhere bigger to go. It
   // rides beside Replace/✕ rather than hijacking a click on the image, which
@@ -97,6 +254,16 @@ function EntityPortrait({
   const { canEdit } = useAuth();
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [reframing, setReframing] = useState(false);
+
+  // A reframe session belongs to the image it was opened on. When the artwork
+  // changes under it — this editor hit Replace, or another editor's realtime
+  // edit landed — the session is stale, so it closes rather than re-anchoring a
+  // crosshair placed on a picture that is no longer there. This also stops
+  // `reframing` from surviving a Remove: the empty-portrait branch returns
+  // before the overlay renders, so the flag would otherwise sit true and reopen
+  // the editor by itself the moment a new image arrived.
+  useEffect(() => { setReframing(false); }, [imageUrl]);
 
   const pick = () => fileRef.current?.click();
 
@@ -152,7 +319,12 @@ function EntityPortrait({
 
   return (
     <div className="sb-portrait">
-      <img src={imageUrl} alt={label} className="sb-portrait-img" />
+      <img
+        src={imageUrl}
+        alt={label}
+        className="sb-portrait-img"
+        style={{ objectPosition: focusToObjectPosition(imageFocus) }}
+      />
       {/* Viewers can't edit, so for them the image itself is the zoom target;
           editors get an explicit chip instead (a click on the image is not
           overloaded, but the chips row is where their actions already live). */}
@@ -173,6 +345,17 @@ function EntityPortrait({
                 ⛶
               </button>
             )}
+            {!uploading && (
+              <button
+                onClick={() => setReframing(true)}
+                title="Set where the image is cropped from"
+                style={chipStyle}
+              >
+                {/* Plain string, no <ThemedLabel>: both registers say the same
+                    word, and its neighbours Replace / ✕ are voice-neutral too. */}
+                Reframe
+              </button>
+            )}
             <button onClick={pick} disabled={uploading} style={chipStyle}>
               {uploading ? "Uploading…" : "Replace"}
             </button>
@@ -182,6 +365,15 @@ function EntityPortrait({
               </button>
             )}
           </div>
+          {reframing && (
+            <ReframeOverlay
+              imageUrl={imageUrl}
+              imageFocus={imageFocus}
+              label={label}
+              onSave={(value) => { onSaveFocus(value); setReframing(false); }}
+              onClose={() => setReframing(false)}
+            />
+          )}
         </>
       )}
     </div>
@@ -1077,13 +1269,21 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
         <div className="detail-sheet-inner">
 
           <div className="statblock">
+            {/* A focal point belongs to the IMAGE, not to the entity, so
+                onSave clears it in the same write that replaces or removes the
+                artwork. Without that a new portrait inherits the old one's
+                crosshair and silently crops to a point taken from a different
+                picture — the exact bug this feature exists to fix, reintroduced
+                by a stale value. ("" → NULL via toRow.) */}
             {isUploadable(kind) ? (
               <EntityPortrait
                 kind={kind}
                 entityId={entityId}
                 imageUrl={(entity as any).imageUrl}
+                imageFocus={(entity as any).imageFocus}
                 label={entityLabel(entity)}
-                onSave={(url) => patch({ imageUrl: url })}
+                onSave={(url) => patch({ imageUrl: url, imageFocus: "" })}
+                onSaveFocus={(value) => patch({ imageFocus: value })}
                 onZoom={kind === "monsters" && (entity as any).imageUrl
                   ? () => setPlateOpen(true)
                   : undefined}
