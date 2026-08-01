@@ -217,10 +217,11 @@ export function BestiaryPage({ onOpenEntity }: { onOpenEntity: (id: string) => v
       return [...ordered].sort((a, b) => (b.cr ?? -1) - (a.cr ?? -1));
     }
     if (sort === "met") {
-      const num = (id: string) => {
-        const s = campaign.sessions.find((x) => x.id === met.get(id)?.firstSessionId);
-        return s ? s.num : Infinity; // un-inked (and dangling) sort to the end
-      };
+      // Indexed once, not scanned per comparison: a sort of 450 plates against
+      // 190 sessions would otherwise do six figures of array walking.
+      const numById = new Map(campaign.sessions.map((s) => [s.id, s.num]));
+      // Un-inked plates (and a reveal whose session was deleted) sort to the end.
+      const num = (id: string) => numById.get(met.get(id)?.firstSessionId ?? "") ?? Infinity;
       return [...ordered].sort((a, b) => num(a.id) - num(b.id));
     }
     return ordered;

@@ -225,19 +225,26 @@ for (const t of totals) {
 const allow = (list: string[] | undefined, name: string) => (list ?? []).includes(name);
 const docOnly = [...byName.keys()].filter((n) => !totalsByName.has(n));
 const totalsOnly = [...totalsByName.keys()].filter((n) => !byName.has(n));
-const amountMismatch: string[] = [];
-const crMismatch: string[] = [];
+// Keep the name beside the rendered line rather than parsing it back out of the
+// line later: a creature called "Boo: the hamster" would silently defeat an
+// allowlist keyed on split(":")[0].
+const amountMismatch: Array<{ name: string; line: string }> = [];
+const crMismatch: Array<{ name: string; line: string }> = [];
 for (const [name, a] of byName) {
   const t = totalsByName.get(name);
   if (!t) continue;
-  if (t.amount !== a.encountered) amountMismatch.push(`${name}: ledger=${a.encountered} list=${t.amount}`);
+  if (t.amount !== a.encountered) {
+    amountMismatch.push({ name, line: `${name}: ledger=${a.encountered} list=${t.amount}` });
+  }
   const cr = crOf.get(name);
-  if (cr !== undefined && t.cr !== cr) crMismatch.push(`${name}: ledger=${crLabel(cr)} list=${crLabel(t.cr)}`);
+  if (cr !== undefined && t.cr !== cr) {
+    crMismatch.push({ name, line: `${name}: ledger=${crLabel(cr)} list=${crLabel(t.cr)}` });
+  }
 }
 for (const n of docOnly) if (!allow(fixes.allowDocOnly, n)) fail(`${n} is in the ledger but not the aggregate list — allow it in enemy-fixes.json`);
 for (const n of totalsOnly) if (!allow(fixes.allowTotalsOnly, n)) fail(`${n} is in the aggregate list but was never fought — allow it in enemy-fixes.json`);
-for (const m of amountMismatch) if (!allow(fixes.allowAmountMismatch, m.split(":")[0])) fail(`amount disagreement not allowed: ${m}`);
-for (const m of crMismatch) if (!allow(fixes.allowCrMismatch, m.split(":")[0])) fail(`CR disagreement not allowed: ${m}`);
+for (const m of amountMismatch) if (!allow(fixes.allowAmountMismatch, m.name)) fail(`amount disagreement not allowed: ${m.line}`);
+for (const m of crMismatch) if (!allow(fixes.allowCrMismatch, m.name)) fail(`CR disagreement not allowed: ${m.line}`);
 for (const a of Object.keys(aliases)) {
   if (a.startsWith("_")) continue;
   if (!usedAliases.has(key(a))) fail(`unused alias "${a}" — the source was corrected upstream, drop it`);
@@ -501,8 +508,8 @@ for (const [k, v] of Object.entries(aliases)) {
 console.log(`\nledger vs aggregate list`);
 console.log(`  only in the ledger: ${docOnly.join(", ") || "—"}`);
 console.log(`  only in the list:   ${totalsOnly.join(", ") || "—"}`);
-for (const m of amountMismatch) console.log(`  amount  ${m}`);
-for (const m of crMismatch) console.log(`  CR      ${m}`);
+for (const m of amountMismatch) console.log(`  amount  ${m.line}`);
+for (const m of crMismatch) console.log(`  CR      ${m.line}`);
 
 console.log(`\nthreat  ${hist((a) => crToThreat(crOf.get(a.name)))}`);
 console.log(`kind    ${hist((a) => kindOf(a.name))}`);

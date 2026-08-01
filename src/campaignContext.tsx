@@ -503,9 +503,6 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
   // every push: track() before the first join throws in realtime-js.
   const channelRef = useRef<RealtimeChannel | null>(null);
   const subscribedRef = useRef(false);
-  // Pending trailing refetches, so the effect's teardown can drop them (see the
-  // debounce helper inside it).
-  const burstTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>> | null>(null);
   const authRef = useRef({ userId: null as string | null, displayName: null as string | null, canEdit: false });
   authRef.current = { userId: user?.id ?? null, displayName, canEdit: isEditorAccount };
 
@@ -707,6 +704,12 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
     if (!campaignId) return;
     let cancelled = false;
     let channel: RealtimeChannel | null = null;
+    // Trailing refetches, owned by THIS run of the effect. Declared out here
+    // rather than inside the async body below so the teardown always clears the
+    // map belonging to the run it tears down — a late assignment from an
+    // already-cancelled run would otherwise leave a newer run's timers
+    // unreachable.
+    const burst = new Map<string, ReturnType<typeof setTimeout>>();
 
     // Synchronous, before any await: mutations read this store, and clearing
     // the campaign unmounts AppLoaded so nothing can write mid-switch. Clear
@@ -765,12 +768,10 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
         // refetches that's ~1,000 full-table reads per open client from a single
         // migration. Collapse a burst into one trailing read; a lone event still
         // lands within a frame or two, which is invisible at the table.
-        const burst = new Map<string, ReturnType<typeof setTimeout>>();
         const debounce = (name: string, fn: () => void) => () => {
           clearTimeout(burst.get(name));
           burst.set(name, setTimeout(() => { if (!cancelled) fn(); }, 250));
         };
-        burstTimersRef.current = burst;
         const refetchConnectionsSoon = debounce("connections", refetchConnections);
         const refetchBoardSoon = debounce("board", refetchBoard);
 
@@ -1021,8 +1022,7 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
       // A trailing refetch that fires after a campaign switch would read the old
       // campaign's tables; `cancelled` already discards the result, but dropping
       // the timer keeps the request itself from going out.
-      burstTimersRef.current?.forEach(clearTimeout);
-      burstTimersRef.current = null;
+      burst.forEach(clearTimeout);
       if (channel) supabase.removeChannel(channel);
     };
   }, [campaignId]);
