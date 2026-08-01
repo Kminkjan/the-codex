@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run check` — chains every wired harness below; run it alongside `build` before calling a change done
 - `npm run preview` — serve the production build
 
-There's no test *framework*, but there are seven assertion harnesses in [scripts/](scripts/), each runnable as `npx tsx scripts/<name>.ts` and exiting non-zero on failure:
+There's no test *framework*, but there are nine assertion harnesses in [scripts/](scripts/), each runnable as `npx tsx scripts/<name>.ts` and exiting non-zero on failure:
 
 | harness | guards | wired into `npm run check` |
 | --- | --- | --- |
@@ -18,6 +18,9 @@ There's no test *framework*, but there are seven assertion harnesses in [scripts
 | `relations-check.ts` | the read-projection in [src/relations.ts](src/relations.ts) — `source` (which decides whether a rail chip gets a delete control), the unordered-pair dedupe that makes one edge stand for a mirrored row pair, and the provenance fold across that pair | yes (`check:relations`) |
 | `listsort-check.ts` | the pure derivations in [src/listSort.ts](src/listSort.ts) — the sort catalogue the overview pages offer, and the comparator's two silent rules: unknown values (no `updatedAt`, unrated CR, un-inked plate) sort **last** in every direction, and pinned/archived precedence holds in **every** order, not just `default` | yes (`check:listsort`) |
 | `feed-check.ts` | `projectCampaignForViewers` and `sessionFeedToMarkdown` in [src/data.ts](src/data.ts) — both are `SessionEventType` if-chains ending in a fallthrough to the plain-note shape, so a new event type silently renders as a bare note, and the digest lands in the **public** `sessions.summary` | yes (`check:feed`) |
+| `bestiary-check.ts` | the pure derivations in [src/monsters.ts](src/monsters.ts) — chiefly that a plate's "inked" state is derived from a `reveal` event and never stored | yes (`check:bestiary`) |
+| `focus-check.ts` | [src/imageFocus.ts](src/imageFocus.ts), the boundary between a client-written `text` column and an inline `style` attribute | yes (`check:focus`) |
+| `drafts-check.ts` | the module store in [src/noteDrafts.ts](src/noteDrafts.ts) — unsent note drafts. Three silent rules: empty means **absence**, eviction drops the **oldest** so the draft being typed is never the one discarded, and entity/session keys can't collide across namespaces or campaigns | yes (`check:drafts`) |
 | `layout-check.ts` | board layout | **no — run it by hand** after touching [src/boardLayout.ts](src/boardLayout.ts) |
 
 **A harness fixture can encode the bug it should catch.** `saga-check.ts` asserted the behaviour of a broken owner-as-id check in `sagaScope`, using person ids for a free-text column — so it agreed with the bug rather than catching it, and the bug shipped (#121). When a fix flips what a harness asserts, that's a prompt to check the fixture's *model*, not just to update the expected value.
@@ -67,6 +70,10 @@ The monsters kind exists for artwork and notes, so it bypasses the generic `Kind
 ### Editable UI primitives
 
 [src/components.tsx](src/components.tsx) exports `<EditableText>` (contentEditable, blur-to-save, Esc cancels, Enter saves single-line / ⌘↵ multi-line) and `<EnumSelect>`. Reuse these on the detail sheet rather than hand-rolling contentEditable — see [src/detail.tsx](src/detail.tsx) for the patterns.
+
+**Blur-to-save is for MUTABLE FIELDS ONLY, and that boundary is load-bearing.** `<EditableText>`/`<EditableMarkdown>` edit a value that's still on screen to fix, so committing on blur is safe and matches the industry norm (Notion, Linear, Airtable). Notes are the opposite: `party_notes` rows and `session_events` feed rows are **append-only — no edit, no delete**. So both note surfaces go through `<NoteComposer>`, which commits only on an explicit act (its `sendOn` keystroke or its button) and **never on focus loss** — clicking away keeps the draft in the module store at [src/noteDrafts.ts](src/noteDrafts.ts). Party notes shipped with `onBlur={addNote}` and players reported half-typed thoughts becoming permanent records; the live panel never had it. If you add a third composer, reuse `<NoteComposer>` — the original bug was two near-identical hand-rolled `contentEditable`s drifting apart.
+
+Related: the detail sheet's backdrop dismiss requires **both** mouse endpoints on the overlay (`mousedown` + `mouseup`). Closing on `mousedown` alone silently discarded field edits — the browser moves focus as mousedown's *default action*, so unmounting on down means a focused `EditableText` never fires its blur-commit. `<DetailSheet>` is also keyed on the entity id in [src/App.tsx](src/App.tsx): the sheet stays mounted across relations-rail navigation, and unkeyed it would carry one entity's mid-edit DOM text onto the next entity's write.
 
 ### Host-page integration
 
