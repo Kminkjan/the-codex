@@ -20,6 +20,7 @@ There's no test *framework*, but there are nine assertion harnesses in [scripts/
 | `feed-check.ts` | `projectCampaignForViewers` and `sessionFeedToMarkdown` in [src/data.ts](src/data.ts) — both are `SessionEventType` if-chains ending in a fallthrough to the plain-note shape, so a new event type silently renders as a bare note, and the digest lands in the **public** `sessions.summary` | yes (`check:feed`) |
 | `bestiary-check.ts` | the pure derivations in [src/monsters.ts](src/monsters.ts) — chiefly that a plate's "inked" state is derived from a `reveal` event and never stored | yes (`check:bestiary`) |
 | `focus-check.ts` | [src/imageFocus.ts](src/imageFocus.ts), the boundary between a client-written `text` column and an inline `style` attribute | yes (`check:focus`) |
+| `image-check.ts` | [src/imageResize.ts](src/imageResize.ts) (the upload compressor) and [src/storagePath.ts](src/storagePath.ts) (which object a sweep may delete). Both are about what may be **destroyed**: never upscale, never re-encode a file you can't beat, never touch a GIF or SVG, take the extension from the bytes not the filename — and, for the parser, refuse any URL that isn't unmistakably one this app wrote | yes (`check:image`) |
 | `drafts-check.ts` | the module store in [src/noteDrafts.ts](src/noteDrafts.ts) — unsent note drafts. Three silent rules: empty means **absence**, eviction drops the **oldest** so the draft being typed is never the one discarded, and entity/session keys can't collide across namespaces or campaigns | yes (`check:drafts`) |
 | `layout-check.ts` | board layout | **no — run it by hand** after touching [src/boardLayout.ts](src/boardLayout.ts) |
 
@@ -66,6 +67,23 @@ Nine kinds share a `KindKey` union: `people | locations | quests | goals | facti
 ### The Bestiary (monsters)
 
 The monsters kind exists for artwork and notes, so it bypasses the generic `KindList` grid for a bespoke plate wall — [src/bestiary.tsx](src/bestiary.tsx) (page + `PlateLightbox`) over pure derivations in [src/monsters.ts](src/monsters.ts). **Discovery is derived, never stored**: a plate is "inked" once `campaign.sessionEvents` holds a `reveal` row for that monster, which is exactly what `releaseEntity`/`showEntity` already write — so the DM's existing RELEASE / ⚡ SHOW NOW ceremony is what fills the field guide in, with no extra table and nothing to remember. A ⚡ SHOW NOW on an illustrated monster additionally opens the plate full-bleed on every player's screen. Note the boundary, which is documented at length in `monsters.ts`: the un-inked frame is **presentation, not secrecy** — a visible monster's art is already in the client's data; `hidden` (RLS-enforced) is the real secrecy tool.
+
+### Image uploads
+
+**There is no image service in front of the `entity-images` bucket** (Supabase's transformations are a Pro-plan feature), so whatever object [src/upload.ts](src/upload.ts) writes is exactly what every viewer downloads on every load, forever. Compression therefore happens once, client-side, at the only moment the original is still in hand: [src/imageResize.ts](src/imageResize.ts) decodes with EXIF orientation applied, downscales the longest edge to `MAX_EDGE` (2000px) and re-encodes to WebP at q0.82 before the bytes leave the browser. A 12 MP phone photo lands around 10× smaller and arrives upright.
+
+Two things follow from "one copy, and it's lossy":
+
+- **Every failure path returns the original file.** An unsupported codec, a canvas that won't emit WebP, a re-encode that comes back no smaller — all degrade to uploading what the user picked, never to an error. `compressImage` doesn't throw.
+- **`MAX_EDGE` is set by `MAX_ZOOM` in [src/imageFocus.ts](src/imageFocus.ts), not by the well size.** A focus zooms up to 2.5×, which is a straight upscale of the stored file. Lowering `MAX_EDGE` (or raising `MAX_ZOOM` without it) buys blur at max zoom.
+
+**The project is deliberately on Supabase's free tier, and the binding constraint there is egress, not storage** — 1 GB of storage but only 5 GB cached + 5 GB uncached bandwidth per month. So `upload.ts` sets `cacheControl` to a year explicitly; the SDK default is **one hour**, which would have every player's browser re-fetching every portrait it has already seen, several times an evening. That long TTL is only safe because the path is content-addressed by construction (`upsert: false` + a `Date.now()` suffix means an object at a given path is never rewritten, and replacing an image mints a new URL). **Anything that starts overwriting a path in place has to revisit that value.**
+
+**Replacing or deleting an image sweeps the object it replaced** — `setEntityImage` / `setCampaignImage` / `deleteEntity` in [src/mutations.ts](src/mutations.ts). Before this the bucket only ever grew: `upsert: false` plus the timestamp suffix means each re-upload abandoned the old object. The sweep always runs *after* the row write lands (a rejected or 0-row write throws first, so a rename that didn't happen can't take the artwork with it) and its own failure is only logged.
+
+Which object to sweep is decided by [src/storagePath.ts](src/storagePath.ts), and **that parser is deliberately built to refuse**. A missed sweep leaks a few hundred KB; a wrong match deletes a group's artwork with no undo and no free-tier backup. It accepts only the exact shape `upload.ts` writes and rejects everything else — other buckets, off-platform URLs, signed/render routes, traversal, and any path prefix the app doesn't itself write. That is not theoretical: of the 102 stored `image_url` values in the live campaign, 31 are shapes the app never wrote (seeded `foi/…` session art, a legacy `portraits` bucket, a Discord CDN crest) and all 31 are correctly left alone. Read that module's header before widening it.
+
+`upload.ts` has two size limits and the order matters: `MAX_INPUT_BYTES` (30 MB) gates what may be *picked*, `MAX_BYTES` (5 MB) gates what may be *stored*, and compression runs between them — so a big photo that was always going to shrink isn't rejected for its original size. Re-encoding also strips EXIF as a side effect, which matters more than it sounds: these are public objects and phone photos carry GPS.
 
 ### Editable UI primitives
 

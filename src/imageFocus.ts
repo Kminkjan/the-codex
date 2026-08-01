@@ -43,10 +43,15 @@
 // scaling below 1 would expose empty space rather than reveal more artwork.
 // There is no zoom-out; the floor is 1 (= no zoom).
 //
-// The 2.5 ceiling is a resolution judgement, not a taste one: upload.ts stores
-// the original file untouched with no image service in front of it, so zoom is a
-// straight upscale and a modest upload visibly softens past roughly 2.5x. This
-// range must agree with the CHECK constraint in migration 0037.
+// The 2.5 ceiling is a resolution judgement, not a taste one: there is no image
+// service in front of the bucket, so zoom is a straight upscale of the one
+// stored file and a modest upload visibly softens past roughly 2.5x. This range
+// must agree with the CHECK constraint in migration 0037.
+//
+// That ceiling is also what sets MAX_EDGE in src/imageResize.ts, which caps an
+// upload's longest edge on the way in — the resolution the stored file needs is
+// the largest well times this factor times a 2x display, not the well itself.
+// Raising MAX_ZOOM without raising MAX_EDGE would buy blur.
 // ============================================================================
 //
 // ============================================================================

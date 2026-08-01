@@ -5,7 +5,7 @@ import { useCampaign, useCampaignSwitcher, useIsDm, useKinds, useMembershipRefre
 import { useAuth } from "./auth";
 import { EditableText, EntitySelect, EnumSelect, ThemedLabel } from "./components";
 import {
-  updateCampaign, archiveCampaign, addMember, removeMember, setMemberRole,
+  updateCampaign, setCampaignImage, archiveCampaign, addMember, removeMember, setMemberRole,
   bindPlayerCharacter,
   listCampaignInvites, createCampaignInvite, revokeCampaignInvite,
   type CampaignInvite,
@@ -93,7 +93,7 @@ function CharterCrest() {
     setUploading(true);
     try {
       const url = await uploadEntityImage(file, "campaign", campaign.id);
-      await updateCampaign({ imageUrl: url });
+      await setCampaignImage(url, campaign.imageUrl);
     } catch (e) {
       window.alert(e instanceof Error ? e.message : String(e));
     } finally {
@@ -104,7 +104,7 @@ function CharterCrest() {
 
   const clear = () => {
     if (!window.confirm("Remove the campaign crest?")) return;
-    updateCampaign({ imageUrl: null }).catch(console.error);
+    setCampaignImage(null, campaign.imageUrl).catch(console.error);
   };
 
   const size = 116;

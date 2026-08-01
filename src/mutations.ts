@@ -1,4 +1,6 @@
 import { supabase } from "./utils/supabase";
+import { pathToSweep } from "./storagePath";
+import { BUCKET } from "./upload";
 import { getActiveCampaignId } from "./activeCampaign";
 import { getActiveSessionId } from "./activeSession";
 import { SHOW_MARK, noteExcerpt, type KindKey, type PartyNote, type BoardPosition, type CampaignSummary, type SessionEventType, type Status } from "./data";
@@ -703,6 +705,60 @@ export async function createEntity(
   if (error) raiseWriteError(error);
 }
 
+// ===== Storage sweeps =======================================================
+// Nothing else in this file deletes from the bucket, and for a long time
+// nothing did: `upsert: false` plus a Date.now() suffix means every re-upload
+// mints a NEW object and simply abandons the old one. On a 1 GB free-tier quota
+// with no image service in front of it, a DM who re-crops portraits a few times
+// is the only mechanism here that can actually exhaust storage.
+//
+// THE SWEEP IS ALWAYS BEST-EFFORT AND NEVER BLOCKS THE WRITE. It runs only
+// after the row write has landed, and its own failure is swallowed: a storage
+// object that outlives its row is a few hundred KB of litter, while a failed
+// sweep that propagated would turn a successful rename into a visible error.
+// storagePath.ts decides WHETHER there is anything safe to delete — see its
+// header for why that decision fails closed.
+async function sweepImage(previousUrl: string | null | undefined, nextUrl: string | null | undefined) {
+  const path = pathToSweep(previousUrl, nextUrl, BUCKET);
+  if (!path) return;
+  const { error } = await supabase.storage.from(BUCKET).remove([path]);
+  // Not raiseWriteError: this is housekeeping the user never asked for and
+  // must never be told off about. A non-member's delete is RLS-filtered here
+  // exactly as their upload would have been.
+  if (error) console.error("sweepImage failed", path, error);
+}
+
+/**
+ * Point an entity at a new image (or none) and sweep the one it was using.
+ *
+ * The ordering is the point, and it's why this is one function rather than two
+ * calls at the call site: `updateEntity` throws on a rejected or 0-row write,
+ * so a failed rename never reaches the delete. Nothing is removed until the
+ * row that stopped referencing it is committed.
+ *
+ * Clearing `imageFocus` alongside is deliberate — a focal point is aimed at a
+ * specific picture, so carrying it onto a replacement frames the new artwork by
+ * coordinates chosen for the old one.
+ */
+export async function setEntityImage(
+  kind: KindKey,
+  id: string,
+  nextUrl: string | null,
+  previousUrl: string | null | undefined,
+) {
+  await updateEntity(kind, id, { imageUrl: nextUrl, imageFocus: "" });
+  await sweepImage(previousUrl, nextUrl).catch(() => {});
+}
+
+/** The campaign crest's equivalent of setEntityImage (issue #85). */
+export async function setCampaignImage(
+  nextUrl: string | null,
+  previousUrl: string | null | undefined,
+) {
+  await updateCampaign({ imageUrl: nextUrl });
+  await sweepImage(previousUrl, nextUrl).catch(() => {});
+}
+
 export async function updateEntity(
   kind: KindKey,
   id: string,
@@ -943,7 +999,33 @@ export async function removeMember(userId: string): Promise<void> {
   if (error) throw error;
 }
 
+// The kinds whose tables have an image_url column — i.e. the ones a portrait
+// sweep can apply to. Mirrors UploadableKind in upload.ts; asking the other
+// tables for a column they don't have would error the read.
+const IMAGE_KINDS = new Set<KindKey>([
+  "people", "locations", "factions", "items", "monsters", "sessions",
+]);
+
 export async function deleteEntity(kind: KindKey, id: string) {
+  // Read the portrait BEFORE the row goes: once the delete lands there is no
+  // way back to the object's path, and the bucket has no reverse index. A
+  // failed read just means no sweep — the row delete below is what matters,
+  // and an orphan is the accepted cost of any failure on this path.
+  let imageUrl: string | null | undefined;
+  if (IMAGE_KINDS.has(kind)) {
+    try {
+      const { data } = await supabase
+        .from(kind)
+        .select("image_url")
+        .eq("id", id)
+        .eq("campaign_id", getActiveCampaignId())
+        .maybeSingle();
+      imageUrl = data?.image_url as string | null | undefined;
+    } catch {
+      imageUrl = undefined;
+    }
+  }
+
   // Sweeps are independent and must all finish before the entity row itself
   // is deleted, so realtime consumers see the cleanup before the parent vanishes.
   await Promise.all([
@@ -969,4 +1051,7 @@ export async function deleteEntity(kind: KindKey, id: string) {
     .eq("campaign_id", getActiveCampaignId());
   if (error) raiseWriteError(error);
   expectRows(count);
+  // Only after the row is provably gone — expectRows throws on an RLS-filtered
+  // delete, so a strike that didn't happen can't take the artwork with it.
+  await sweepImage(imageUrl, null).catch(() => {});
 }
