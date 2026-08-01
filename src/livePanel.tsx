@@ -101,7 +101,7 @@ export function FeedRow({ ev, onOpenEntity }: { ev: SessionEvent; onOpenEntity: 
   }
   return (
     <div className="live-note">
-      <div>{ev.text}</div>
+      <div className="note-body">{ev.text}</div>
       <div className="live-meta"><span>— {ev.author || "Anonymous"}</span><span>{fmtTime(ev.createdAt)}</span></div>
     </div>
   );

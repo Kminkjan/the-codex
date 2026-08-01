@@ -2161,6 +2161,12 @@ button.session-pin { line-height: 1; }
   display: flex; justify-content: space-between;
 }
 .note-scrap.typed { font-family: var(--font-body); font-size: 14px; font-style: italic; }
+/* The prose half of a note scrap / feed row. Scoped to the body rather than set
+   on the whole card, so the flex meta row underneath keeps collapsing its
+   whitespace. Without it a saved two-paragraph note renders as one line —
+   pasted multi-line text could always reach the DB, so this covers the
+   back-catalogue too, not just newly written notes. */
+.note-body { white-space: pre-wrap; }
 
 .add-note {
   margin-top: 12px;
@@ -2172,6 +2178,11 @@ button.session-pin { line-height: 1; }
   font-style: italic;
   font-size: 14px;
   color: var(--ink-ghost);
+  /* Party notes are prose and ⌘↵ (not ↵) sends, so a draft can hold paragraph
+     breaks. Restoring one seeds textContent with "\n" characters, which
+     collapse to spaces under the default white-space — the break would vanish
+     between blurring and coming back. */
+  white-space: pre-wrap;
 }
 /* The placeholder is a pseudo-element, never a real child. A text node inside
    the contentEditable takes the caret on click, so the first keystroke lands

@@ -1338,15 +1338,27 @@ export function NoteComposer({
   return (
     <div className="note-composer">
       <div
-        className={`add-note${className ? ` ${className}` : ""}${draft ? " has-draft" : " is-empty"}`}
+        className={`add-note${className ? ` ${className}` : ""}${draft.trim() ? " has-draft" : " is-empty"}`}
         data-placeholder={placeholder}
         contentEditable
         suppressContentEditableWarning
+        role="textbox"
+        aria-multiline="true"
+        aria-label={placeholder}
         ref={ref}
         onInput={(e) => {
-          const text = e.currentTarget.textContent || "";
+          // innerText, NOT textContent: a paragraph break is an element boundary
+          // (`alpha<div>beta</div>`), and textContent concatenates across it —
+          // "alpha\nbeta" would be stored as "alphabeta", fusing the two words
+          // in a record nobody can edit afterwards. innerText honours the
+          // boundary, the same reason EditableText reads it.
+          const text = e.currentTarget.innerText;
           setDraft(text);
-          writeDraft(draftKey, text);
+          // Emptiness is by trim, because innerText reports a stray <br> (what
+          // browsers leave after a select-all delete) as "\n". That keeps
+          // whitespace-only typing out of the store — "empty means absence" —
+          // while preserving newlines INSIDE a real draft.
+          writeDraft(draftKey, text.trim() ? text : "");
         }}
         onPaste={(e) => {
           e.preventDefault();

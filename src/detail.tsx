@@ -1691,7 +1691,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                        className={`note-scrap ${n.hand ? "" : "typed"}`}
                        style={{ transform: `rotate(${((i * 37) % 5 - 2) * 0.4}deg)` }}
                   >
-                    <div>{n.text}</div>
+                    <div className="note-body">{n.text}</div>
                     <div className="meta">
                       <span>— {n.author}</span>
                       <span>{n.when}</span>
