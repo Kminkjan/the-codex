@@ -25,7 +25,7 @@
 // ============================================================================
 
 import { useMemo, useState } from "react";
-import { useCampaign, useIsDm } from "./hooks";
+import { useCampaign, useFindEntity, useIsDm } from "./hooks";
 import { useAuth } from "./auth";
 import { Fleurons, NoteComposer, ThemedLabel } from "./components";
 import { Icon } from "./icons";
@@ -35,37 +35,14 @@ import {
   isSettled,
   openFeedbackCount,
   orderFeedback,
+  routeHint,
+  sanitizeRoute,
   statusLabel,
   voteCount,
 } from "./feedback";
-import type { FeedbackItem, FeedbackKind, FeedbackStatus } from "./data";
+import { isHidden, type FeedbackItem, type FeedbackKind, type FeedbackStatus } from "./data";
 import { feedbackDraftKey } from "./noteDrafts";
 import { deleteFeedback, insertFeedback, setFeedbackStatus, toggleFeedbackVote } from "./mutations";
-
-// What the reporter was looking at, captured at write time so nobody has to be
-// asked afterwards. Read from the live document rather than threaded down as
-// props: both are global browser state, and a prop chain would go stale the
-// moment the panel stayed open across a navigation.
-//
-// `theme` falls back to "cartographer" and not to undefined: the attribute is
-// absent exactly when no theme has been set, which IS the default parchment
-// theme rather than an unknown one.
-function captureContext(): { route?: string; theme?: string } {
-  return {
-    route: window.location.hash || undefined,
-    theme: document.documentElement.dataset.theme || "cartographer",
-  };
-}
-
-// A hash is a route, not a name, so it gets shortened rather than resolved: the
-// entity it points at may be gone by the time anyone reads the report (0040
-// stores it as free text for that reason). Showing the tail is enough for the
-// maintainer to recognise the page.
-function routeHint(route: string): string {
-  const entity = /\/e\/(.+)$/.exec(route);
-  if (entity) return `entity ${entity[1].slice(0, 8)}…`;
-  return route.replace(/^#\/c\/[^/]+\/?/, "") || "the board";
-}
 
 function relativeDay(iso: string): string {
   const then = new Date(iso).getTime();
@@ -83,6 +60,7 @@ interface FeedbackPanelProps {
 
 export function FeedbackPanel({ onClose }: FeedbackPanelProps) {
   const campaign = useCampaign();
+  const findEntity = useFindEntity();
   const isDm = useIsDm();
   const { canEdit, user, displayName } = useAuth();
   const [kind, setKind] = useState<FeedbackKind>("bug");
@@ -104,7 +82,21 @@ export function FeedbackPanel({ onClose }: FeedbackPanelProps) {
   // The composer must REJECT on failure or NoteComposer clears a draft that
   // never landed (its contract) — so this awaits and lets the error propagate.
   const submit = async (text: string) => {
-    const { route, theme } = captureContext();
+    // Both context values are read at SUBMIT time from the live document, not
+    // captured on mount: the panel outlives a theme flip and a navigation, and
+    // what's wanted is where the reporter was when they sent it.
+    //
+    // sanitizeRoute drops the entity segment when the sheet under the panel
+    // holds a HIDDEN entity — `feedback` is world-readable, and this surface
+    // must not be the one place that writes unreleased ids into an open column.
+    // findEntity resolves against the DM's unprojected campaign, which is the
+    // only client that can see a hidden row at all, so it's also the only client
+    // where this can trigger.
+    const route = sanitizeRoute(window.location.hash, (id) => isHidden(findEntity(id)));
+    // Falls back to "cartographer" rather than undefined: the attribute is
+    // absent exactly when no theme has been set, which IS the default parchment
+    // theme rather than an unknown one.
+    const theme = document.documentElement.dataset.theme || "cartographer";
     await insertFeedback({ kind, text, author: displayName || "someone", route, theme });
   };
 

@@ -34,6 +34,8 @@ import {
   isSettled,
   openFeedbackCount,
   orderFeedback,
+  routeHint,
+  sanitizeRoute,
   statusLabel,
   voteCount,
 } from "../src/feedback";
@@ -187,6 +189,63 @@ console.log("\norder: votes, then recency, then id — a total order");
   check("the input array is left alone", ids(board).join() === before, ids(board));
   check("nothing is dropped", out.length === board.length, out.length);
   check("an empty board orders to an empty board", orderFeedback([]).length === 0);
+}
+
+console.log("\nsanitizeRoute: a hidden entity's id never reaches an open column");
+{
+  const HIDDEN = "hidden-npc";
+  const hides = (id: string) => id === HIDDEN;
+  const board = "#/c/camp-1";
+  const visible = `${board}/e/alaric`;
+  const hidden = `${board}/e/${HIDDEN}`;
+
+  // The rule this exists for. `feedback` is world-readable, and the DM is both
+  // the likeliest bug reporter and the likeliest person to have unreleased prep
+  // open while reporting — so the entity segment has to go, keeping the page.
+  check("a hidden entity's segment is dropped", sanitizeRoute(hidden, hides) === board,
+    sanitizeRoute(hidden, hides));
+  check("the campaign-level route survives that drop",
+    sanitizeRoute(hidden, hides)?.startsWith("#/c/camp-1") === true);
+  check("a visible entity's route is kept whole", sanitizeRoute(visible, hides) === visible,
+    sanitizeRoute(visible, hides));
+  check("a plain board route is untouched", sanitizeRoute(board, hides) === board);
+
+  // Percent-encoded ids: writeCampaignHash encodes them, so testing the RAW
+  // segment would fail to recognise any id needing escaping and would wave the
+  // hidden entity straight through. Asserted with an id that actually encodes.
+  const spacey = "hidden npc//2";
+  const encoded = `${board}/e/${encodeURIComponent(spacey)}`;
+  check("a hidden id is recognised through percent-encoding",
+    sanitizeRoute(encoded, (id) => id === spacey) === board, sanitizeRoute(encoded, (id) => id === spacey));
+
+  // Malformed encoding must not throw — parseHash has the same guard, and an
+  // unparseable id can't match a real entity, so "not hidden" is the safe read.
+  let threw = false;
+  let malformed: string | undefined;
+  try { malformed = sanitizeRoute(`${board}/e/abc%`, hides); } catch { threw = true; }
+  check("malformed percent-encoding doesn't throw", !threw);
+  check("and falls through with the route intact", malformed === `${board}/e/abc%`, malformed);
+
+  // Deletion is NOT a secret: refusing to record a route because the entity has
+  // since been struck would lose exactly the context a delete-bug report needs.
+  check("an unknown id is not treated as hidden",
+    sanitizeRoute(`${board}/e/ghost`, hides) === `${board}/e/ghost`);
+
+  // Empty means absence, matching the mutation's "" → null mapping.
+  check("an empty hash reads as absence", sanitizeRoute("", hides) === undefined,
+    sanitizeRoute("", hides));
+}
+
+console.log("\nrouteHint: a recognition hint, never navigation");
+{
+  check("an entity route is truncated, not resolved",
+    routeHint("#/c/camp-1/e/3f2a1b8c-dead-beef-cafe-000000000000") === "entity 3f2a1b8c…",
+    routeHint("#/c/camp-1/e/3f2a1b8c-dead-beef-cafe-000000000000"));
+  // The bare campaign route IS the board — an empty string here would render a
+  // dangling separator in the meta row.
+  check("a bare campaign route names the board", routeHint("#/c/camp-1") === "the board",
+    routeHint("#/c/camp-1"));
+  check("a trailing slash also names the board", routeHint("#/c/camp-1/") === "the board");
 }
 
 console.log("\nthe badge counts outstanding work only");

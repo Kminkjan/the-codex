@@ -109,6 +109,66 @@ export function orderFeedback(items: FeedbackItem[]): FeedbackItem[] {
   });
 }
 
+// ============================================================================
+// The captured route
+//
+// A report stores the hash the reporter was looking at, which for an open sheet
+// is `#/c/<cid>/e/<eid>`. `feedback` is world-readable, so THAT ID MUST NOT BE A
+// HIDDEN ENTITY'S: the DM is the likeliest person to file a bug and the likeliest
+// to be looking at unreleased prep while doing it, and a stored id would tell
+// every player that a hidden thing exists and what its uuid is. What leaks is
+// only an unresolvable uuid — RLS (0018) still withholds the row, its
+// connections and its board pin — but `hidden` is this app's real secrecy tool
+// and a surface that quietly writes hidden ids into an open column erodes it.
+//
+// So the entity segment is dropped when the entity is hidden, keeping the
+// campaign-level route. Hidden-ness is the CALLER's judgment, exactly as it is
+// for insertPartyNote's `announce` and insertConnection's visibility check: a
+// pure module can't resolve an id, and this one deliberately doesn't try.
+//
+// Note what this does NOT do: it never drops the segment for a merely deleted
+// or unknown id. "The entity is gone" is not a secret, and refusing to record a
+// route because the thing has since been struck would lose exactly the context
+// a report about a deletion bug needs.
+const ENTITY_ROUTE_RE = /^(#\/c\/[^/]+)\/e\/(.+)$/;
+
+export function sanitizeRoute(
+  hash: string,
+  isHiddenId: (entityId: string) => boolean,
+): string | undefined {
+  // "" → undefined: no hash is absence, and an empty string in a nullable
+  // context column would read as a fact (mutations map it to null for this
+  // reason too).
+  if (!hash) return undefined;
+  const m = ENTITY_ROUTE_RE.exec(hash);
+  if (!m) return hash;
+  // Decoded before the caller sees it — writeCampaignHash percent-encodes ids,
+  // so testing the raw segment would fail to recognise any id needing escaping
+  // and would wave the hidden entity straight through.
+  let id = m[2];
+  try {
+    id = decodeURIComponent(id);
+  } catch {
+    // Malformed percent-encoding: fall through with the raw segment rather than
+    // throwing. parseHash does the same, and an unparseable id can't match a
+    // real entity, so the conservative read is "not hidden".
+  }
+  return isHiddenId(id) ? m[1] : hash;
+}
+
+// How a stored route is shown: shortened, never resolved and never linked. The
+// page it names may not exist any more (that's why 0040 stores it as free
+// text), so this is a recognition hint for the maintainer, not navigation.
+export function routeHint(route: string): string {
+  const m = ENTITY_ROUTE_RE.exec(route);
+  // A truncated id, because the full uuid is noise in a one-line meta row and
+  // the maintainer resolves it by searching, not by reading.
+  if (m) return `entity ${m[2].slice(0, 8)}…`;
+  // Strip the campaign prefix every route shares; what's left is the page. The
+  // fallback covers the bare `#/c/<cid>` case, which IS the board.
+  return route.replace(/^#\/c\/[^/]+\/?/, "") || "the board";
+}
+
 // What the sidebar badge counts: work outstanding, so settled items don't
 // leave a number sitting there forever. Zero is rendered as no badge by the
 // caller — the same "empty means absence" reading the draft store uses.
