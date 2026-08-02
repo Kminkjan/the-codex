@@ -226,19 +226,17 @@ export function PosterCard({ person }: { person: any }) {
   // itself lives on the detail sheet.
   const seenLive = !!campaign.activeSessionId
     && (campaign.sessionParticipants[campaign.activeSessionId] ?? []).includes(person.id);
-  // Allies dominate the board, so their band is noise — a band's presence is
-  // the signal (Wanted / Of Note), plain allies go headerless. Headerless
-  // cards get top clearance so the portrait sits below the pin-head and the
-  // seen-live dot instead of flush under them.
-  const headerless = person.disposition === "ally";
+  // No disposition band. It read as curation ("Of Note" = someone to watch) but
+  // was really `disposition !== "ally"`, with *unset* falling through to the
+  // "Of Note" side — so a background nobody with a blank disposition wore the
+  // badge, contradicting `tier`, which is the actual is-this-person-important
+  // axis. With most NPCs neutral or unmarked it fired on nearly every card, and
+  // "Wanted" claimed a bounty the data never recorded. Cards carry uniform top
+  // clearance now, so the portrait sits below the pin-head and the seen-live
+  // dot instead of flush under them.
   return (
-    <div className={`card-poster${headerless ? " headerless" : ""}`}>
+    <div className="card-poster">
       {seenLive && <span className="seen-live-dot" title="Seen this session" />}
-      {!headerless && (
-        <div className={`wanted ${person.disposition === "hostile" ? "hostile" : "of-note"}`}>
-          <Fleurons>{person.disposition === "hostile" ? "Wanted" : "Of Note"}</Fleurons>
-        </div>
-      )}
       <div className="portrait">
         {person.imageUrl
           ? <img

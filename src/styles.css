@@ -1222,8 +1222,7 @@ button.attend-chip.is-present:hover { border-color: var(--mustard); color: var(-
 }
 
 /* Kind tags ("✦ Quest ✦", "✦ city ✦", …) share one type treatment; each card
-   block below sets only its color. (.card-poster .wanted keeps its own rule —
-   it's larger and doubles as the poster's header band.) */
+   block below sets only its color. */
 .card-quest .quest-tag,
 .card-location .loc-type,
 .card-goal .goal-kind,
@@ -1239,34 +1238,24 @@ button.attend-chip.is-present:hover { border-color: var(--mustard); color: var(-
 }
 
 /* Wanted poster (People) */
+/* Top padding is the clearance the disposition band used to provide: nothing
+   sits above the portrait now, so it needs room to clear the pin-head and the
+   seen-live dot rather than starting flush under them. */
 .card-poster {
   width: 220px;
   background: var(--paper-scroll);
   color: var(--ink);
-  padding: 14px 14px 12px;
+  padding: 22px 14px 12px;
   box-shadow: var(--shadow-card);
   position: relative;
   border: 1px solid var(--card-edge);
 }
-/* Headerless (ally) cards have no band to sit under the pin-head / seen dot,
-   so add the clearance the band used to provide before the portrait. */
-.card-poster.headerless { padding-top: 22px; }
 .card-poster::before {
   /* torn top edge */
   content: '';
   position: absolute; top: -3px; left: -1px; right: -1px; height: 6px;
   background: inherit;
   clip-path: polygon(0 100%, 2% 30%, 5% 80%, 8% 20%, 12% 70%, 16% 10%, 20% 80%, 24% 40%, 28% 90%, 33% 30%, 37% 70%, 42% 20%, 46% 80%, 50% 30%, 55% 70%, 60% 10%, 65% 80%, 70% 40%, 75% 70%, 80% 20%, 85% 80%, 90% 40%, 95% 70%, 100% 30%, 100% 100%);
-}
-.card-poster .wanted {
-  font-family: var(--font-fell-sc);
-  font-size: 12px;
-  letter-spacing: .1em;
-  color: var(--bloodred-deep);
-  text-align: center;
-  padding: 2px 0 6px;
-  border-bottom: 1px solid var(--ink-ghost);
-  margin-bottom: 10px;
 }
 .card-poster .portrait {
   width: 100%; aspect-ratio: 1 / 1;
@@ -3902,7 +3891,7 @@ button.attend-chip.is-present:hover { border-color: var(--mustard); color: var(-
 [data-theme="modern"] :is(.sidebar-label, .sb-kind, .stat-label,
   .detail-notes h3, .rail-section h4, .cmdk-kind, .live-head, .live-vertical,
   .live-dm-head, .cleanup-group-title, .quest-tag, .loc-type, .goal-kind,
-  .i-label, .l-label, .card-poster .wanted, .card-poster .deceased-tag,
+  .i-label, .l-label, .card-poster .deceased-tag,
   .status-chip, .seen-toggle, .veil-badge, .portrait-caption, .session-ribbon,
   .entity-combobox-kind,
   .m-type, .m-threat, .m-cr, .plate-stamp, .plate-lightbox-type,
@@ -4447,20 +4436,6 @@ button.attend-chip.is-present:hover { border-color: var(--mustard); color: var(-
 [data-theme="modern"] .plate-lightbox-close { color: var(--ink-secondary); }
 
 [data-theme="modern"] .card-poster { padding: 12px 13px; }
-[data-theme="modern"] .card-poster.headerless { padding-top: 12px; }
-[data-theme="modern"] .card-poster .wanted {
-  display: inline-flex;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: .02em;
-  padding: 2px 8px;
-  border-radius: 10px;
-  border-bottom: none;
-  margin-bottom: 8px;
-  text-align: left;
-}
-[data-theme="modern"] .card-poster .wanted.hostile { color: var(--bloodred-deep); background: rgba(224,90,74,.14); }
-[data-theme="modern"] .card-poster .wanted.of-note { color: var(--mustard); background: rgba(208,165,72,.14); }
 [data-theme="modern"] .card-poster .portrait {
   aspect-ratio: 16 / 10;
   background: linear-gradient(160deg, #252a38, #191c26);
