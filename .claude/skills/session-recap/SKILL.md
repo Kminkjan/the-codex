@@ -45,19 +45,36 @@ Four things about the bundle that change how you read it:
 - **`touchedEntities` carries detail that was never in the feed at all.** The DM types onto sheets
   during play. Percapock Packpillow's `notes` column is where "people have gone crazy in Northmill.
   Guards are searching every crate and sack" lives — it appears nowhere in the feed.
-- **`notes[].provenance`** is `session_id` when the row was stamped with the live session, or
-  `time-window` when it was recovered by timestamp. Both are in-session. The column under-reports
-  because it is stamped from `getActiveSessionId()` at write time
-  ([mutations.ts](../../../src/mutations.ts) `insertPartyNote`), which is null whenever the DM's client
-  did not have the session marked live.
-- **`participants` is the cast, and it is the only attendance record there will ever be.**
-  Channel Presence expires with the socket (0021 dropped `presence_users`), so nobody can reconstruct
-  who was at the table after the night. 0029 treats this junction as "the on-screen party", PCs
-  included. **Do not invent an Attendance line from names that appear in the notes.** When
-  `pcsNotMarkedPresent` is non-empty the roster is incomplete: report the gap, ask the DM who was
-  actually there, and offer to write the junction rows. Do that *before* drafting — attendance is the
-  one fact that decays, and writing the rows also fixes `people.last_seen_session_id` for free via the
-  `recompute_last_seen` trigger (0013).
+- **`notes[].provenance` and `connections[].provenance`** are `session_id` when the row was stamped
+  with the live session, or `time-window` when it was recovered by timestamp. Both are in-session. The
+  column under-reports because it is stamped from `getActiveSessionId()` at write time
+  ([mutations.ts](../../../src/mutations.ts) — `insertPartyNote` and `insertConnection` both), which is
+  null whenever the DM's client did not have the session marked live. The window is a rescue for rows
+  that were **never stamped**, never a second way in: a row tagged to another session belongs to that
+  session's recap, not this one.
+- **Bylines are already resolved.** Since 0042/0043 attribution carries both a frozen `author` string
+  and an `author_user_id`; `author` in the bundle is the live profile name where one exists, matching
+  `authorName()` in [data.ts](../../../src/data.ts). Use it as given — do not fall back to raw columns,
+  or a renamed editor gets a stale name frozen into the public summary.
+- **`attendance` and `participants` are different facts. An Attendance line is made of `attendance`.**
+  0039's header is emphatic about this, and getting it wrong is the mistake that shipped in this
+  skill's first draft:
+  - **`attendance`** (`session_attendance`, 0039) — who was **at the table**. Asserted deliberately
+    about the party. Present-only rows; absent is the absence of a row.
+  - **`participants`** (`session_participants`, 0013) — who was **seen in the fiction**. The
+    appearance junction: `recompute_last_seen` feeds `people.last_seen_session_id` from it, `sagaScope`
+    reads it as cast reachability, and "+ Seen this session" taps write it incidentally during play.
+
+  They come apart both ways — a PC can appear in a session their player missed, and a player can sit
+  at the table all night while their character is off-screen. Never substitute one for the other.
+
+  **`attendanceTakenAt` distinguishes "nobody came" from "nobody recorded it."** An empty `attendance`
+  with a timestamp present is a real recorded state; empty with `null` means it was never taken.
+
+  **Do not invent an Attendance line from names that appear in the notes.** When `pcsNotMarkedPresent`
+  is non-empty, report the gap, ask the DM who was actually there, and offer to write the rows — do it
+  *before* drafting, because attendance is the one fact that decays. Channel Presence is no fallback:
+  it expires with the socket (0021 dropped `presence_users`).
 
   Two failure shapes, both seen on the S5 run, both fixed there:
   - *A PC exists but wasn't marked present.* `pcsNotMarkedPresent` catches this.

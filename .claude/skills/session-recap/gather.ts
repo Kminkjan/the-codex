@@ -103,6 +103,28 @@ const ambiguousNum = sameNum.length > 1 ? sameNum.map((s) => s.id) : null;
 
 const previous = sessions.find((s) => s.num < session.num && (s.summary ?? "").trim());
 
+// ===== bylines ==============================================================
+//
+// Since 0042/0043 attribution carries BOTH facts: `author` is the display name
+// frozen at write time, `author_user_id` points at the account. The uuid is the
+// live-resolution path and the text is the durable floor — rename yourself and
+// every row you ever signed keeps the old string unless the uuid is resolved.
+// `sessionFeedToMarkdown` was given a required `resolveName` parameter for
+// exactly this reason, because the digest lands in the public `sessions.summary`
+// and would otherwise freeze a stale name there permanently. This mirrors
+// `authorName()` in src/data.ts: live profile name first, stored string second.
+const profiles = new Map<string, string>();
+for (const p of await q(`profiles?select=user_id,display_name`)) {
+  if (p.display_name) profiles.set(p.user_id, p.display_name);
+}
+const authorName = (row: { author?: string | null; author_user_id?: string | null }) => {
+  if (row.author_user_id) {
+    const live = profiles.get(row.author_user_id)?.trim();
+    if (live) return live;
+  }
+  return row.author?.trim() || undefined;
+};
+
 // ===== the feed =============================================================
 
 const events = await q(
@@ -152,7 +174,7 @@ const feed = events.filter((ev) => {
 }).map((ev) => ({
   at: ev.created_at,
   type: ev.type,
-  author: ev.author,
+  author: authorName(ev),
   // For annotate rows this is a BOUNDED EXCERPT, not the note. The full prose
   // is in `notes` below, matched on entity + timestamp. Never recap from this.
   text: ev.text,
@@ -188,7 +210,7 @@ const near = (ts: string) => {
 let droppedNotes = 0;
 const shapeNote = (n: Row, provenance: string) => ({
   at: n.created_at,
-  author: n.author,
+  author: authorName(n),
   text: n.text,
   entity: describe(n.entity_id),
   provenance,
@@ -199,20 +221,47 @@ const notesNearWindow: ReturnType<typeof shapeNote>[] = [];
 for (const n of allNotes) {
   if (n.entity_id && hiddenIds.has(n.entity_id)) { droppedNotes++; continue; }
   const tagged = n.session_id === session.id;
-  if (tagged || inWindow(n.created_at)) {
+  // The window is a fallback for rows that were never stamped — NOT a second
+  // way in. A note already tagged to a DIFFERENT session is correctly attributed
+  // elsewhere, and pulling it in would duplicate it across two recaps. That is
+  // not hypothetical: `openEnded` sessions run the window to now, so it can span
+  // days of other nights.
+  const rescued = !n.session_id && inWindow(n.created_at);
+  if (tagged || rescued) {
     notes.push(shapeNote(n, tagged ? "session_id" : "time-window"));
-  } else if (near(n.created_at)) {
+  } else if (!n.session_id && near(n.created_at)) {
     notesNearWindow.push(shapeNote(n, "near-window"));
   }
 }
 
 // ===== connections ==========================================================
-
-const connections = (await q(
-  `connections?campaign_id=eq.${campaignId}&session_id=eq.${session.id}&select=*`,
-))
-  .filter((c) => !hiddenIds.has(c.from_id) && !hiddenIds.has(c.to_id))
-  .map((c) => ({ at: c.created_at, label: c.label, from: describe(c.from_id), to: describe(c.to_id) }));
+//
+// `insertConnection` stamps session_id from getActiveSessionId() exactly as
+// insertPartyNote does — its own comment says "session_id stays null for a
+// string drawn" outside a live session — so it under-reports the same way and
+// needs the same rescue. Note `created_at` is nullable on purpose (0031): the
+// seeded back-catalogue was never backfilled, and `undefined` means "predates
+// the column", never "today". A null created_at can't be window-matched, so
+// those rows are reachable only through the session_id column.
+const allConnections = await q(
+  `connections?campaign_id=eq.${campaignId}&select=*`,
+);
+let droppedConnections = 0;
+const connections: Array<Record<string, unknown>> = [];
+for (const c of allConnections) {
+  const tagged = c.session_id === session.id;
+  const rescued = !c.session_id && !!c.created_at && inWindow(c.created_at);
+  if (!tagged && !rescued) continue;
+  if (hiddenIds.has(c.from_id) || hiddenIds.has(c.to_id)) { droppedConnections++; continue; }
+  connections.push({
+    at: c.created_at,
+    label: c.label,
+    author: authorName(c),
+    from: describe(c.from_id),
+    to: describe(c.to_id),
+    provenance: tagged ? "session_id" : "time-window",
+  });
+}
 
 // ===== entities this session actually touched ===============================
 //
@@ -234,23 +283,51 @@ const touched = [...touchedIds]
     return { kind: _kind, ...rest };
   });
 
-// ===== cast =================================================================
+// ===== attendance and cast ==================================================
 //
-// session_participants is the junction 0013 recomputes people.last_seen_session_id
-// from, and 0029 treats it as "the on-screen party" — PCs included, not just the
-// NPCs a reveal happened to touch. It is the ONLY record of who was at the table:
-// channel Presence is occupancy and expires with the socket (0021 dropped
-// presence_users), so if this is thin the attendance line is unrecoverable later.
+// TWO DIFFERENT FACTS, and 0039's header is emphatic that conflating them breaks
+// both:
+//
+//   session_attendance (0039) — who was AT THE TABLE. Asserted deliberately
+//     about the party. Present-only rows; absent is the absence of a row, and
+//     sessions.attendance_taken_at distinguishes "nobody came" from "nobody
+//     recorded it". This is what an **Attendance:** line is made of.
+//   session_participants (0013) — who was SEEN IN THE FICTION. The appearance
+//     junction: recompute_last_seen feeds people.last_seen_session_id from it,
+//     sagaScope treats it as cast reachability, and "+ Seen this session" taps
+//     write it incidentally during play.
+//
+// They come apart in both directions: a PC can appear in a session their player
+// missed (someone else ran them), and a player can sit at the table all night
+// while their character is off-screen. Never substitute one for the other.
+const attendanceRows = await q(
+  `session_attendance?session_id=eq.${session.id}&select=person_id,recorded_by,recorded_at`,
+);
+const shapePerson = (p: any) => ({
+  id: p.id, name: p.name, isPc: !!p.is_pc, status: p.status,
+});
+const attendance = attendanceRows
+  .map((r) => byId.get(r.person_id))
+  .filter(Boolean)
+  .map(shapePerson);
+
 const participants = (await q(
   `session_participants?session_id=eq.${session.id}&select=person_id`,
 ))
   .map((r) => byId.get(r.person_id))
   .filter(Boolean)
-  .map((p: any) => ({ id: p.id, name: p.name, isPc: !!p.is_pc, status: p.status }));
+  .map(shapePerson);
 
 const pcRoster = [...byId.values()]
   .filter((e: any) => e._kind === "people" && e.is_pc)
   .map((p: any) => ({ id: p.id, name: p.name, status: p.status }));
+
+// null = never taken, which is NOT the same as "nobody came" (0039). An empty
+// `attendance` with a stamp present is a real, recorded "nobody was there".
+const attendanceTakenAt = session.attendance_taken_at ?? null;
+const pcsNotMarkedPresent = pcRoster.filter(
+  (p) => !attendance.some((a) => a.id === p.id),
+);
 
 // ===== timeline =============================================================
 //
@@ -364,11 +441,14 @@ console.log(JSON.stringify({
     : null,
   window: { start: windowStart, end: windowEnd, openEnded },
   arc,
-  // `participants` is the cast; `pcRoster` is every PC in the campaign. A
-  // roster PC absent from participants is the attendance gap — see SKILL.md.
+  // `attendance` (0039) is who was at the table and is what an Attendance line
+  // is made of. `participants` (0013) is who was seen in the fiction. They are
+  // different facts — see the block where they are fetched.
+  attendance,
+  attendanceTakenAt,
+  pcsNotMarkedPresent,
   participants,
   pcRoster,
-  pcsNotMarkedPresent: pcRoster.filter((p) => !participants.some((q) => q.id === p.id)),
   timeline,
   unmatchedNames,
   unmatchedNamesTruncated,
@@ -382,5 +462,6 @@ console.log(JSON.stringify({
     hiddenEntitiesInCampaign: hiddenIds.size,
     eventsDroppedAsHidden: droppedEvents,
     notesDroppedAsHidden: droppedNotes,
+    connectionsDroppedAsHidden: droppedConnections,
   },
 }, null, 2));
