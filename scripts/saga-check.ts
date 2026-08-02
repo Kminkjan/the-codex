@@ -108,8 +108,15 @@ const campaign: Campaign = {
     { from: "pCarry", to: "locBoth", label: "rides" },
     { from: "pLater", to: "locOut", label: "holds" },
   ],
+  // Empty tails, present only to satisfy `Campaign` — nothing in sagaScope
+  // reads them. NOTE: `scripts/` is outside tsconfig's `include`, so a field
+  // added to `Campaign` does NOT break `npm run build` here and `tsx` doesn't
+  // typecheck either — this annotation silently rots. `sessionAttendance`
+  // (0039) was already missing before `feedback` (0040) was added; both are
+  // filled in now. Check this literal whenever `Campaign` gains a field.
   sessionStaging: [], sessionEvents: [], dmNotes: {},
   board: {}, notes: {},
+  sessionAttendance: {}, feedback: [],
 };
 
 console.log("\nsagaTree / nesting");
