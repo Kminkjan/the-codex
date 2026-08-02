@@ -181,6 +181,20 @@ drop trigger if exists trg_feedback_votes_fix_campaign on public.feedback_votes;
 drop function if exists public.feedback_votes_fix_campaign();
 
 drop index if exists public.feedback_votes_campaign_idx;
+
+-- Drop the dependent policy FIRST. 0040's "member insert own feedback vote"
+-- has `is_campaign_member(campaign_id)` in its WITH CHECK, and Postgres refuses
+-- to drop a column a live policy references (SQLSTATE 2BP01) — it does not
+-- cascade, and `if exists` on the column does not help, because the column
+-- does exist. Section 5 recreates this policy without the campaign clause; the
+-- drop is repeated there so that block still reads as a complete drop/create
+-- pair, which is safe because `drop policy if exists` is idempotent.
+--
+-- This ordering only bites on a REPLAY FROM SCRATCH, which is exactly what
+-- every PR's Supabase preview branch does — so it failed there while passing
+-- against an environment that already had the column gone.
+drop policy if exists "member insert own feedback vote" on public.feedback_votes;
+
 alter table public.feedback_votes drop column if exists campaign_id;
 
 -- ==========================================================================
