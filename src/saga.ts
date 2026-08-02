@@ -31,6 +31,23 @@ export function isCompleted(arc: Arc): boolean {
 
 const byOrder = (a: Arc, b: Arc) => a.orderNum - b.orderNum || a.title.localeCompare(b.title);
 
+// Newest saga first. NOT `byOrder` reversed: a plain reverse() would also flip
+// the title tiebreak to Z→A, so two sagas sharing an orderNum would sort
+// backwards alphabetically for no reason the reader could see.
+const byOrderDesc = (a: Arc, b: Arc) => b.orderNum - a.orderNum || a.title.localeCompare(b.title);
+
+/**
+ * Which end of the chronicle a saga list opens on.
+ *
+ * `recent` applies to the SAGA level only — the arcs inside a saga, and the
+ * chapters inside an arc, stay ascending in both modes. Those are a table of
+ * contents: the `S148–S191` spans and the chapter chips read forward, and
+ * reversing them turns a story into a list of disconnected scenes. What's
+ * actually wrong with ascending sagas is the top level, where a sealed saga
+ * folds itself away and the live one still sits below every finished one.
+ */
+export type SagaOrder = "chronological" | "recent";
+
 export interface SagaNode {
   saga: Arc;
   arcs: Arc[];
@@ -44,7 +61,7 @@ export interface SagaNode {
  * dropped — losing a chunk of the chronicle is a worse failure than showing it
  * at the wrong altitude.
  */
-export function sagaTree(campaign: Campaign): SagaNode[] {
+export function sagaTree(campaign: Campaign, order: SagaOrder = "chronological"): SagaNode[] {
   const byId = new Map(campaign.arcs.map((a) => [a.id, a]));
   const children = new Map<string, Arc[]>();
   const roots: Arc[] = [];
@@ -58,7 +75,7 @@ export function sagaTree(campaign: Campaign): SagaNode[] {
     }
   }
   return roots
-    .sort(byOrder)
+    .sort(order === "recent" ? byOrderDesc : byOrder)
     .map((saga) => ({ saga, arcs: (children.get(saga.id) ?? []).slice().sort(byOrder) }));
 }
 

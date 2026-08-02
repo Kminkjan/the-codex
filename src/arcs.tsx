@@ -66,7 +66,10 @@ export function ArcsPage({ onOpenEntity }: { onOpenEntity: (id: string) => void 
   // when the fold-away is the point.
   const [openOverride, setOpenOverride] = useState<Record<string, boolean>>({});
 
-  const tree = sagaTree(campaign);
+  // Newest saga first: a sealed saga folds itself away, so ascending order put
+  // the one still being played below a stack of collapsed finished ones. Arcs
+  // and chapters inside stay forward-reading — see SagaOrder in saga.ts.
+  const tree = sagaTree(campaign, "recent");
   const sessionsById = new Map(campaign.sessions.map((s) => [s.id, s]));
   // Chapters claimed by no arc at all. Sessions filed directly against a saga
   // are accounted for inside that saga, so they're not "unclaimed".
