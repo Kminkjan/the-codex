@@ -180,6 +180,9 @@ export async function insertFeedback(input: {
   theme?: string;
 }) {
   const { error } = await supabase.from("feedback").insert({
+    // PROVENANCE, not scope, since 0041 — recorded so a report can be
+    // reproduced, never filtered on. The board itself is app-wide, because a
+    // bug is fixed once in the code.
     campaign_id: getActiveCampaignId(),
     kind: input.kind,
     text: input.text,
@@ -219,12 +222,11 @@ export async function toggleFeedbackVote(feedbackId: number, userId: string, vot
     if (error) raiseWriteError(error);
     return;
   }
+  // No campaign_id: 0041 dropped the column. It only ever existed to gate and
+  // fetch by scope, and app-wide there is no scope — so the trigger that used to
+  // correct a client-supplied value is gone too.
   const { error } = await supabase.from("feedback_votes").insert({
     feedback_id: feedbackId,
-    // Sent, then overwritten by the 0040 trigger from the parent row — the
-    // client's value is a hint the database doesn't trust, so a wrong one here
-    // can't file a vote into another campaign.
-    campaign_id: getActiveCampaignId(),
     user_id: userId,
   });
   // 23505 is the composite PK: the vote already existed, which is exactly the
@@ -233,30 +235,37 @@ export async function toggleFeedbackVote(feedbackId: number, userId: string, vot
   if (error && error.code !== "23505") raiseWriteError(error);
 }
 
-// DM-only (0040). Row-targeted and the row is known to exist in the loaded
-// campaign, so this takes the expectRows treatment: a non-DM's UPDATE is
-// RLS-*filtered* to 0 rows with no error, and without the count the status chip
-// would appear to move and then snap back on the next refetch.
+// Maintainer-only (0041, was DM-only in 0040). Row-targeted and the row is
+// known to exist in the loaded board, so this takes the expectRows treatment: a
+// non-maintainer's UPDATE is RLS-*filtered* to 0 rows with no error, and without
+// the count the status chip would appear to move and then snap back on the next
+// refetch.
+//
+// Keyed on the id ALONE — no campaign_id clause, deliberately. The board is
+// app-wide, so most reports a maintainer triages were filed from some other
+// campaign than the one they happen to be viewing, and a scoped clause would
+// filter those to 0 rows and toast "that change wasn't saved" over a status move
+// that was perfectly legal. `campaign_id` can also be null now (0041 sets it
+// null when its campaign is deleted), which no equality clause matches.
 export async function setFeedbackStatus(feedbackId: number, status: FeedbackStatus) {
   const { error, count } = await supabase
     .from("feedback")
     .update({ status }, { count: "exact" })
-    .eq("id", feedbackId)
-    .eq("campaign_id", getActiveCampaignId());
+    .eq("id", feedbackId);
   if (error) raiseWriteError(error);
   expectRows(count);
 }
 
-// DM-only escape hatch for a duplicate or a misfire. Votes go with it through
-// `on delete cascade` (0040), so there's no sweep to do here — the contrast
-// with deleteEntity's app-side connection sweep is just that these rows have a
-// real FK to cascade along.
+// Maintainer-only escape hatch for a duplicate or a misfire. Votes go with it
+// through `on delete cascade` (0040), so there's no sweep to do here — the
+// contrast with deleteEntity's app-side connection sweep is just that these rows
+// have a real FK to cascade along. Keyed on the id alone for the same reason
+// setFeedbackStatus is.
 export async function deleteFeedback(feedbackId: number) {
   const { error, count } = await supabase
     .from("feedback")
     .delete({ count: "exact" })
-    .eq("id", feedbackId)
-    .eq("campaign_id", getActiveCampaignId());
+    .eq("id", feedbackId);
   if (error) raiseWriteError(error);
   expectRows(count);
 }
