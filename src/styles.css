@@ -812,6 +812,11 @@ button.attend-chip.is-present:hover { border-color: var(--mustard); color: var(-
   flex-direction: column;
 }
 .sidebar > * { flex: 0 0 auto; }
+/* The arc filter is the one child that sized to its content in block flow —
+   as a flex item it gets blockified and stretched to the full column, which
+   turns a deliberately understated view control into the widest thing in the
+   sidebar. Keep it hugging its longest arc title. */
+.sidebar > select { align-self: flex-start; }
 /* "This app" / feedback lives at the FOOT of the sidebar, not at the end of
    the scroll. Two rules, one for each case: margin-top:auto drops it to the
    bottom edge when the campaign is short enough to fit, sticky keeps it on
