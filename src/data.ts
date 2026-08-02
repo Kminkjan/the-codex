@@ -252,10 +252,13 @@ export interface PartyNote {
   hand: boolean;
 }
 
-// ===== Feedback (0040) ======================================================
+// ===== Feedback (0040, app-wide since 0041) =================================
 // Bugs and ideas the party raises about the codex itself, rather than about the
-// campaign. Append-only for players — `status` is the only mutable field and
-// only the DM may move it. The derivations live in src/feedback.ts.
+// campaign — so the board spans EVERY campaign. A bug is fixed once in the code,
+// which is what makes a per-campaign board wrong: "done" would be a fact about a
+// row instead of about the app, and one bug's votes would split across N rows.
+// Append-only for players — `status` is the only mutable field, and only an
+// app_maintainers row may move it. The derivations live in src/feedback.ts.
 
 export type FeedbackKind = "bug" | "idea";
 export type FeedbackStatus = "open" | "planned" | "done" | "wontfix";
@@ -267,6 +270,11 @@ export interface FeedbackItem {
   // A display name, like every other byline here (party_notes, connections,
   // session_attendance) — it must survive the account going away.
   author: string;
+  // Which campaign it was filed from — PROVENANCE, not scope (0041), in the same
+  // category as `route` and `theme` below. Undefined once that campaign is
+  // deleted (the FK is `on delete set null`, because a report outlives the
+  // campaign it was written in). Never filter on this.
+  campaignId?: string;
   // Captured context: the hash the reporter was looking at, and their theme.
   // Both absent on a report filed from an unparseable hash, and both are only
   // ever rendered as a hint — never resolved against an entity table, because
@@ -423,9 +431,15 @@ export interface Campaign {
   board: Record<string, BoardPosition>;
   notes: Record<string, PartyNote[]>;
   // Bugs and ideas about the codex itself (0040), votes already folded in.
-  // Unsorted here — orderFeedback() in src/feedback.ts decides reading order,
-  // and unlike every array above this one is NOT campaign content, so
-  // projectCampaignForViewers passes it through untouched.
+  // Unsorted here — orderFeedback() in src/feedback.ts decides reading order.
+  //
+  // The odd one out on this interface, and knowingly so: since 0041 this is
+  // APP-WIDE data, not this campaign's. It rides the campaign load and the
+  // campaign channel because that's one fetch and one socket instead of a second
+  // provider for a board of tens of rows; the cost is that switching campaigns
+  // needlessly refetches it. Being app-wide is also why
+  // projectCampaignForViewers passes it through untouched — there is nothing
+  // here that a DM keeps from players.
   feedback: FeedbackItem[];
 }
 

@@ -25,7 +25,7 @@
 // ============================================================================
 
 import { useMemo, useState } from "react";
-import { useCampaign, useFindEntity, useIsDm } from "./hooks";
+import { useCampaign, useCampaignSwitcher, useFindEntity, useIsMaintainer } from "./hooks";
 import { useAuth } from "./auth";
 import { Fleurons, NoteComposer, ThemedLabel } from "./components";
 import { Icon } from "./icons";
@@ -61,7 +61,14 @@ interface FeedbackPanelProps {
 export function FeedbackPanel({ onClose }: FeedbackPanelProps) {
   const campaign = useCampaign();
   const findEntity = useFindEntity();
-  const isDm = useIsDm();
+  const isMaintainer = useIsMaintainer();
+  // Titles for the provenance chip. The picker's list is already loaded and
+  // covers every campaign, so this needs no fetch of its own.
+  const { campaigns } = useCampaignSwitcher();
+  const campaignTitles = useMemo(
+    () => new Map(campaigns.map((c) => [c.id, c.title])),
+    [campaigns],
+  );
   const { canEdit, user, displayName } = useAuth();
   const [kind, setKind] = useState<FeedbackKind>("bug");
   // The row with a write in flight, so its controls can't be double-fired. One
@@ -211,10 +218,24 @@ export function FeedbackPanel({ onClose }: FeedbackPanelProps) {
                         <span className="feedback-where">{routeHint(item.route)}</span>
                       </>
                     )}
+                    {/* Which campaign it was filed from — provenance, not scope
+                        (0041). Shown only for OTHER campaigns: on the board you
+                        filed from it's noise, but on an app-wide board "this came
+                        from a different table" is the context that makes an
+                        unfamiliar report make sense. A campaign since deleted
+                        leaves campaignId null and correctly shows nothing. */}
+                    {item.campaignId && item.campaignId !== campaign.id && (
+                      <>
+                        <span className="feedback-dot">·</span>
+                        <span className="feedback-where">
+                          {campaignTitles.get(item.campaignId) ?? "another campaign"}
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
 
-                {isDm ? (
+                {isMaintainer ? (
                   <div className="feedback-dm">
                     <select
                       className="feedback-status-select"
