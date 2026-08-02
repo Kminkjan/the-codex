@@ -272,9 +272,15 @@ export interface FeedbackItem {
   id: number;
   kind: FeedbackKind;
   text: string;
-  // A display name, like every other byline here (party_notes, connections,
-  // session_attendance) — it must survive the account going away.
+  // The write-time name snapshot, same pair as PartyNote's (0043 gave this
+  // table 0042's foreign key). Non-optional because mapFeedbackRow coerces a
+  // NULL to "" — but read it through authorName()/useAuthorName(), never
+  // directly: the live name wins when authorUserId resolves.
   author: string;
+  // NULL for rows written before 0043, and for a report whose account has since
+  // been deleted (`on delete set null`). Resolves app-wide, like the board
+  // itself — `profiles` (0020) has no campaign scope.
+  authorUserId?: string;
   // Which campaign it was filed from — PROVENANCE, not scope (0041), in the same
   // category as `route` and `theme` below. Undefined once that campaign is
   // deleted (the FK is `on delete set null`, because a report outlives the

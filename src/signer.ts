@@ -1,7 +1,7 @@
 // Module-level signer store: who is writing, for the columns that record it
-// (party_notes.author/author_user_id, session_events, connections, and
-// session_attendance.recorded_by). Written only by AuthProvider, synchronously
-// during render; read by mutations.ts, which are plain async functions and
+// (party_notes.author/author_user_id, session_events, connections, feedback
+// (0043), and session_attendance.recorded_by). Written only by AuthProvider,
+// synchronously during render; read by mutations.ts, which are plain async functions and
 // can't reach React context — the same reason activeCampaign.ts and
 // activeSession.ts exist.
 //
