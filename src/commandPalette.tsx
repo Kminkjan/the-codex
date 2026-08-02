@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useCampaign } from "./hooks";
-import { type Campaign } from "./data";
+import { useCampaign, useProfiles } from "./hooks";
+import { authorName, type Campaign } from "./data";
 import { Icon, kindIcon } from "./icons";
 import {
   buildIndex,
@@ -16,7 +16,14 @@ import {
   type RankedHit,
 } from "./entitySearch";
 
-function searchHits(fullIndex: Indexed[], campaign: Campaign, query: string): RankedHit[] {
+function searchHits(
+  fullIndex: Indexed[],
+  campaign: Campaign,
+  query: string,
+  // Byline resolver for note snippets (0042) — the snippet is prefixed with who
+  // wrote it, and a renamed editor should read as their current name here too.
+  resolveName: (userId: string) => string | null | undefined,
+): RankedHit[] {
   // Facet operators (tier:/status:/race:/faction:) pre-filter the index; the
   // remaining free text ranks as usual. The notes pass below reads the same
   // filtered index, so a note hit can't resurrect an operator-excluded person.
@@ -43,7 +50,7 @@ function searchHits(fullIndex: Indexed[], campaign: Campaign, query: string): Ra
           id: entityId,
           kind: parent.kind,
           label: parent.label,
-          snippet: `${note.author}: ${makeSnippet(note.text, q)}`,
+          snippet: `${authorName(note, resolveName) ?? "Anonymous"}: ${makeSnippet(note.text, q)}`,
           matchSource: "note",
           rank: 3,
           archived: parent.archived,
@@ -86,7 +93,11 @@ export function CommandPalette({ open, onClose, onOpenEntity, onLocate }: Comman
   const previouslyFocused = useRef<HTMLElement | null>(null);
 
   const index = useMemo(() => buildIndex(campaign), [campaign]);
-  const results = useMemo(() => searchHits(index, campaign, query), [index, campaign, query]);
+  const profilesById = useProfiles();
+  const results = useMemo(
+    () => searchHits(index, campaign, query, (userId) => profilesById.get(userId)?.displayName),
+    [index, campaign, query, profilesById],
+  );
   // Which hits actually have a pin on the notice board — only those can be
   // located there. Sessions/arcs/events and never-pinned cards have no
   // position, so they show no locate affordance.

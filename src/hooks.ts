@@ -1,6 +1,6 @@
 import { useCallback, useContext, useEffect, useMemo, useState, type RefObject } from "react";
 import { CampaignContext } from "./campaignContext";
-import { buildKinds, findEntity, type Campaign, type Entity, type KindKey } from "./data";
+import { authorName, buildKinds, findEntity, type Campaign, type Entity, type KindKey } from "./data";
 import { readListSort, writeListSort } from "./listPrefs";
 import { isSortKey, type SortKey } from "./listSort";
 import { isChronicleOrder, type ChronicleOrder } from "./chronicle";
@@ -69,6 +69,19 @@ export function usePresence() {
 // usePresence() for who's at the table right now.
 export function useProfiles() {
   return useContext(CampaignContext).profilesById;
+}
+
+// The byline for any signed row (0042) — pass a party note, session event or
+// connection and get the name to print. Wraps data.ts's pure authorName() with
+// the loaded profiles map so a renamed editor's whole back-catalogue follows
+// them. Every byline should go through this rather than reading `.author`.
+export function useAuthorName() {
+  const profilesById = useProfiles();
+  return useCallback(
+    (signed: { author?: string; authorUserId?: string }) =>
+      authorName(signed, (userId) => profilesById.get(userId)?.displayName),
+    [profilesById],
+  );
 }
 
 export function useCampaignSwitcher() {

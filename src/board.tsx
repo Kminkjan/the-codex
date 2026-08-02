@@ -70,7 +70,7 @@ export function NoticeBoard({
   const campaign = useCampaign();
   const findEntity = useFindEntity();
   const kinds = useKinds();
-  const { canEdit, displayName } = useAuth();
+  const { canEdit } = useAuth();
   const isDm = useIsDm();
 
   const positions = campaign.board;
@@ -207,7 +207,6 @@ export function NoticeBoard({
     if (!connectSource) { setConnectSource(id); return; }
     if (connectSource === id) { setConnectSource(null); return; }
     insertConnection(connectSource, id, "linked", {
-      author: displayName || undefined,
       announce: bothVisible(findEntity(connectSource), findEntity(id)),
     }).catch((e) => console.error("insertConnection failed", e));
     setConnectSource(null);

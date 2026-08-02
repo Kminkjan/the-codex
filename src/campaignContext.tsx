@@ -337,6 +337,7 @@ const mapSessionEvent = (r: any): SessionEvent => ({
   sessionId: r.session_id,
   type: r.type,
   author: r.author ?? undefined,
+  authorUserId: r.author_user_id ?? undefined,
   entityId: r.entity_id ?? undefined,
   entityIdB: r.entity_id_b ?? undefined,
   entityLabel: r.entity_label ?? undefined,
@@ -366,12 +367,14 @@ const mapConnection = (r: any): Connection => ({
   createdAt: r.created_at ?? undefined,
   sessionId: r.session_id ?? undefined,
   author: r.author ?? undefined,
+  authorUserId: r.author_user_id ?? undefined,
 });
 
 const mapPartyNoteRow = (r: any): { entityId: string; note: PartyNote } => ({
   entityId: r.entity_id,
   note: {
     author: r.author ?? "",
+    authorUserId: r.author_user_id ?? undefined,
     when: r.when_label ?? "",
     text: r.text ?? "",
     hand: !!r.hand,

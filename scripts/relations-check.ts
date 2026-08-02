@@ -90,8 +90,8 @@ console.log("\nprovenance folds to the EARLIEST row of a mirrored pair (0031)");
   // between refetches depending on which row the select happened to return.
   const people = [{ id: "a", name: "A" } as any, { id: "b", name: "B" } as any];
   const rows = [
-    { from: "a", to: "b", label: "ally of", createdAt: "2026-07-20T21:00:00.000Z", sessionId: "s2", author: "Late" },
-    { from: "b", to: "a", label: "ally of", createdAt: "2026-07-18T19:00:00.000Z", sessionId: "s1", author: "First" },
+    { from: "a", to: "b", label: "ally of", createdAt: "2026-07-20T21:00:00.000Z", sessionId: "s2", author: "Late", authorUserId: "u-late" },
+    { from: "b", to: "a", label: "ally of", createdAt: "2026-07-18T19:00:00.000Z", sessionId: "s1", author: "First", authorUserId: "u-first" },
   ];
   const fwd = deriveRelations(shell({ people, connections: rows }));
   const rev = deriveRelations(shell({ people, connections: rows.slice().reverse() }));
@@ -104,6 +104,12 @@ console.log("\nprovenance folds to the EARLIEST row of a mirrored pair (0031)");
     fwd[0]?.sessionId === "s1" && fwd[0]?.author === "First", fwd[0]);
   check("...consistently in both orders",
     rev[0]?.sessionId === "s1" && rev[0]?.author === "First", rev[0]);
+  // The byline is two columns since 0042, and they must fold together. A name
+  // taken from one row of the pair and a uuid from the other resolves — through
+  // authorName's live lookup — to a THIRD person, which is worse than either
+  // row's answer and impossible to spot by reading the output.
+  check("...and the uuid folds with the name it belongs to",
+    fwd[0]?.authorUserId === "u-first" && rev[0]?.authorUserId === "u-first", [fwd[0], rev[0]]);
 }
 
 console.log("\nunstamped rows (the pre-0031 back-catalogue) don't poison the fold");
@@ -112,13 +118,14 @@ console.log("\nunstamped rows (the pre-0031 back-catalogue) don't poison the fol
   // 0011/0012 has none. "Unknown" is not earlier than a known time — it must
   // never displace one, in either row order.
   const people = [{ id: "a", name: "A" } as any, { id: "b", name: "B" } as any];
-  const known = { from: "a", to: "b", label: "ally of", createdAt: "2026-07-18T19:00:00.000Z", author: "First" };
+  const known = { from: "a", to: "b", label: "ally of", createdAt: "2026-07-18T19:00:00.000Z", author: "First", authorUserId: "u-first" };
   const bare = { from: "b", to: "a", label: "ally of" };
   const knownFirst = deriveRelations(shell({ people, connections: [known, bare] }));
   const bareFirst = deriveRelations(shell({ people, connections: [bare, known] }));
   check("a known timestamp survives an unstamped mirror", knownFirst[0]?.createdAt === "2026-07-18T19:00:00.000Z", knownFirst[0]);
   check("...and is adopted when the unstamped row came first", bareFirst[0]?.createdAt === "2026-07-18T19:00:00.000Z", bareFirst[0]);
-  check("...bringing its author with it", bareFirst[0]?.author === "First", bareFirst[0]);
+  check("...bringing its whole byline with it",
+    bareFirst[0]?.author === "First" && bareFirst[0]?.authorUserId === "u-first", bareFirst[0]);
   check("a wholly unstamped edge reports undefined, not a fabricated date",
     deriveRelations(shell({ people, connections: [bare] }))[0]?.createdAt === undefined);
 }
@@ -131,8 +138,9 @@ console.log("\nFK edges have no provenance to show");
     people: [{ id: "p1", name: "P", faction: "f1" } as any],
     factions: [{ id: "f1", name: "F" } as any],
   }))[0];
-  check("an FK edge carries no createdAt, session or author",
-    e?.source === "fk" && e.createdAt === undefined && e.sessionId === undefined && e.author === undefined, e);
+  check("an FK edge carries no createdAt, session or byline",
+    e?.source === "fk" && e.createdAt === undefined && e.sessionId === undefined
+    && e.author === undefined && e.authorUserId === undefined, e);
 }
 
 console.log("\nparallel labels stay independently deletable");

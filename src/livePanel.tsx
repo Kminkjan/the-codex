@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { entityLabel, isHidden, isShowEvent, stripShowMark, type Entity, type KindKey, type SessionEvent } from "./data";
 import { Icon, kindIcon } from "./icons";
-import { useCampaign, useFindEntity, useIsDm, usePresence } from "./hooks";
+import { useAuthorName, useCampaign, useFindEntity, useIsDm, usePresence } from "./hooks";
 import { useAuth } from "./auth";
 import { Fleurons, NoteComposer, ThemedLabel } from "./components";
 import { liveDraftKey } from "./noteDrafts";
@@ -23,6 +23,9 @@ const fmtTime = (iso: string) =>
 // (issue #72) — past feeds render with the exact same row language.
 export function FeedRow({ ev, onOpenEntity }: { ev: SessionEvent; onOpenEntity: (id: string) => void }) {
   const findEntity = useFindEntity();
+  // Resolved before the type branches so the hook order is unconditional; the
+  // start/end markers just don't print a byline.
+  const by = useAuthorName()(ev);
   if (ev.type === "start" || ev.type === "end") {
     return (
       <div className="live-marker">
@@ -44,7 +47,7 @@ export function FeedRow({ ev, onOpenEntity }: { ev: SessionEvent; onOpenEntity: 
         title={ent ? "Open in the codex" : undefined}
       >
         <div>{shown ? <>⚡ The DM showed <em>{label}</em></> : <>🕯 The DM revealed <em>{label}</em></>}</div>
-        <div className="live-meta"><span>{ev.author ? `by ${ev.author}` : ""}</span><span>{fmtTime(ev.createdAt)}</span></div>
+        <div className="live-meta"><span>{by ? `by ${by}` : ""}</span><span>{fmtTime(ev.createdAt)}</span></div>
       </div>
     );
   }
@@ -68,7 +71,7 @@ export function FeedRow({ ev, onOpenEntity }: { ev: SessionEvent; onOpenEntity: 
           />
           {ev.text ? <> — “{ev.text}”</> : null}
         </div>
-        <div className="live-meta"><span>{ev.author ? `by ${ev.author}` : ""}</span><span>{fmtTime(ev.createdAt)}</span></div>
+        <div className="live-meta"><span>{by ? `by ${by}` : ""}</span><span>{fmtTime(ev.createdAt)}</span></div>
       </div>
     );
   }
@@ -95,14 +98,14 @@ export function FeedRow({ ev, onOpenEntity }: { ev: SessionEvent; onOpenEntity: 
           />
           {ev.text ? <> — “{ev.text}”</> : null}
         </div>
-        <div className="live-meta"><span>{ev.author ? `by ${ev.author}` : ""}</span><span>{fmtTime(ev.createdAt)}</span></div>
+        <div className="live-meta"><span>{by ? `by ${by}` : ""}</span><span>{fmtTime(ev.createdAt)}</span></div>
       </div>
     );
   }
   return (
     <div className="live-note">
       <div className="note-body">{ev.text}</div>
-      <div className="live-meta"><span>— {ev.author || "Anonymous"}</span><span>{fmtTime(ev.createdAt)}</span></div>
+      <div className="live-meta"><span>— {by || "Anonymous"}</span><span>{fmtTime(ev.createdAt)}</span></div>
     </div>
   );
 }
@@ -113,7 +116,6 @@ export function FeedRow({ ev, onOpenEntity }: { ev: SessionEvent; onOpenEntity: 
 function DmSection({ sessionId, onOpenEntity }: { sessionId: string; onOpenEntity: (id: string) => void }) {
   const campaign = useCampaign();
   const findEntity = useFindEntity();
-  const { displayName } = useAuth();
   // In-flight releases: insertSessionEvent is not idempotent, and realtime lag
   // means released_at won't disable the button in time — guard double-clicks
   // locally. Cleared on failure so the button comes back.
@@ -136,11 +138,9 @@ function DmSection({ sessionId, onOpenEntity }: { sessionId: string; onOpenEntit
       || entityLabel(a.ent).localeCompare(entityLabel(b.ent)),
     );
 
-  const author = displayName || undefined;
-
   const onRelease = (kind: KindKey, entityId: string, label: string) => {
     setReleasing((prev) => new Set(prev).add(entityId));
-    releaseEntity(kind, entityId, sessionId, { author, label }).catch((e) => {
+    releaseEntity(kind, entityId, sessionId, { label }).catch((e) => {
       console.error("releaseEntity failed", e);
       setReleasing((prev) => {
         const next = new Set(prev);
@@ -154,7 +154,7 @@ function DmSection({ sessionId, onOpenEntity }: { sessionId: string; onOpenEntit
   // every player client. Legal on both queued and already-released rows.
   const onShow = (kind: KindKey, entityId: string, label: string, unhide: boolean) => {
     setShowing((prev) => new Set(prev).add(entityId));
-    showEntity(kind, entityId, sessionId, { author, label, unhide })
+    showEntity(kind, entityId, sessionId, { label, unhide })
       .catch((e) => console.error("showEntity failed", e))
       .finally(() => setShowing((prev) => {
         const next = new Set(prev);
@@ -170,7 +170,7 @@ function DmSection({ sessionId, onOpenEntity }: { sessionId: string; onOpenEntit
         <button
           className="live-end-btn"
           title="End the session — stamps the feed and stands the pin down"
-          onClick={() => endLiveSession(sessionId, author).catch(console.error)}
+          onClick={() => endLiveSession(sessionId).catch(console.error)}
         >
           END SESSION
         </button>
@@ -223,7 +223,8 @@ export function LivePanel({ onOpenEntity }: { onOpenEntity: (id: string) => void
   const findEntity = useFindEntity();
   const presenceUsers = usePresence();
   const isDm = useIsDm();
-  const { canEdit, displayName } = useAuth();
+  const { canEdit } = useAuth();
+  const resolveAuthor = useAuthorName();
   const [collapsed, setCollapsed] = useState(false);
   const feedRef = useRef<HTMLDivElement>(null);
   // Chat-style stickiness: follow new rows only while the reader is already at
@@ -313,7 +314,7 @@ export function LivePanel({ onOpenEntity }: { onOpenEntity: (id: string) => void
             <div className="live-spotlight-kicker">⚡ NOW SHOWING</div>
             <div className="live-spotlight-label">{entityLabel(shownEnt)}</div>
             <div className="live-meta">
-              <span>{lastShow.author ? `by ${lastShow.author}` : ""}</span>
+              <span>{resolveAuthor(lastShow) ? `by ${resolveAuthor(lastShow)}` : ""}</span>
               <span>{fmtTime(lastShow.createdAt)}</span>
             </div>
           </div>
@@ -350,12 +351,7 @@ export function LivePanel({ onOpenEntity }: { onOpenEntity: (id: string) => void
             submitLabel={<ThemedLabel parchment="Set it down" atlas="Send" />}
             submitTitle="Add to the record (Enter)"
             onSubmit={(text) =>
-              insertSessionEvent({
-                type: "note",
-                sessionId,
-                author: displayName || "Anonymous",
-                text,
-              })
+              insertSessionEvent({ type: "note", sessionId, text })
             }
           />
         </div>

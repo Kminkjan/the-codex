@@ -3,6 +3,7 @@ import { pathToSweep } from "./storagePath";
 import { BUCKET } from "./upload";
 import { getActiveCampaignId } from "./activeCampaign";
 import { getActiveSessionId } from "./activeSession";
+import { getSigner, type Signer } from "./signer";
 import { SHOW_MARK, noteExcerpt, type FeedbackKind, type FeedbackStatus, type KindKey, type PartyNote, type BoardPosition, type CampaignSummary, type SessionEventType, type Status } from "./data";
 
 // Realtime subscriptions in campaignContext.tsx reflect writes back into UI
@@ -49,6 +50,24 @@ function raiseWriteError(error: { code?: string; message?: string }): never {
 // rows via Content-Range with no representation payload.
 function expectRows(count: number | null) {
   if (!count) raiseWriteError(new Error(NOT_SAVED));
+}
+
+// ===== Signing (0042) =======================================================
+// The three provenance-carrying tables (party_notes, session_events,
+// connections) all sign a row the same way, so they share one spread. Both
+// columns are written together and neither is ever written alone — that is the
+// whole point of taking them from one store rather than from a parameter.
+//
+// `author` remains the durable floor: it is what renders if the account is
+// later deleted (author_user_id is `on delete set null`) or if the profiles
+// mirror hasn't loaded. `author_user_id` is the live-resolution path that lets
+// a rename propagate through history. See authorName() in data.ts for the
+// read side of this pair.
+function signature(signer: Signer | null) {
+  return {
+    author: signer?.displayName ?? null,
+    author_user_id: signer?.userId ?? null,
+  };
 }
 
 // UI field → DB column for each kind. Only renamed fields are listed;
@@ -130,17 +149,20 @@ function toRow(kind: KindKey, patch: Record<string, unknown>): Record<string, un
 // `announce` and `entityLabel` are the CALLER's, for the same reason
 // insertConnection's are: mutations can't reach React context, so they can
 // neither check hidden-ness nor resolve an entity's display field (which varies
-// by kind — name/title/text, see primaryField in detail.tsx).
+// by kind — name/title/text, see primaryField in detail.tsx). The byline is NOT
+// the caller's — it comes from the signer store (0042), which is why `note`
+// omits it.
 export async function insertPartyNote(
   entityId: string,
-  note: PartyNote,
+  note: Omit<PartyNote, "author" | "authorUserId">,
   opts: { announce?: boolean; entityLabel?: string } = {},
 ) {
   const sessionId = getActiveSessionId();
+  const signer = getSigner();
   const { error } = await supabase.from("party_notes").insert({
     campaign_id: getActiveCampaignId(),
     entity_id: entityId,
-    author: note.author,
+    ...signature(signer),
     when_label: note.when,
     text: note.text,
     hand: note.hand,
@@ -160,7 +182,6 @@ export async function insertPartyNote(
   insertSessionEvent({
     type: "annotate",
     sessionId,
-    author: note.author,
     entityId,
     entityLabel: opts.entityLabel,
     text: noteExcerpt(note.text),
@@ -333,16 +354,18 @@ export async function deleteBoardPosition(entityId: string) {
 //
 // `announce` is the CALLER's answer to "are both endpoints already visible to
 // the players?". Mutations can't reach React context to check hidden-ness, the
-// same reason `author` is passed in and showEntity's `unhide` is caller-decided.
-// A string touching an unreleased entity is DM prep and says nothing to the
-// table, so it stays out of the feed while still being drawn.
+// same reason showEntity's `unhide` is caller-decided. A string touching an
+// unreleased entity is DM prep and says nothing to the table, so it stays out
+// of the feed while still being drawn. The byline is not caller-supplied — see
+// the signer store (0042).
 export async function insertConnection(
   fromId: string,
   toId: string,
   label: string,
-  opts: { author?: string; announce?: boolean } = {},
+  opts: { announce?: boolean } = {},
 ) {
   const sessionId = getActiveSessionId();
+  const signer = getSigner();
   const { error } = await supabase.from("connections").insert({
     campaign_id: getActiveCampaignId(),
     from_id: fromId,
@@ -351,7 +374,7 @@ export async function insertConnection(
     // created_at defaults in the DB. session_id stays null for a string drawn
     // outside a session — a fact about the string, not a gap in the data.
     session_id: sessionId,
-    author: opts.author ?? null,
+    ...signature(signer),
   });
   if (error) raiseWriteError(error);
 
@@ -362,7 +385,6 @@ export async function insertConnection(
   insertSessionEvent({
     type: "link",
     sessionId,
-    author: opts.author,
     entityId: fromId,
     entityIdB: toId,
     text: label,
@@ -548,10 +570,12 @@ export async function unmarkSeen(personId: string) {
 // written on the chapter's own sheet, often days later, so the session id is
 // always the caller's — there is no getActiveSessionId() fallback to lean on.
 //
-// `recordedBy` is the caller's display name for the same reason party notes'
-// author is: mutations can't reach React context.
+// `recorded_by` is a display name only, deliberately — see 0039's header. It is
+// write-only today (nothing renders it), so unlike the three tables 0042 gave a
+// uuid to, there is no read path here that a rename would improve. It signs
+// from the same store regardless, so no caller has to remember to.
 
-export async function markAttended(sessionId: string, personId: string, recordedBy?: string) {
+export async function markAttended(sessionId: string, personId: string) {
   // Idempotent for markSeen's reason: no optimistic UI, so two editors ticking
   // the same character (or one double-click) would otherwise hit the composite
   // PK. ignoreDuplicates keeps the original provenance rather than overwriting
@@ -561,7 +585,7 @@ export async function markAttended(sessionId: string, personId: string, recorded
       campaign_id: getActiveCampaignId(),
       session_id: sessionId,
       person_id: personId,
-      recorded_by: recordedBy ?? null,
+      recorded_by: getSigner()?.displayName ?? null,
     },
     { onConflict: "session_id,person_id", ignoreDuplicates: true },
   );
@@ -610,7 +634,7 @@ export async function unstageEntity(sessionId: string, entityId: string) {
 }
 
 // The feed is append-only: INSERT is the only verb (no update/delete policies
-// exist on session_events). `author` is the caller's display name, same
+// exist on session_events). The byline comes from the signer store (0042), same
 // signing as party_notes; `entityId` rides on reveal events, `text` carries
 // note bodies / reveal flair. `entityIdB` is the far endpoint of a link event
 // (0031) and rides only on those; `entityLabel` is the write-time label snapshot
@@ -624,7 +648,6 @@ export async function unstageEntity(sessionId: string, entityId: string) {
 export async function insertSessionEvent(ev: {
   type: SessionEventType;
   sessionId: string;
-  author?: string;
   entityId?: string;
   entityIdB?: string;
   entityLabel?: string;
@@ -634,7 +657,7 @@ export async function insertSessionEvent(ev: {
     campaign_id: getActiveCampaignId(),
     session_id: ev.sessionId,
     type: ev.type,
-    author: ev.author ?? null,
+    ...signature(getSigner()),
     entity_id: ev.entityId ?? null,
     entity_id_b: ev.entityIdB ?? null,
     entity_label: ev.entityLabel ?? null,
@@ -659,7 +682,7 @@ export async function releaseEntity(
   kind: KindKey,
   entityId: string,
   sessionId: string,
-  opts: { author?: string; label?: string } = {},
+  opts: { label?: string } = {},
 ) {
   await updateEntity(kind, entityId, { hidden: false });
   const stamp = supabase
@@ -671,7 +694,7 @@ export async function releaseEntity(
     .then(({ error }) => { if (error) throw error; });
   await Promise.all([
     stamp,
-    insertSessionEvent({ type: "reveal", sessionId, author: opts.author, entityId, text: opts.label }),
+    insertSessionEvent({ type: "reveal", sessionId, entityId, text: opts.label }),
   ]);
   // A released person has, by definition, shown up on screen. Idempotent and
   // non-fatal — the release itself already succeeded.
@@ -692,7 +715,7 @@ export async function showEntity(
   kind: KindKey,
   entityId: string,
   sessionId: string,
-  opts: { author?: string; label?: string; unhide?: boolean } = {},
+  opts: { label?: string; unhide?: boolean } = {},
 ) {
   if (opts.unhide) await updateEntity(kind, entityId, { hidden: false });
   const stamp = supabase
@@ -708,7 +731,6 @@ export async function showEntity(
     insertSessionEvent({
       type: "reveal",
       sessionId,
-      author: opts.author,
       entityId,
       text: SHOW_MARK + (opts.label ?? ""),
     }),
@@ -717,26 +739,25 @@ export async function showEntity(
 }
 
 // DM ceremony around the shared pin: moving it also brackets the feed with
-// start/end markers. `author` comes from the caller (mutations can't reach
-// React context). Non-DM editors keep calling plain setActiveSession — the
-// markers are the DM's to write.
-export async function startLiveSession(sessionId: string, author?: string) {
+// start/end markers, signed from the signer store (0042). Non-DM editors keep
+// calling plain setActiveSession — the markers are the DM's to write.
+export async function startLiveSession(sessionId: string) {
   await setActiveSession(sessionId);
-  await insertSessionEvent({ type: "start", sessionId, author });
+  await insertSessionEvent({ type: "start", sessionId });
 }
 
-export async function endLiveSession(sessionId: string, author?: string) {
-  await insertSessionEvent({ type: "end", sessionId, author });
+export async function endLiveSession(sessionId: string) {
+  await insertSessionEvent({ type: "end", sessionId });
   await setActiveSession(null);
 }
 
 // Switching sessions while live must never route the pin through null — that
 // would broadcast a transient "not live", closing every client's panel and
 // resetting board session-focus for a frame.
-export async function switchLiveSession(fromId: string, toId: string, author?: string) {
-  await insertSessionEvent({ type: "end", sessionId: fromId, author });
+export async function switchLiveSession(fromId: string, toId: string) {
+  await insertSessionEvent({ type: "end", sessionId: fromId });
   await setActiveSession(toId);
-  await insertSessionEvent({ type: "start", sessionId: toId, author });
+  await insertSessionEvent({ type: "start", sessionId: toId });
 }
 
 // ===== DM notes =============================================================

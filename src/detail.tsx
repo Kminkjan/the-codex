@@ -4,7 +4,7 @@ import { ARCHIVABLE_KINDS, type KindKey, MONSTER_THREAT_OPTIONS, PERSON_STATUS_O
 import { Icon, kindIcon } from "./icons";
 import { StatusChip, EditableText, EditableMarkdown, EnumSelect, EntitySelect, EntityCombobox, type EntityOption, Fleurons, NoteComposer, ThemedLabel } from "./components";
 import { clearDraft, entityDraftKey } from "./noteDrafts";
-import { useCampaign, useFindEntity, useIsDm, usePresence, useProfiles } from "./hooks";
+import { useAuthorName, useCampaign, useFindEntity, useIsDm, usePresence, useProfiles } from "./hooks";
 import { useAuth } from "./auth";
 import {
   insertPartyNote,
@@ -468,7 +468,6 @@ function EditableNumber({ value, pad = 2, onSave }: { value: number; pad?: numbe
 function AddRelationForm({ fromId }: { fromId: string }) {
   const campaign = useCampaign();
   const findEntity = useFindEntity();
-  const { displayName } = useAuth();
   const [targetId, setTargetId] = useState("");
   const [label, setLabel] = useState("");
   const [saving, setSaving] = useState(false);
@@ -497,7 +496,6 @@ function AddRelationForm({ fromId }: { fromId: string }) {
     setSaving(true);
     try {
       await insertConnection(fromId, targetId, label.trim(), {
-        author: displayName || undefined,
         announce: bothVisible(findEntity(fromId), findEntity(targetId)),
       });
       setTargetId("");
@@ -641,7 +639,7 @@ function EventParticipantsEditor({ eventId, onOpen }: { eventId: string; onOpen:
 // who played, and present/absent is the whole vocabulary: a row means present.
 function AttendanceRegister({ sessionId }: { sessionId: string }) {
   const campaign = useCampaign();
-  const { canEdit, displayName } = useAuth();
+  const { canEdit } = useAuth();
   const presenceUsers = usePresence();
   const session = campaign.sessions.find((s) => s.id === sessionId);
   const attended = new Set(campaign.sessionAttendance[sessionId] ?? []);
@@ -701,7 +699,7 @@ function AttendanceRegister({ sessionId }: { sessionId: string }) {
                   onClick={() =>
                     (present
                       ? markAbsent(sessionId, p.id)
-                      : markAttended(sessionId, p.id, displayName ?? undefined)
+                      : markAttended(sessionId, p.id)
                     ).catch(console.error)}
                 >
                   {label}
@@ -719,7 +717,7 @@ function AttendanceRegister({ sessionId }: { sessionId: string }) {
                 title={proposed.map((p) => p.name).join(", ")}
                 onClick={() => {
                   proposed.forEach((p) =>
-                    markAttended(sessionId, p.id, displayName ?? undefined).catch(console.error));
+                    markAttended(sessionId, p.id).catch(console.error));
                 }}
               >
                 <ThemedLabel
@@ -844,7 +842,6 @@ function StageControls({ kind, entityId, entity, patch }: {
   patch: (fields: Record<string, unknown>) => void;
 }) {
   const campaign = useCampaign();
-  const { displayName } = useAuth();
   // Double-click guard for RELEASE: the reveal event insert isn't idempotent
   // and realtime won't flip the staging row fast enough.
   const [releasing, setReleasing] = useState(false);
@@ -972,7 +969,7 @@ function StageControls({ kind, entityId, entity, patch }: {
           disabled={releasing || showing}
           onClick={() => {
             setReleasing(true);
-            releaseEntity(kind, entityId, live.id, { author: displayName || undefined, label })
+            releaseEntity(kind, entityId, live.id, { label })
               // Clear ONLY on failure (for retry). On success the button
               // unmounts once realtime flips hidden/released_at; resetting
               // here would re-enable it in the echo gap and allow a duplicate
@@ -996,7 +993,6 @@ function StageControls({ kind, entityId, entity, patch }: {
           onClick={() => {
             setShowing(true);
             showEntity(kind, entityId, live.id, {
-              author: displayName || undefined,
               label,
               unhide: isHidden(entity),
             })
@@ -1039,9 +1035,13 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
   const campaign = useCampaign();
   const findEntity = useFindEntity();
   const entity = findEntity(entityId);
-  const { displayName, canEdit } = useAuth();
+  const { canEdit } = useAuth();
   const isDm = useIsDm();
   const profilesById = useProfiles();
+  const resolveAuthor = useAuthorName();
+  // The raw lookup, for sessionFeedToMarkdown — which is pure and takes the
+  // resolver rather than the map.
+  const resolveName = (userId: string) => profilesById.get(userId)?.displayName;
 
   const notes = campaign.notes[entityId] || [];
 
@@ -1304,7 +1304,10 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
   const showFeed = sessionFeed.length > 0 && campaign.activeSessionId !== entityId;
 
   const draftRecap = () => {
-    const digest = sessionFeedToMarkdown(sessionFeed, findEntity);
+    // Bylines resolve live here too (0042): the digest lands in the public
+    // `summary` as frozen text, so it should be stamped with who those people
+    // are now, not who they were called when the row was written.
+    const digest = sessionFeedToMarkdown(sessionFeed, findEntity, resolveName);
     const existing = ((entity as any).summary ?? "").trim();
     setDraftingRecap(true);
     updateEntity("sessions", entityId, { summary: existing ? `${existing}\n\n${digest}` : digest })
@@ -1333,7 +1336,6 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
   // and insertPartyNote has already raised the write-error toast.
   const addNote = (text: string) =>
     insertPartyNote(entityId, {
-      author: displayName || "Anonymous",
       when: "Just now",
       text,
       hand: true,
@@ -1812,7 +1814,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
                   >
                     <div className="note-body">{n.text}</div>
                     <div className="meta">
-                      <span>— {n.author}</span>
+                      <span>— {resolveAuthor(n) ?? "Anonymous"}</span>
                       <span>{n.when}</span>
                     </div>
                   </div>

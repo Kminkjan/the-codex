@@ -246,7 +246,12 @@ export interface UserProfile {
 }
 
 export interface PartyNote {
+  // The write-time name snapshot. Stays non-optional because mapPartyNoteRow
+  // coerces a NULL column to "" — a note always has *a* byline slot, even if
+  // it's empty. Read it through authorName(), never directly: the live name
+  // wins when authorUserId resolves.
   author: string;
+  authorUserId?: string;
   when: string;
   text: string;
   hand: boolean;
@@ -311,6 +316,10 @@ export interface Connection {
   // strings legitimately have none.
   sessionId?: string;
   author?: string;
+  // The account behind `author` (0042). Undefined on every pre-0042 row and on
+  // anything the seeded back-catalogue wrote, so it is the *preferred* byline
+  // source, never the only one — see authorName().
+  authorUserId?: string;
 }
 
 // A DM-staged entity queued for a session (session_staging junction). Rows
@@ -331,6 +340,10 @@ export interface SessionEvent {
   sessionId: string;
   type: SessionEventType;
   author?: string;
+  // The account behind `author` (0042), undefined on pre-0042 rows. Unlike
+  // entityId this DOES have an FK, but `on delete set null` — so a departed
+  // account leaves the name standing and only the link goes. authorName().
+  authorUserId?: string;
   // Cross-kind entity ref with no FK; events outlive entity deletion (the
   // feed is history), so this may dangle — renderers must findEntity and
   // tolerate null.
@@ -594,6 +607,34 @@ export function projectCampaignForViewers(c: Campaign): Campaign {
   };
 }
 
+// Who to print as the byline of a signed row — party note, session event or
+// connection alike (0042). Structurally typed on the two columns rather than
+// on any one of those interfaces, because all three carry the identical pair.
+//
+// The live name wins. `author` is the name frozen at write time, so an editor
+// who renames themselves would otherwise be two people in their own chronicle;
+// resolving through the account fixes every row they ever wrote, at once.
+//
+// Three fallbacks, in order, and each is a real case rather than defensive
+// padding: a pre-0042 row has no uuid at all; a uuid can outlive the profiles
+// row it points at (or simply resolve before that fetch lands, since
+// profilesById loads outside fetchCampaign's Promise.all); and an editor can
+// hold an account with no display name set. Any of those falls back to the
+// snapshot, which is exactly what shipped before this column existed.
+//
+// Returns undefined, not "Anonymous" — callers word the empty case themselves
+// (the live feed says "Anonymous", the recap digest omits the clause entirely).
+export function authorName(
+  signed: { author?: string; authorUserId?: string },
+  resolveName: (userId: string) => string | null | undefined,
+): string | undefined {
+  if (signed.authorUserId) {
+    const live = resolveName(signed.authorUserId)?.trim();
+    if (live) return live;
+  }
+  return signed.author?.trim() || undefined;
+}
+
 // Session-end recap (issue #72): a plain deterministic transform of a
 // session's feed into a markdown digest the DM appends to the Chronicle.
 // No AI — the feed already is the record of the night. It runs on the DM's
@@ -603,15 +644,27 @@ export function projectCampaignForViewers(c: Campaign): Campaign {
 // snapshotted in `text` would leak. Reveals whose entity was deleted fall
 // back to that snapshot, same as the live feed's rows. Link rows (0031) follow
 // the same rule on both of their endpoints.
+//
+// `resolveName` is the byline's counterpart to resolveEntity — same shape, same
+// reason (this module is pure and can't reach the profiles map). REQUIRED, with
+// no default, deliberately: this digest is frozen into the public
+// `sessions.summary`, so a caller that forgot to pass one would publish
+// pre-rename names with nothing on screen to say they're stale, and no way to
+// correct them afterwards. That is exactly the silent-failure shape this
+// function's harness exists to catch, so it is worth a compile error instead.
+// A caller with genuinely no profiles to hand passes `() => undefined` and says
+// so out loud.
 export function sessionFeedToMarkdown(
   events: SessionEvent[],
   resolveEntity: (id?: string | null) => Entity | null,
+  resolveName: (userId: string) => string | null | undefined,
 ): string {
   const fmtTime = (iso: string) =>
     new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   const lines: string[] = [];
   for (const ev of events) {
     const t = fmtTime(ev.createdAt);
+    const by = authorName(ev, resolveName);
     if (ev.type === "start" || ev.type === "end") {
       lines.push(`- *${t}* — ✦ the session ${ev.type === "start" ? "begins" : "ends"} ✦`);
     } else if (ev.type === "reveal") {
@@ -621,7 +674,7 @@ export function sessionFeedToMarkdown(
       // the label snapshot and word them as the louder verb they were.
       const label = ent ? entityLabel(ent) : stripShowMark(ev.text) || "something struck from the codex";
       const verb = isShowEvent(ev) ? "⚡ **" + label + "** shown to the table" : "🕯 **" + label + "** revealed";
-      lines.push(`- *${t}* — ${verb}${ev.author ? ` by ${ev.author}` : ""}`);
+      lines.push(`- *${t}* — ${verb}${by ? ` by ${by}` : ""}`);
     } else if (ev.type === "link") {
       // Same hidden rule as the reveal branch, on BOTH endpoints — this digest
       // lands in the public `summary`, so a re-hidden end must drop the row
@@ -633,7 +686,7 @@ export function sessionFeedToMarkdown(
       const la = ea ? entityLabel(ea) : "something struck from the codex";
       const lb = eb ? entityLabel(eb) : "something struck from the codex";
       const tie = ev.text ? ` — "${ev.text}"` : "";
-      lines.push(`- *${t}* — ⛓ **${la}** and **${lb}** are connected${tie}${ev.author ? ` (${ev.author})` : ""}`);
+      lines.push(`- *${t}* — ⛓ **${la}** and **${lb}** are connected${tie}${by ? ` (${by})` : ""}`);
     } else if (ev.type === "annotate") {
       // A party note left on an entity sheet at the table (0032). Same hidden
       // rule as the two branches above and for the same reason — this digest is
@@ -650,9 +703,9 @@ export function sessionFeedToMarkdown(
       // `text` is the bounded excerpt, not the note — the full prose stays on
       // the sheet, which is the whole reason this is an excerpt (issue #127).
       const quote = ev.text ? ` — "${ev.text}"` : "";
-      lines.push(`- *${t}* — 📝 a note on **${label}**${quote}${ev.author ? ` (${ev.author})` : ""}`);
+      lines.push(`- *${t}* — 📝 a note on **${label}**${quote}${by ? ` (${by})` : ""}`);
     } else {
-      lines.push(`- *${t}* — ${ev.author || "Anonymous"}: ${ev.text ?? ""}`);
+      lines.push(`- *${t}* — ${by || "Anonymous"}: ${ev.text ?? ""}`);
     }
   }
   return `### As it happened\n\n${lines.join("\n")}`;
