@@ -1258,6 +1258,31 @@ button.attend-chip.is-present:hover { border-color: var(--mustard); color: var(-
   object-fit: cover;
   filter: sepia(.25) contrast(.95);
 }
+
+/* Portrait frames (PC / hostile). One axis, two marked states, unframed as the
+   common case — see the derivation in PosterCard.
+   An ::after ring rather than a thicker border or an inset shadow, for two
+   reasons: a wider border would resize the aspect-ratio well and shift every
+   card, and an inset shadow paints UNDER .portrait-img, so it would vanish on
+   exactly the cards that have artwork. The ring is inset by its own width so
+   it sits inside the well, and it also carries a weight difference (2px vs
+   1px) so the two frames aren't distinguished by hue alone — colour is a poor
+   sole channel, and at board zoom-out a 1px hairline is close to invisible. */
+.card-poster .portrait.frame-pc::after,
+.card-poster .portrait.frame-hostile::after {
+  content: '';
+  position: absolute; inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+}
+.card-poster .portrait.frame-pc::after { border: 2px solid var(--mustard); }
+.card-poster .portrait.frame-hostile::after { border: 1px solid var(--bloodred); }
+/* Parchment inks the well's own edge to match, so the frame reads as one rule
+   rather than a ring floating inside a brown border. Atlas drops the border
+   entirely (below), so there it's the ring alone — which is the flat look. */
+.card-poster .portrait.frame-pc { border-color: var(--mustard); }
+.card-poster .portrait.frame-hostile { border-color: var(--bloodred); }
+
 .card-poster .name {
   font-family: var(--font-fell-sc);
   font-size: 16px;

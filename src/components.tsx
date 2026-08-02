@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from "react-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { sessionLabel, type KindKey, type PresenceUser } from "./data";
+import { isPc, sessionLabel, type KindKey, type PresenceUser } from "./data";
 import { Icon, MapScribble, kindIcon } from "./icons";
 import { rankIndex, KIND_LABEL, type Indexed } from "./entitySearch";
 import { focusImageStyle } from "./imageFocus";
@@ -234,10 +234,19 @@ export function PosterCard({ person }: { person: any }) {
   // "Wanted" claimed a bounty the data never recorded. Cards carry uniform top
   // clearance now, so the portrait sits below the pin-head and the seen-live
   // dot instead of flush under them.
+  // Portrait frame — the band's replacement, and deliberately a much smaller
+  // claim. ONE axis (what is this person to the party), only the two
+  // exceptional states marked, everyone else unframed: with most NPCs neutral
+  // or unmarked, absence has to be the common case or the mark means nothing
+  // again. Deceased is intentionally NOT here — the strikethrough name and the
+  // † tag already carry it twice, and a frame is one channel, so stacking a
+  // second axis onto it just re-creates the precedence problem. Hostile
+  // outranks PC (rare, but a turned party member should read as the threat).
+  const frame = person.disposition === "hostile" ? "hostile" : isPc(person) ? "pc" : null;
   return (
     <div className="card-poster">
       {seenLive && <span className="seen-live-dot" title="Seen this session" />}
-      <div className="portrait">
+      <div className={`portrait${frame ? ` frame-${frame}` : ""}`}>
         {person.imageUrl
           ? <img
               src={person.imageUrl}
