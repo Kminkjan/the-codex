@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "./utils/supabase";
 import { upsertMyProfile } from "./mutations";
+import { setSigner } from "./signer";
 
 // Dev-only editor quick-login for local/automated testing. Anonymous sessions
 // fail both the canEdit gate and the RLS write policy, so real end-to-end
@@ -166,6 +167,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     (user?.user_metadata?.display_name as string | undefined)?.trim() ||
     (user?.email ? user.email.split("@")[0] : null);
   const avatarUrl = (user?.user_metadata?.avatar_url as string | undefined) || null;
+
+  // Publish who's signing to the module-level store mutations read (0040).
+  // During render, not in an effect, and deliberately: effects run after paint,
+  // so a write fired in the same tick as a sign-in would stamp the previous
+  // signer. Same technique as CampaignProvider's authRef assignment. Anonymous
+  // viewers sign nothing — their writes are RLS-rejected regardless (0006).
+  setSigner(isEditorAccount && user ? { userId: user.id, displayName } : null);
 
   // Mirror editor identity into public.profiles (0020) so the charter roster
   // can name campaign_members rows — auth metadata is only readable for the

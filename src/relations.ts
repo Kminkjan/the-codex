@@ -30,6 +30,10 @@ export interface DerivedEdge {
   createdAt?: string;
   sessionId?: string;
   author?: string;
+  // The account behind `author` (0040). Folds as one unit with it below — a
+  // byline whose name came from one row of a mirrored pair and whose uuid came
+  // from the other would resolve to a third person entirely.
+  authorUserId?: string;
 }
 
 // Weights bias both the tidy force layout (link strength) and community
@@ -76,7 +80,7 @@ export function deriveRelations(campaign: Campaign): DerivedEdge[] {
     if (seen) {
       // A mirrored/duplicate row for an edge already emitted. Fold its
       // provenance in rather than discarding it: keep the earliest createdAt,
-      // carrying that row's session and author with it so the three stay
+      // carrying that row's session and byline with it so all four stay
       // consistent. Date.parse, not string compare — PostgREST's timestamptz
       // text isn't guaranteed lexicographically ordered (fractional digits
       // vary), the same trap sortSessionEvents documents. A row with no
@@ -85,12 +89,14 @@ export function deriveRelations(campaign: Campaign): DerivedEdge[] {
         seen.createdAt = cn.createdAt;
         seen.sessionId = cn.sessionId;
         seen.author = cn.author;
+        seen.authorUserId = cn.authorUserId;
       }
       continue;
     }
     const edge: DerivedEdge = {
       a: from, b: to, label, source: "manual", weight: MANUAL_WEIGHT,
-      createdAt: cn.createdAt, sessionId: cn.sessionId, author: cn.author,
+      createdAt: cn.createdAt, sessionId: cn.sessionId,
+      author: cn.author, authorUserId: cn.authorUserId,
     };
     manualByKey.set(key, edge);
     edges.push(edge);

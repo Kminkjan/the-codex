@@ -742,7 +742,7 @@ function CampaignPicker({ onOpenCharter }: { onOpenCharter: () => void }) {
 // campaign-wide and synced to every client via realtime.
 function SessionPin() {
   const campaign = useCampaign();
-  const { canEdit, displayName } = useAuth();
+  const { canEdit } = useAuth();
   // Real DM-ness, NOT the view-as-player-flipped gate: the pin must keep
   // working while the DM previews the player view (it's a write control,
   // like the toggle itself), and the mutations write the DM's feed brackets.
@@ -790,14 +790,13 @@ function SessionPin() {
   // every client.
   const pick = (id: string | null) => {
     const prev = campaign.activeSessionId ?? null;
-    const author = displayName || undefined;
     const op = id === prev
       ? setActiveSession(id)
       : id && prev
-        ? switchLiveSession(prev, id, author)
+        ? switchLiveSession(prev, id)
         : id
-          ? startLiveSession(id, author)
-          : endLiveSession(prev!, author);
+          ? startLiveSession(id)
+          : endLiveSession(prev!);
     op.catch(console.error);
     setOpen(false);
   };
