@@ -3,8 +3,9 @@ name: session-recap
 description: >
   Distil a played session's live feed into a prose recap in the campaign's own voice, and propose the
   end-of-session goals pass — new goals from threads the night opened, plus existing goals it closed or
-  advanced. Reads the feed, party notes, entity sheets and connections the session left behind; drafts
-  for review; writes to `sessions.summary` and the `goals` table only after explicit approval.
+  advanced — and a codex pass that moves reference detail out of the recap and onto the entity sheets
+  where it belongs. Reads the feed, party notes, entity sheets and connections the session left behind;
+  drafts for review; writes to `sessions.summary`, `goals` and entity rows only after explicit approval.
   Args: `--campaign=<id> --session=<num|latest>` (e.g. "--campaign=fendwick --session=5").
   Use when a session has been played and the Chronicle entry still needs writing.
 ---
@@ -71,6 +72,13 @@ Four things about the bundle that change how you read it:
   **`attendanceTakenAt` distinguishes "nobody came" from "nobody recorded it."** An empty `attendance`
   with a timestamp present is a real recorded state; empty with `null` means it was never taken.
 
+  **A stamped attendance can still be incomplete — ask whenever `pcsNotMarkedPresent` is non-empty,
+  regardless of the timestamp.** FoI S193 had a stamp and three present rows, and the two missing PCs
+  looked like a clean "those players weren't there". One of them, Mort, had joined late and never got a
+  row; the DM's own first answer was that the record was right, and he corrected it a minute later. The
+  stamp says attendance was taken *once*, not that it was taken *last*, and late arrivals are exactly
+  what a mid-session tap misses.
+
   **Do not invent an Attendance line from names that appear in the notes.** When `pcsNotMarkedPresent`
   is non-empty, report the gap, ask the DM who was actually there, and offer to write the rows — do it
   *before* drafting, because attendance is the one fact that decays. Channel Presence is no fallback:
@@ -135,6 +143,29 @@ Read `styleExemplar.summary` first and match it: heading style, tense, person, l
 whether the campaign opens with an **Attendance:** line, whether it code-switches (Fendwick's S4 drops
 a Dutch aside). Voice is per-campaign — do not carry Fendwick's register into Fist of Ilmater.
 
+**Match the campaign's scale, not just its voice — and measure it.** The exemplar is one session; the
+campaign's own history is the yardstick. Before drafting:
+
+```bash
+curl -s "$VITE_SUPABASE_URL/rest/v1/sessions?campaign_id=eq.<id>&summary=not.is.null\
+&select=num,summary&order=num.desc&limit=12" -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+  -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+  | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{for(const r of JSON.parse(s))\
+console.log('S'+r.num, r.summary.split(/\s+/).length+' words')})"
+```
+
+FoI's last twelve run 80–790 words with a median around 430. The S193 draft came in at 811 — the
+second-longest entry in 193 sessions, for a night whose events were unremarkable. Nothing in the prose
+was wrong; there was simply too much of it for the thing a player reads before the next session. Aim at
+the median, and let a genuinely big night run long on its own merits.
+
+**Do not let three structures do the same job.** An opening "current state of affairs" paragraph, the
+body, and a closing "Still open" list is two summaries bracketing a summary — the reader meets the same
+thread three times. Fendwick S5 earned its Still-open list because most of its threads went unresolved;
+a session that closes its arc does not need the beat repeated. Pick one framing device and cut the
+other, and keep the closing list to threads that genuinely carry forward rather than restating
+paragraphs above it.
+
 Shape:
 
 - Group the night into 3–6 `###` sections by *scene or thread*, not by timestamp. The feed is
@@ -185,7 +216,37 @@ the recap's closing section. Say so when you leave one out, so the DM can overru
 
 Propose these as a diff — new rows to insert, existing ids to re-status — and let the user edit it.
 
-## Step 5 — Write, on explicit approval only
+## Step 5 — The codex pass (offer it; skip if the user declines)
+
+Step 1 tells you to *read* `touchedEntities`. This step is the other direction, and it is the one that
+keeps recaps short.
+
+**World detail typed into notes during play belongs on sheets, not in the recap.** A recap is what the
+party did and what it cost them. Reference facts — a district's history, a scholar's aside, the four
+spells you cast to establish what a thing is — are wanted again in six months, and nobody will remember
+which session summary they were in. On the S193 run, the recap was carrying the Chasm's whole Spellplague
+history and Eldon Keyward's Waterclock Guild material. Moving them to a `locations` row and onto the
+existing `The Crevices of Dusk` lore row cut the prose by a fifth and put both facts where the codex can
+actually surface them. The recap kept the one line that mattered that night: the Ironmanes are near the
+Chasm, and everyone who talks to them dies.
+
+What to look for, in order:
+
+1. **Lore in the recap that isn't about the party.** History, cosmology, an NPC's explanation of how
+   something works. Propose a `desc`/`text`/`notes` append on the entity it belongs to — read the row
+   first and append, never overwrite a sheet the DM has written.
+2. **Names that acted with no row.** `unmatchedNames` (Step 1) is the input. On S193 that was
+   Shanzezim, the Chasm, Luskan, Ten Towns, Blackford Crossing and the Waterclock Guild. Offer rows for
+   the ones the party will meet again; don't bulk-create the noise.
+3. **Rows with no strings.** A location created this pass usually wants at least one connection — the
+   Chasm to Neverwinter — or it sits unreachable on the board.
+4. **Detail the recap now states more briefly than the sheet does.** If the sheet already holds it
+   (What Remains' person row already listed all four spell results), the recap can just give the
+   conclusion. Check before you move anything: the duplication may already be resolved.
+
+Propose this as a diff alongside the goals diff, and write it in the same approved pass.
+
+## Step 6 — Write, on explicit approval only
 
 Only after the user approves the prose and the diff. Never bundle this into the same turn as the draft.
 
@@ -198,6 +259,15 @@ curl -s -X PATCH "$VITE_SUPABASE_URL/rest/v1/sessions?id=eq.<session-id>" \
 
 # goal re-status
 curl -s -X PATCH "$VITE_SUPABASE_URL/rest/v1/goals?id=eq.<goal-id>" … -d '{"status":"resolved"}'
+
+# a missing attendance row (Step 1). recorded_at defaults; attendance_taken_at is stamped by trigger
+curl -s -X POST "$VITE_SUPABASE_URL/rest/v1/session_attendance" … \
+  -d '[{"campaign_id":"…","session_id":"…","person_id":"…","recorded_by":"Dungeon Master"}]'
+
+# a connection (Step 5). ONE row, not a mirrored pair — relations.ts folds the seeded pairs, it does
+# not require them — and there are no from_kind/to_kind columns. See insertConnection in mutations.ts.
+curl -s -X POST "$VITE_SUPABASE_URL/rest/v1/connections" … \
+  -d '[{"campaign_id":"…","from_id":"…","to_id":"…","label":"Located in","session_id":"…","author":"…"}]'
 ```
 
 Rules for the write:
@@ -207,8 +277,11 @@ Rules for the write:
 - **New goal ids are `crypto.randomUUID()`** per the repo convention, even though the seeded Fendwick
   rows use `fw-gN`. Include `campaign_id`.
 - **This bypasses [src/mutations.ts](../../../src/mutations.ts) and RLS.** That is acceptable for an
-  out-of-band authoring task run by the DM, and it is exactly why Steps 2 and 5 gate on approval.
+  out-of-band authoring task run by the DM, and it is exactly why Steps 2 and 6 gate on approval.
   Do not extend the pattern to anything the app itself should be doing.
+- **Appending to a sheet means reading it back first.** Step 5's writes land on rows the DM authored.
+  PATCH replaces the column outright, so fetch the current `desc`/`text`/`notes`, append to it, and send
+  the whole value — never send only the new paragraph.
 - **`summary` may already have content.** Read it back before writing (the bundle has it) and confirm
   with the user whether you are replacing or appending — the app's own button appends.
 - `date` is free text (`"26 July 2026"`), not a date type. Match the format the campaign already uses.
