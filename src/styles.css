@@ -800,10 +800,34 @@ button.attend-chip.is-present:hover { border-color: var(--mustard); color: var(-
   background: linear-gradient(180deg, var(--vellum-light) 0%, var(--vellum) 100%);
   border-right: 1px solid var(--vellum-deep);
   overflow-y: auto;
-  padding: 14px 0;
+  /* No bottom padding: .sidebar-footer owns it (see below). */
+  padding: 14px 0 0;
   position: relative;
   z-index: 10;
   box-shadow: inset -8px 0 12px -8px rgba(40,20,5,.15);
+  /* Column flex only so .sidebar-footer can claim the leftover height. Every
+     other child keeps its natural size — without flex:0 0 auto a long sessions
+     list would let flex shrink the blocks above instead of scrolling. */
+  display: flex;
+  flex-direction: column;
+}
+.sidebar > * { flex: 0 0 auto; }
+/* "This app" / feedback lives at the FOOT of the sidebar, not at the end of
+   the scroll. Two rules, one for each case: margin-top:auto drops it to the
+   bottom edge when the campaign is short enough to fit, sticky keeps it on
+   screen once the sessions list overflows. Sticky needs an opaque backing —
+   the gradient above ends at --vellum, which is exactly the colour at the
+   foot, so the seam is invisible.
+
+   It carries the sidebar's bottom padding itself. Sticky resolves bottom:0
+   against the scrollport's PADDING box, so leaving the padding on .sidebar
+   would strand the footer 14px up with scrolled content visible underneath. */
+.sidebar-footer {
+  margin-top: auto;
+  position: sticky;
+  bottom: 0;
+  background: var(--vellum);
+  padding-bottom: 14px;
 }
 .sidebar-section {
   padding: 6px 16px;
@@ -4081,7 +4105,14 @@ button.attend-chip.is-present:hover { border-color: var(--mustard); color: var(-
   background: var(--vellum-light);
   border-right: 1px solid var(--vellum-deep);
   box-shadow: none;
-  padding: 12px 0;
+  padding: 12px 0 0;
+}
+/* Atlas drops the gradient, so the sticky footer's backing has to follow the
+   flat sidebar colour — and the aside's padding is 12, not 14. */
+[data-theme="modern"] .sidebar-footer {
+  background: var(--vellum-light);
+  padding-bottom: 12px;
+  border-top: 1px solid var(--vellum-deep);
 }
 [data-theme="modern"] .sidebar-label {
   font-size: 10px; font-weight: 600; letter-spacing: .12em;

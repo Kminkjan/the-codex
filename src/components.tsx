@@ -589,26 +589,34 @@ export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, onOpenF
       {/* Last section on purpose: feedback is about the software, not the
           campaign, so it sits below everything that IS the campaign. Open to
           read-only viewers — the board is world-readable and a viewer who can't
-          write should still be able to see what's already been asked for. */}
-      <div className="sidebar-label"><span><ThemedLabel parchment="The Codex Itself" atlas="This app" /></span></div>
-      <div
-        className="nav-item"
-        onClick={onOpenFeedback}
-        title="Report a bug or suggest a feature"
-      >
-        <span className="icon"><Icon name="feedback" /></span>
-        <ThemedLabel parchment="Petitions &amp; Grievances" atlas="Feedback" />
-        {openFeedbackCount(campaign.feedback) > 0 && (
-          <span className="count">{openFeedbackCount(campaign.feedback)}</span>
-        )}
-      </div>
+          write should still be able to see what's already been asked for.
 
-      <div className="sidebar-quote" style={{
-        padding: "16px", marginTop: 12, borderTop: "1px dashed var(--vellum-deep)",
-        fontFamily: "var(--font-body)", fontStyle: "italic", fontSize: 12,
-        color: "var(--ink-faded)", textAlign: "center",
-      }}>
-        <em>"Bound in vellum,<br />writ in iron."</em>
+          Pinned to the foot of the sidebar rather than left at the end of the
+          flow: the sessions list above is unbounded, so in flow this row is
+          reachable only by scrolling past the whole campaign. See
+          .sidebar-footer in styles.css — margin-top:auto when the content is
+          short, sticky when it overflows. */}
+      <div className="sidebar-footer">
+        <div className="sidebar-label"><span><ThemedLabel parchment="The Codex Itself" atlas="This app" /></span></div>
+        <div
+          className="nav-item"
+          onClick={onOpenFeedback}
+          title="Report a bug or suggest a feature"
+        >
+          <span className="icon"><Icon name="feedback" /></span>
+          <ThemedLabel parchment="Petitions &amp; Grievances" atlas="Feedback" />
+          {openFeedbackCount(campaign.feedback) > 0 && (
+            <span className="count">{openFeedbackCount(campaign.feedback)}</span>
+          )}
+        </div>
+
+        <div className="sidebar-quote" style={{
+          padding: "16px", marginTop: 12, borderTop: "1px dashed var(--vellum-deep)",
+          fontFamily: "var(--font-body)", fontStyle: "italic", fontSize: 12,
+          color: "var(--ink-faded)", textAlign: "center",
+        }}>
+          <em>"Bound in vellum,<br />writ in iron."</em>
+        </div>
       </div>
     </aside>
   );
