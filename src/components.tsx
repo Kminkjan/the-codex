@@ -248,8 +248,8 @@ export function PosterCard({ person }: { person: any }) {
   // and a ring reads as presence/status by convention everywhere else (this
   // card already spends a coloured dot on exactly that).
   const sigil = person.disposition === "hostile"
-    ? { icon: "sword" as const, title: "Hostile" }
-    : isPc(person) ? { icon: "star" as const, title: "Party member" } : null;
+    ? { icon: "dagger" as const, title: "Hostile" }
+    : isPc(person) ? { icon: "lozenge" as const, title: "Party member" } : null;
   return (
     <div className="card-poster">
       {seenLive && <span className="seen-live-dot" title="Seen this session" />}

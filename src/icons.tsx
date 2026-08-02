@@ -6,7 +6,7 @@ type IconName =
   | "monster"
   | "session" | "board" | "share" | "link" | "plus" | "search" | "filter"
   | "close" | "compass" | "sparkle" | "sword" | "scroll" | "layers"
-  | "check" | "chevron" | "trash" | "eye" | "feedback" | "star";
+  | "check" | "chevron" | "trash" | "eye" | "feedback" | "lozenge" | "dagger";
 
 interface IconProps extends Omit<SVGProps<SVGSVGElement>, "name"> {
   name: IconName;
@@ -52,10 +52,31 @@ export const Icon = ({ name, size = 16, ...p }: IconProps) => {
     case "chevron":   return <svg {...common}><path d="M9 6l6 6-6 6"/></svg>;
     case "trash":     return <svg {...common}><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>;
     case "eye":       return <svg {...common}><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="2.5"/></svg>;
-    // Party mark. A five-point star, not a shield or a crown: `faction` is
-    // already a shield silhouette, and a crown says rank — wrong for five
-    // equals. Distinct from `sparkle` (an asterisk burst) at sigil size.
-    case "star":      return <svg {...common}><path d="M12 3.5l2.6 5.5 6 .8-4.4 4.2 1.1 6-5.3-2.9-5.3 2.9 1.1-6L3.4 9.8l6-.8L12 3.5z"/></svg>;
+    // ── Sigil glyphs ──────────────────────────────────────────────────────
+    // These two are FILLED, unlike every icon above, because they render at
+    // 14px rather than the set's usual 16–24. A 24-unit viewBox drawn at 14px
+    // scales by .58, so features 2–3 units apart land ~1.2–1.7 device px
+    // apart — below what a ~1px stroke can resolve, and adjacent strokes merge
+    // into a smudge. (That is what happened to `sword` as a sigil: its eight
+    // direction changes inside 20 units read as a diagonal scribble.) A filled
+    // silhouette is legible from its outline instead, so it survives the size.
+    // Keep them simple: at this scale, interior detail is wasted ink.
+    //
+    // Party mark — a heraldic lozenge. The obvious candidates are all taken:
+    // a STAR is the pinned marker (.kind-card.is-pinned::after) and would put
+    // two stars on one card meaning different things; a SHIELD is `faction`'s
+    // silhouette; a CROWN says rank, wrong for five equals; and `people` is
+    // the kind icon, so it says nothing on a card that is already a person.
+    // The lozenge is arbitrary but unclaimed, and its silhouette can't be
+    // confused with the vertical dagger beside it.
+    case "lozenge":   return <svg {...common} fill="currentColor" stroke="none"><path d="M12 2.5l7 9.5-7 9.5-7-9.5z"/></svg>;
+    // Hostile mark. A dagger, point down — three blocks (grip, guard, blade)
+    // and a strongly vertical silhouette, so it can't be confused with the
+    // radial star beside it. Deliberately NOT a skull: `monster` is already a
+    // beast head and the two collide at this size, and skulls read as *dead*,
+    // which this card already says twice (struck name, † tag) about a
+    // different fact. Hostile means against you, not deceased.
+    case "dagger":    return <svg {...common} fill="currentColor" stroke="none"><path d="M11 2.5h2v4h-2zM6.5 6.5h11v2h-11zM9.5 8.5h5l-2.5 12z"/></svg>;
     // Feedback (0040) — a speech bubble, deliberately not a megaphone or a bug:
     // the surface takes both faults and requests, and either of those icons
     // would name only half of it.
