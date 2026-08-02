@@ -5,7 +5,7 @@
 // can't reach React context — the same reason activeCampaign.ts and
 // activeSession.ts exist.
 //
-// This is why no mutation takes an `author` parameter. Until 0040 every write
+// This is why no mutation takes an `author` parameter. Until 0042 every write
 // site passed its own `displayName` from useAuth(), which meant eight call
 // sites each had to remember to sign, and the name and the uuid could drift
 // apart. Signing is one fact about the session, not an argument.

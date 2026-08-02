@@ -45,6 +45,14 @@ export function liveDraftKey(campaignId: string, sessionId: string): string {
   return `live:${campaignId}:${sessionId}`;
 }
 
+// The feedback panel's composer (0040). One per campaign, not one per report —
+// the panel has a single box at its head and reports are never edited, so there
+// is no second identity to key on. Namespaced like the two above so a campaign
+// id can't collide with the entity or session ids they hold.
+export function feedbackDraftKey(campaignId: string): string {
+  return `feedback:${campaignId}`;
+}
+
 export function readDraft(key: string): string {
   return drafts.get(key) ?? "";
 }

@@ -168,7 +168,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     (user?.email ? user.email.split("@")[0] : null);
   const avatarUrl = (user?.user_metadata?.avatar_url as string | undefined) || null;
 
-  // Publish who's signing to the module-level store mutations read (0040).
+  // Publish who's signing to the module-level store mutations read (0042).
   // During render, not in an effect, and deliberately: effects run after paint,
   // so a write fired in the same tick as a sign-in would stamp the previous
   // signer. Same technique as CampaignProvider's authRef assignment. Anonymous

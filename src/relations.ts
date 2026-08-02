@@ -30,7 +30,7 @@ export interface DerivedEdge {
   createdAt?: string;
   sessionId?: string;
   author?: string;
-  // The account behind `author` (0040). Folds as one unit with it below — a
+  // The account behind `author` (0042). Folds as one unit with it below — a
   // byline whose name came from one row of a mirrored pair and whose uuid came
   // from the other would resolve to a third person entirely.
   authorUserId?: string;

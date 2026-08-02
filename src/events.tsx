@@ -1,8 +1,9 @@
-import { sessionLabel, type CampaignEvent } from "./data";
-import { useCampaign } from "./hooks";
+import { sessionLabel } from "./data";
+import { useCampaign, useChronicleOrder } from "./hooks";
 import { useAuth } from "./auth";
 import { createEntity } from "./mutations";
 import { Icon } from "./icons";
+import { CHRONICLE_ORDERS, groupByDate, sortEvents, type ChronicleOrder } from "./chronicle";
 
 function excerpt(text: string | undefined, max = 160): string {
   if (!text) return "";
@@ -10,25 +11,12 @@ function excerpt(text: string | undefined, max = 160): string {
   return plain.length > max ? `${plain.slice(0, max)}…` : plain;
 }
 
-// order_num carries the chronology (in_game_date is free-form text), so
-// grouping only merges *consecutive* events sharing a date — a recurring
-// date string never pulls events out of order.
-function groupByDate(events: CampaignEvent[]): Array<{ date: string; events: CampaignEvent[] }> {
-  const groups: Array<{ date: string; events: CampaignEvent[] }> = [];
-  events.forEach((ev) => {
-    const date = ev.inGameDate?.trim() || "Undated";
-    const last = groups[groups.length - 1];
-    if (last && last.date === date) last.events.push(ev);
-    else groups.push({ date, events: [ev] });
-  });
-  return groups;
-}
-
 export function EventsPage({ onOpenEntity }: { onOpenEntity: (id: string) => void }) {
   const campaign = useCampaign();
   const { canEdit } = useAuth();
+  const [order, setOrder] = useChronicleOrder();
 
-  const events = campaign.events.slice().sort((a, b) => a.orderNum - b.orderNum || a.title.localeCompare(b.title));
+  const events = sortEvents(campaign.events, order);
   const groups = groupByDate(events);
   const sessionsById = new Map(campaign.sessions.map((s) => [s.id, s]));
   const locationsById = new Map(campaign.locations.map((l) => [l.id, l]));
@@ -49,11 +37,24 @@ export function EventsPage({ onOpenEntity }: { onOpenEntity: (id: string) => voi
           <span style={{ fontFamily: "var(--font-body)", fontStyle: "italic", fontSize: 16, color: "var(--ink-faded)" }}>
             {events.length} {events.length === 1 ? "moment" : "moments"} the world remembers
           </span>
-          {canEdit && (
-            <button onClick={onNewEvent} className="cleanup-link-btn" style={{ marginLeft: "auto" }}>
-              + new event
-            </button>
-          )}
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
+            {events.length > 1 && (
+              <select
+                className="facet-select"
+                value={order}
+                onChange={(e) => setOrder(e.target.value as ChronicleOrder)}
+                title="Order the chronicle"
+                aria-label="Order the chronicle"
+              >
+                {CHRONICLE_ORDERS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            )}
+            {canEdit && (
+              <button onClick={onNewEvent} className="cleanup-link-btn">
+                + new event
+              </button>
+            )}
+          </div>
         </div>
         <div className="scratch-divider"><em>✦ ✦ ✦</em></div>
 

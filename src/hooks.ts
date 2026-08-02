@@ -3,6 +3,7 @@ import { CampaignContext } from "./campaignContext";
 import { authorName, buildKinds, findEntity, type Campaign, type Entity, type KindKey } from "./data";
 import { readListSort, writeListSort } from "./listPrefs";
 import { isSortKey, type SortKey } from "./listSort";
+import { isChronicleOrder, type ChronicleOrder } from "./chronicle";
 
 export function useCampaign(): Campaign {
   const { campaign } = useContext(CampaignContext);
@@ -22,6 +23,15 @@ export function useCampaignStatus() {
 // and for the real DM while "view as player" is on (that flip is the feature).
 export function useIsDm(): boolean {
   return useContext(CampaignContext).isDm;
+}
+
+// May triage the app-wide feedback board (0041): move a report's status, remove
+// a duplicate. Deliberately NOT useIsDm — the board spans every campaign, and
+// deriving the capability from DM-ness would grant it to anyone who founds one.
+// Unaffected by "view as player", which is a campaign-view toggle and says
+// nothing about maintaining the app.
+export function useIsMaintainer(): boolean {
+  return useContext(CampaignContext).isMaintainer;
 }
 
 // "View as player" (#71). isRealDm ignores the toggle — it gates the toggle
@@ -61,7 +71,7 @@ export function useProfiles() {
   return useContext(CampaignContext).profilesById;
 }
 
-// The byline for any signed row (0040) — pass a party note, session event or
+// The byline for any signed row (0042) — pass a party note, session event or
 // connection and get the name to print. Wraps data.ts's pure authorName() with
 // the loaded profiles map so a renamed editor's whole back-catalogue follows
 // them. Every byline should go through this rather than reading `.author`.
@@ -104,6 +114,24 @@ export function useListSort(kind: KindKey): [SortKey, (next: SortKey) => void] {
     writeListSort(kind, next);
   }, [kind]);
   return [sort, choose];
+}
+
+// The Chronicle of Events' order control. Shares listPrefs' store — sort is
+// exactly the kind of state that file exists for — under a key no KindKey can
+// collide with, since `events` isn't one of the nine kinds. No `kind` prop to
+// react to here, so unlike useListSort this needs no resync effect.
+const CHRONICLE_KEY = "events:chronicle";
+
+export function useChronicleOrder(): [ChronicleOrder, (next: ChronicleOrder) => void] {
+  const [order, setOrder] = useState<ChronicleOrder>(() => {
+    const stored = readListSort(CHRONICLE_KEY);
+    return isChronicleOrder(stored) ? stored : "default";
+  });
+  const choose = useCallback((next: ChronicleOrder) => {
+    setOrder(next);
+    writeListSort(CHRONICLE_KEY, next);
+  }, []);
+  return [order, choose];
 }
 
 export function useFindEntity() {

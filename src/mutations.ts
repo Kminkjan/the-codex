@@ -4,7 +4,7 @@ import { BUCKET } from "./upload";
 import { getActiveCampaignId } from "./activeCampaign";
 import { getActiveSessionId } from "./activeSession";
 import { getSigner, type Signer } from "./signer";
-import { SHOW_MARK, noteExcerpt, type KindKey, type PartyNote, type BoardPosition, type CampaignSummary, type SessionEventType, type Status } from "./data";
+import { SHOW_MARK, noteExcerpt, type FeedbackKind, type FeedbackStatus, type KindKey, type PartyNote, type BoardPosition, type CampaignSummary, type SessionEventType, type Status } from "./data";
 
 // Realtime subscriptions in campaignContext.tsx reflect writes back into UI
 // state, so callers do not need to patch local state (fire-and-forget is fine).
@@ -52,7 +52,7 @@ function expectRows(count: number | null) {
   if (!count) raiseWriteError(new Error(NOT_SAVED));
 }
 
-// ===== Signing (0040) =======================================================
+// ===== Signing (0042) =======================================================
 // The three provenance-carrying tables (party_notes, session_events,
 // connections) all sign a row the same way, so they share one spread. Both
 // columns are written together and neither is ever written alone — that is the
@@ -150,7 +150,7 @@ function toRow(kind: KindKey, patch: Record<string, unknown>): Record<string, un
 // insertConnection's are: mutations can't reach React context, so they can
 // neither check hidden-ness nor resolve an entity's display field (which varies
 // by kind — name/title/text, see primaryField in detail.tsx). The byline is NOT
-// the caller's — it comes from the signer store (0040), which is why `note`
+// the caller's — it comes from the signer store (0042), which is why `note`
 // omits it.
 export async function insertPartyNote(
   entityId: string,
@@ -186,6 +186,109 @@ export async function insertPartyNote(
     entityLabel: opts.entityLabel,
     text: noteExcerpt(note.text),
   }, { silent: true }).catch((e) => console.error("annotate session event failed", e));
+}
+
+// ===== Feedback (0040) ======================================================
+
+// `author`, `route` and `theme` are the CALLER's, for the same reason
+// insertPartyNote's are: this module can't reach React context (the display
+// name) or make a judgment about what the reporter was looking at.
+export async function insertFeedback(input: {
+  kind: FeedbackKind;
+  text: string;
+  author: string;
+  route?: string;
+  theme?: string;
+}) {
+  const { error } = await supabase.from("feedback").insert({
+    // PROVENANCE, not scope, since 0041 — recorded so a report can be
+    // reproduced, never filtered on. The board itself is app-wide, because a
+    // bug is fixed once in the code.
+    campaign_id: getActiveCampaignId(),
+    kind: input.kind,
+    text: input.text,
+    author: input.author,
+    // "" → null: an unparseable hash and a missing theme attribute are absence,
+    // and an empty string in a nullable context column would read as a fact.
+    route: input.route || null,
+    theme: input.theme || null,
+    // status defaults to 'open' in the DB — never sent from here, because the
+    // client has no business proposing one and RLS wouldn't let it move one.
+  });
+  if (error) raiseWriteError(error);
+}
+
+// The "me too" toggle. `voted` is what the CALLER currently sees, so this is
+// insert-or-delete rather than a read-then-write: the vote's identity is its
+// primary key, so both halves are idempotent against the real state and a
+// stale `voted` costs one wasted round trip, never a wrong count.
+//
+// `userId` is passed in for the same reason `author` is — but note it's a uuid
+// here and a display name there, and the difference is load-bearing: this value
+// has to equal auth.uid() or the RLS insert policy rejects it. That check is
+// the only thing making one-vote-per-person mean anything, so this argument is
+// never the place to be clever.
+export async function toggleFeedbackVote(feedbackId: number, userId: string, voted: boolean) {
+  if (voted) {
+    // Silent on 0 rows, deliberately, unlike the row-targeted writes that go
+    // through expectRows: the delete policy gates on user_id alone (no
+    // membership clause), so the only way to affect nothing is that the vote is
+    // already gone — another tab, or a double tap. That is the outcome the user
+    // asked for, not a change that vanished.
+    const { error } = await supabase
+      .from("feedback_votes")
+      .delete()
+      .eq("feedback_id", feedbackId)
+      .eq("user_id", userId);
+    if (error) raiseWriteError(error);
+    return;
+  }
+  // No campaign_id: 0041 dropped the column. It only ever existed to gate and
+  // fetch by scope, and app-wide there is no scope — so the trigger that used to
+  // correct a client-supplied value is gone too.
+  const { error } = await supabase.from("feedback_votes").insert({
+    feedback_id: feedbackId,
+    user_id: userId,
+  });
+  // 23505 is the composite PK: the vote already existed, which is exactly the
+  // state being asked for. Toasting "that change wasn't saved" over an
+  // already-satisfied request would be a lie about a count that is correct.
+  if (error && error.code !== "23505") raiseWriteError(error);
+}
+
+// Maintainer-only (0041, was DM-only in 0040). Row-targeted and the row is
+// known to exist in the loaded board, so this takes the expectRows treatment: a
+// non-maintainer's UPDATE is RLS-*filtered* to 0 rows with no error, and without
+// the count the status chip would appear to move and then snap back on the next
+// refetch.
+//
+// Keyed on the id ALONE — no campaign_id clause, deliberately. The board is
+// app-wide, so most reports a maintainer triages were filed from some other
+// campaign than the one they happen to be viewing, and a scoped clause would
+// filter those to 0 rows and toast "that change wasn't saved" over a status move
+// that was perfectly legal. `campaign_id` can also be null now (0041 sets it
+// null when its campaign is deleted), which no equality clause matches.
+export async function setFeedbackStatus(feedbackId: number, status: FeedbackStatus) {
+  const { error, count } = await supabase
+    .from("feedback")
+    .update({ status }, { count: "exact" })
+    .eq("id", feedbackId);
+  if (error) raiseWriteError(error);
+  expectRows(count);
+}
+
+// Maintainer-only escape hatch for a duplicate or a misfire. Votes go with it
+// through `on delete cascade` (0040), so there's no sweep to do here — the
+// contrast with deleteEntity's app-side connection sweep is just that these rows
+// have a real FK to cascade along. Keyed on the id alone for the same reason
+// setFeedbackStatus is.
+export async function deleteFeedback(feedbackId: number) {
+  const { error, count } = await supabase
+    .from("feedback")
+    .delete({ count: "exact" })
+    .eq("id", feedbackId);
+  if (error) raiseWriteError(error);
+  expectRows(count);
 }
 
 // ===== Board positions ======================================================
@@ -254,7 +357,7 @@ export async function deleteBoardPosition(entityId: string) {
 // same reason showEntity's `unhide` is caller-decided. A string touching an
 // unreleased entity is DM prep and says nothing to the table, so it stays out
 // of the feed while still being drawn. The byline is not caller-supplied — see
-// the signer store (0040).
+// the signer store (0042).
 export async function insertConnection(
   fromId: string,
   toId: string,
@@ -468,7 +571,7 @@ export async function unmarkSeen(personId: string) {
 // always the caller's — there is no getActiveSessionId() fallback to lean on.
 //
 // `recorded_by` is a display name only, deliberately — see 0039's header. It is
-// write-only today (nothing renders it), so unlike the three tables 0040 gave a
+// write-only today (nothing renders it), so unlike the three tables 0042 gave a
 // uuid to, there is no read path here that a rename would improve. It signs
 // from the same store regardless, so no caller has to remember to.
 
@@ -531,7 +634,7 @@ export async function unstageEntity(sessionId: string, entityId: string) {
 }
 
 // The feed is append-only: INSERT is the only verb (no update/delete policies
-// exist on session_events). The byline comes from the signer store (0040), same
+// exist on session_events). The byline comes from the signer store (0042), same
 // signing as party_notes; `entityId` rides on reveal events, `text` carries
 // note bodies / reveal flair. `entityIdB` is the far endpoint of a link event
 // (0031) and rides only on those; `entityLabel` is the write-time label snapshot
@@ -636,7 +739,7 @@ export async function showEntity(
 }
 
 // DM ceremony around the shared pin: moving it also brackets the feed with
-// start/end markers, signed from the signer store (0040). Non-DM editors keep
+// start/end markers, signed from the signer store (0042). Non-DM editors keep
 // calling plain setActiveSession — the markers are the DM's to write.
 export async function startLiveSession(sessionId: string) {
   await setActiveSession(sessionId);

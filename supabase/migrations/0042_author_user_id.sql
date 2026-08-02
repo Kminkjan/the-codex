@@ -1,5 +1,5 @@
 -- ===========================================================================
--- 0040: give the byline a foreign key.
+-- 0042: give the byline a foreign key.
 --
 -- Attribution has been a bare display-name string since 0001: party_notes.author,
 -- session_events.author (0016), connections.author (0031). None of them links to

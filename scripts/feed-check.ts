@@ -20,12 +20,12 @@
 // branch that reaches for it before the hidden check would publish a name the
 // projection exists to strip. Both orderings are asserted below.
 //
-// The byline (0040) is a THIRD silent-failure shape, and the inverse of the
+// The byline (0042) is a THIRD silent-failure shape, and the inverse of the
 // label snapshot above: here the stored string is the fallback and the live
 // lookup is the answer, so a branch that reads ev.author directly still renders
 // something plausible — just the pre-rename name, forever, with nothing on
 // screen to say it's stale. authorName's own fallback ladder is asserted here
-// too, because every rung is a real row: pre-0040 rows have no uuid, a uuid can
+// too, because every rung is a real row: pre-0042 rows have no uuid, a uuid can
 // outlive its profile, and an editor can have no display name at all.
 //
 // Sibling of scripts/relations-check.ts and scripts/saga-check.ts.
@@ -204,7 +204,7 @@ console.log("\nauthorName: the live name wins, the snapshot catches everything e
   // The regression this whole column exists to prevent.
   check("...so a renamed editor is not two people in their own chronicle",
     authorName({ author: "Kris", authorUserId: "u1" }, resolveName) !== "Kris");
-  check("a pre-0040 row with no uuid keeps its snapshot",
+  check("a pre-0042 row with no uuid keeps its snapshot",
     authorName({ author: "Kris" }, resolveName) === "Kris");
   check("an unresolvable uuid falls back to the snapshot, never prints the uuid",
     authorName({ author: "Kris", authorUserId: "u3" }, resolveName) === "Kris");

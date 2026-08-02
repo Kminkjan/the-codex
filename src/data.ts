@@ -257,6 +257,50 @@ export interface PartyNote {
   hand: boolean;
 }
 
+// ===== Feedback (0040, app-wide since 0041) =================================
+// Bugs and ideas the party raises about the codex itself, rather than about the
+// campaign — so the board spans EVERY campaign. A bug is fixed once in the code,
+// which is what makes a per-campaign board wrong: "done" would be a fact about a
+// row instead of about the app, and one bug's votes would split across N rows.
+// Append-only for players — `status` is the only mutable field, and only an
+// app_maintainers row may move it. The derivations live in src/feedback.ts.
+
+export type FeedbackKind = "bug" | "idea";
+export type FeedbackStatus = "open" | "planned" | "done" | "wontfix";
+
+export interface FeedbackItem {
+  id: number;
+  kind: FeedbackKind;
+  text: string;
+  // A display name, like every other byline here (party_notes, connections,
+  // session_attendance) — it must survive the account going away.
+  author: string;
+  // Which campaign it was filed from — PROVENANCE, not scope (0041), in the same
+  // category as `route` and `theme` below. Undefined once that campaign is
+  // deleted (the FK is `on delete set null`, because a report outlives the
+  // campaign it was written in). Never filter on this.
+  campaignId?: string;
+  // Captured context: the hash the reporter was looking at, and their theme.
+  // Both absent on a report filed from an unparseable hash, and both are only
+  // ever rendered as a hint — never resolved against an entity table, because
+  // a report outlives the thing it was filed about.
+  route?: string;
+  theme?: string;
+  status: FeedbackStatus;
+  createdAt: string;
+  // User ids that said "me too". A set by contract (see foldFeedbackVotes) —
+  // uuids and not display names, because this decides one-vote-per-person and
+  // nothing renders WHO voted, only the count and whether you did.
+  voters: string[];
+}
+
+// One feedback_votes row, as read. Exists only so the fold has a shape to take;
+// nothing keeps these around after foldFeedbackVotes runs.
+export interface FeedbackVote {
+  feedbackId: number;
+  userId: string;
+}
+
 // One row of the free-form `connections` table (a hand-drawn "string"). Was a
 // positional [from, to, label] tuple until 0031 added provenance; the object
 // form is what lets a reader ask WHEN a string was drawn.
@@ -272,7 +316,7 @@ export interface Connection {
   // strings legitimately have none.
   sessionId?: string;
   author?: string;
-  // The account behind `author` (0040). Undefined on every pre-0040 row and on
+  // The account behind `author` (0042). Undefined on every pre-0042 row and on
   // anything the seeded back-catalogue wrote, so it is the *preferred* byline
   // source, never the only one — see authorName().
   authorUserId?: string;
@@ -296,7 +340,7 @@ export interface SessionEvent {
   sessionId: string;
   type: SessionEventType;
   author?: string;
-  // The account behind `author` (0040), undefined on pre-0040 rows. Unlike
+  // The account behind `author` (0042), undefined on pre-0042 rows. Unlike
   // entityId this DOES have an FK, but `on delete set null` — so a departed
   // account leaves the name standing and only the link goes. authorName().
   authorUserId?: string;
@@ -399,6 +443,17 @@ export interface Campaign {
   connections: Connection[];
   board: Record<string, BoardPosition>;
   notes: Record<string, PartyNote[]>;
+  // Bugs and ideas about the codex itself (0040), votes already folded in.
+  // Unsorted here — orderFeedback() in src/feedback.ts decides reading order.
+  //
+  // The odd one out on this interface, and knowingly so: since 0041 this is
+  // APP-WIDE data, not this campaign's. It rides the campaign load and the
+  // campaign channel because that's one fetch and one socket instead of a second
+  // provider for a board of tens of rows; the cost is that switching campaigns
+  // needlessly refetches it. Being app-wide is also why
+  // projectCampaignForViewers passes it through untouched — there is nothing
+  // here that a DM keeps from players.
+  feedback: FeedbackItem[];
 }
 
 // Lightweight row for the campaign picker (full data loads per-campaign).
@@ -553,7 +608,7 @@ export function projectCampaignForViewers(c: Campaign): Campaign {
 }
 
 // Who to print as the byline of a signed row — party note, session event or
-// connection alike (0040). Structurally typed on the two columns rather than
+// connection alike (0042). Structurally typed on the two columns rather than
 // on any one of those interfaces, because all three carry the identical pair.
 //
 // The live name wins. `author` is the name frozen at write time, so an editor
@@ -561,7 +616,7 @@ export function projectCampaignForViewers(c: Campaign): Campaign {
 // resolving through the account fixes every row they ever wrote, at once.
 //
 // Three fallbacks, in order, and each is a real case rather than defensive
-// padding: a pre-0040 row has no uuid at all; a uuid can outlive the profiles
+// padding: a pre-0042 row has no uuid at all; a uuid can outlive the profiles
 // row it points at (or simply resolve before that fetch lands, since
 // profilesById loads outside fetchCampaign's Promise.all); and an editor can
 // hold an account with no display name set. Any of those falls back to the

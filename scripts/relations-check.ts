@@ -104,7 +104,7 @@ console.log("\nprovenance folds to the EARLIEST row of a mirrored pair (0031)");
     fwd[0]?.sessionId === "s1" && fwd[0]?.author === "First", fwd[0]);
   check("...consistently in both orders",
     rev[0]?.sessionId === "s1" && rev[0]?.author === "First", rev[0]);
-  // The byline is two columns since 0040, and they must fold together. A name
+  // The byline is two columns since 0042, and they must fold together. A name
   // taken from one row of the pair and a uuid from the other resolves — through
   // authorName's live lookup — to a THIRD person, which is worse than either
   // row's answer and impossible to spot by reading the output.

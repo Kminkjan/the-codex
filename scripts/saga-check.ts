@@ -108,8 +108,15 @@ const campaign: Campaign = {
     { from: "pCarry", to: "locBoth", label: "rides" },
     { from: "pLater", to: "locOut", label: "holds" },
   ],
+  // Empty tails, present only to satisfy `Campaign` — nothing in sagaScope
+  // reads them. NOTE: `scripts/` is outside tsconfig's `include`, so a field
+  // added to `Campaign` does NOT break `npm run build` here and `tsx` doesn't
+  // typecheck either — this annotation silently rots. `sessionAttendance`
+  // (0039) was already missing before `feedback` (0040) was added; both are
+  // filled in now. Check this literal whenever `Campaign` gains a field.
   sessionStaging: [], sessionEvents: [], dmNotes: {},
   board: {}, notes: {},
+  sessionAttendance: {}, feedback: [],
 };
 
 console.log("\nsagaTree / nesting");
@@ -121,6 +128,37 @@ check("isSaga true for sagaA", isSaga(campaign.arcs[0]));
 check("sagaOf(arcA2) === sagaA", sagaOf(campaign, "arcA2")?.id === "sagaA");
 check("sagaOf(sagaA) === itself", sagaOf(campaign, "sagaA")?.id === "sagaA");
 check("subtree includes saga + both arcs", arcSubtreeIds(campaign, "sagaA").size === 3);
+
+console.log("\nsagaTree / newest-first (the Arcs page + sidebar arc picker)");
+const recent = sagaTree(campaign, "recent");
+check(
+  "sagas descend by orderNum",
+  JSON.stringify(recent.map((t) => t.saga.id)) === '["orphan","sagaB","sagaA"]',
+  recent.map((t) => t.saga.id),
+);
+check("orphan still surfaces", recent.some((t) => t.saga.id === "orphan"));
+check("same nodes, only reordered", recent.length === tree.length);
+// The rule that makes this a comparator rather than a .reverse(): the SAGA
+// level flips, the arcs inside it do not. Reversing the table of contents is
+// what this whole change is careful not to do.
+check(
+  "arcs inside a saga stay ascending",
+  JSON.stringify(recent.find((t) => t.saga.id === "sagaA")!.arcs.map((a) => a.id)) === '["arcA1","arcA2"]',
+);
+// Two sagas sharing an orderNum must still read A→Z. A .reverse() of the
+// ascending sort would silently give Z→A here.
+const tiedCampaign: Campaign = {
+  ...campaign,
+  arcs: [
+    { id: "tieB", title: "Beta", orderNum: 5 },
+    { id: "tieA", title: "Alpha", orderNum: 5 },
+  ],
+};
+check(
+  "title tiebreak stays A→Z when orderNum ties",
+  JSON.stringify(sagaTree(tiedCampaign, "recent").map((t) => t.saga.id)) === '["tieA","tieB"]',
+  sagaTree(tiedCampaign, "recent").map((t) => t.saga.title),
+);
 
 console.log("\nsagaSessions roll-up");
 const sess = sagaSessions(campaign, "sagaA");

@@ -1,5 +1,7 @@
 // List-ordering harness: the pure derivations in src/listSort.ts, which decide
-// what the overview pages' sort control offers and what each choice does.
+// what the overview pages' sort control offers and what each choice does — plus
+// src/chronicle.ts at the bottom, the Events page's own order/grouping pair
+// (it sorts by order_num, not updatedAt, so it can't use the catalogue above).
 //
 // Three things here are load-bearing and silent when wrong — a list still
 // renders, just in the wrong order, which nobody files a bug about:
@@ -22,7 +24,8 @@
 //
 // Usage: npx tsx scripts/listsort-check.ts   (exits non-zero on any failure)
 import { applyListSort, isSortKey, sortOptionsFor, type SortKey } from "../src/listSort";
-import type { KindKey } from "../src/data";
+import { groupByDate, isChronicleOrder, sortEvents } from "../src/chronicle";
+import type { CampaignEvent, KindKey } from "../src/data";
 
 let failures = 0;
 const check = (name: string, cond: boolean, extra?: unknown) => {
@@ -44,6 +47,7 @@ type Row = {
 };
 
 const ids = (rows: Row[]) => rows.map((r) => r.id).join(",");
+const eids = (rows: CampaignEvent[]) => rows.map((r) => r.id).join(",");
 const at = (iso: string) => `${iso}T00:00:00Z`;
 
 console.log("\nsortOptionsFor: no kind offers two spellings of the same order");
@@ -221,6 +225,73 @@ console.log("\napplyListSort: does not mutate its input");
   applyListSort(rows, "name", { kind: "items" });
   applyListSort(rows, "default", { kind: "items" });
   check("caller's array is untouched", ids(rows) === before, ids(rows));
+}
+
+// --- src/chronicle.ts ------------------------------------------------------
+// The Events page orders by order_num rather than updatedAt, so it can't ride
+// on the catalogue above — but it's the same job and the same failure mode (a
+// page renders, just backwards), so it's asserted here rather than in a tenth
+// harness. The rule that needs guarding is the interaction: ordering happens
+// BEFORE grouping, so newest-first must reverse the date bands *and* their
+// contents. Bands reversed with ascending contents is the incoherent state.
+
+console.log("\nchronicle: sortEvents");
+{
+  const ev = (id: string, orderNum: number, inGameDate?: string, title = id) =>
+    ({ id, title, orderNum, inGameDate });
+  const events = [ev("e2", 2, "Midwinter"), ev("e1", 1, "Highharvest"), ev("e3", 3, "Midwinter")];
+
+  check("default is newest first",
+    eids(sortEvents(events, "default")) === "e3,e2,e1", eids(sortEvents(events, "default")));
+  check("oldest reads forward",
+    eids(sortEvents(events, "oldest")) === "e1,e2,e3", eids(sortEvents(events, "oldest")));
+  const before = eids(events);
+  sortEvents(events, "default");
+  check("caller's array is untouched", eids(events) === before, eids(events));
+
+  // Not .reverse() of the ascending sort: the title tiebreak must read A→Z in
+  // both directions, or events sharing an orderNum swap for no visible reason.
+  const tied = [ev("beta", 4, undefined, "Beta"), ev("alpha", 4, undefined, "Alpha")];
+  check("title tiebreak stays A→Z ascending", eids(sortEvents(tied, "oldest")) === "alpha,beta");
+  check("title tiebreak stays A→Z descending", eids(sortEvents(tied, "default")) === "alpha,beta",
+    eids(sortEvents(tied, "default")));
+
+  check("isChronicleOrder accepts the two keys",
+    isChronicleOrder("default") && isChronicleOrder("oldest"));
+  check("isChronicleOrder rejects a stale/foreign key",
+    !isChronicleOrder("recent") && !isChronicleOrder("") && !isChronicleOrder(undefined));
+}
+
+console.log("\nchronicle: groupByDate");
+{
+  const ev = (id: string, orderNum: number, inGameDate?: string) =>
+    ({ id, title: id, orderNum, inGameDate });
+  // "Midwinter" recurs at both ends of the chronicle with another date between:
+  // a date-keyed group map would merge those two into one band and silently
+  // pull e1 and e4 out of chronological order.
+  const events = [
+    ev("e1", 1, "Midwinter"), ev("e2", 2, "Greengrass"),
+    ev("e3", 3, "Greengrass"), ev("e4", 4, "Midwinter"),
+    ev("e5", 5),
+  ];
+
+  const asc = groupByDate(sortEvents(events, "oldest"));
+  check("only consecutive same-date events merge", asc.length === 4, asc.map((g) => g.date));
+  check("recurring date does not merge across a gap",
+    asc[0].events.length === 1 && asc[3] !== undefined && asc[2].events.map((e) => e.id).join() === "e4");
+  check("missing in-game date bands as Undated", asc[3].date === "Undated");
+  check("blank/whitespace date also bands as Undated",
+    groupByDate([ev("x", 1, "   ")])[0].date === "Undated");
+
+  const desc = groupByDate(sortEvents(events, "default"));
+  check("newest-first reverses the bands",
+    desc.map((g) => g.date).join("|") === "Undated|Midwinter|Greengrass|Midwinter",
+    desc.map((g) => g.date));
+  check("newest-first ALSO reverses inside a band",
+    desc.map((g) => g.events.map((e) => e.id).join()).join("|") === "e5|e4|e3,e2|e1",
+    desc.map((g) => g.events.map((e) => e.id).join()));
+  check("no event is lost or duplicated by grouping",
+    desc.flatMap((g) => g.events).length === events.length);
 }
 
 console.log(failures === 0 ? "\nAll list-sort checks passed.\n" : `\n${failures} FAILURE(S).\n`);

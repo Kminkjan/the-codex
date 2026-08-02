@@ -1304,7 +1304,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
   const showFeed = sessionFeed.length > 0 && campaign.activeSessionId !== entityId;
 
   const draftRecap = () => {
-    // Bylines resolve live here too (0040): the digest lands in the public
+    // Bylines resolve live here too (0042): the digest lands in the public
     // `summary` as frozen text, so it should be stamped with who those people
     // are now, not who they were called when the row was written.
     const digest = sessionFeedToMarkdown(sessionFeed, findEntity, resolveName);

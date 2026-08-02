@@ -5,12 +5,15 @@ import { AuthContext, useAuth } from "./auth";
 import { setActiveCampaignId } from "./activeCampaign";
 import { setActiveSessionId } from "./activeSession";
 import { parseHash, writeCampaignHash } from "./route";
+import { foldFeedbackVotes } from "./feedback";
 import {
   projectCampaignForViewers,
   type Campaign,
   type CampaignSummary,
   type BoardPosition,
   type Connection,
+  type FeedbackItem,
+  type FeedbackVote,
   type KindKey,
   type PartyNote,
   type PresenceUser,
@@ -49,6 +52,11 @@ interface CampaignContextValue {
   // real DM-ness (SessionPin's feed brackets) — a view toggle must never change
   // what gets persisted.
   isRealDm: boolean;
+  // May triage the app-wide feedback board (0041's app_maintainers). NOT a DM
+  // check and deliberately not campaign-scoped: the board is app-wide, and
+  // deriving this from DM-ness would hand it to anyone who founds a campaign,
+  // since sign-ups are open and create_campaign makes its caller a DM.
+  isMaintainer: boolean;
   // Confirmed to hold a campaign_members row for this campaign (any role) —
   // since 0023 the precondition for every write. Consumers rarely need this
   // directly: it is already folded into the canEdit that CampaignProvider
@@ -90,6 +98,7 @@ export const CampaignContext = createContext<CampaignContextValue>({
   retireCampaign: () => {},
   isDm: false,
   isRealDm: false,
+  isMaintainer: false,
   isMember: false,
   seatless: false,
   viewAsPlayer: false,
@@ -372,6 +381,30 @@ const mapPartyNoteRow = (r: any): { entityId: string; note: PartyNote } => ({
   },
 });
 
+// 0040. `voters` is attached by foldFeedbackVotes, not here — a mapper sees one
+// table and the votes live in another.
+const mapFeedbackRow = (r: any): Omit<FeedbackItem, "voters"> => ({
+  id: r.id,
+  // The CHECK constraints pin both columns, so no fallback: a value outside the
+  // union means the DB and this union have diverged, and defaulting it would
+  // hide that behind a row that renders as something it isn't.
+  kind: r.kind,
+  status: r.status,
+  text: r.text ?? "",
+  author: r.author ?? "",
+  // Provenance since 0041, and nullable — the campaign it was filed from may
+  // since have been deleted.
+  campaignId: r.campaign_id ?? undefined,
+  route: r.route ?? undefined,
+  theme: r.theme ?? undefined,
+  createdAt: r.created_at,
+});
+
+const mapFeedbackVoteRow = (r: any): FeedbackVote => ({
+  feedbackId: r.feedback_id,
+  userId: r.user_id,
+});
+
 async function fetchCampaign(id: string): Promise<Campaign> {
   const [
     campaignRes,
@@ -395,6 +428,8 @@ async function fetchCampaign(id: string): Promise<Campaign> {
     connectionsRes,
     boardRes,
     notesRes,
+    feedbackRes,
+    feedbackVotesRes,
   ] = await Promise.all([
     supabase.from("campaigns").select("*").eq("id", id).single(),
     supabase.from("sessions").select("*").eq("campaign_id", id).order("num"),
@@ -430,6 +465,16 @@ async function fetchCampaign(id: string): Promise<Campaign> {
     supabase.from("connections").select("*").eq("campaign_id", id).order("id"),
     supabase.from("board_positions").select("*").eq("campaign_id", id),
     supabase.from("party_notes").select("*").eq("campaign_id", id).order("created_at"),
+    // UNFILTERED, unlike every other select here, and that's the point: since
+    // 0041 the board is app-wide. A bug is fixed once in the code, so a
+    // per-campaign board would show the same repaired bug as still open
+    // everywhere else, and would split one bug's votes across N rows.
+    // `campaign_id` survives on the row as provenance and is never filtered on.
+    //
+    // No order: orderFeedback() owns the reading order and it isn't expressible
+    // here (it sorts on a vote count that lives in the other table).
+    supabase.from("feedback").select("*"),
+    supabase.from("feedback_votes").select("feedback_id,user_id"),
   ]);
 
   const first = [
@@ -437,6 +482,7 @@ async function fetchCampaign(id: string): Promise<Campaign> {
     sessionParticipantsRes, sessionAttendanceRes, sessionStagingRes, sessionEventsRes, dmNotesRes,
     peopleRes, locationsRes, questsRes, goalsRes, factionsRes, itemsRes,
     loreRes, monstersRes, connectionsRes, boardRes, notesRes,
+    feedbackRes, feedbackVotesRes,
   ].find((r) => r.error);
   if (first?.error) throw new Error(first.error.message);
 
@@ -472,6 +518,10 @@ async function fetchCampaign(id: string): Promise<Campaign> {
     connections: (connectionsRes.data ?? []).map(mapConnection),
     board: Object.fromEntries((boardRes.data ?? []).map(mapBoardPosition)),
     notes: notesByEntity,
+    feedback: foldFeedbackVotes(
+      (feedbackRes.data ?? []).map(mapFeedbackRow),
+      (feedbackVotesRes.data ?? []).map(mapFeedbackVoteRow),
+    ),
   };
 }
 
@@ -517,6 +567,8 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
   // them (a network blip must not strip a real member's quill) and leaves RLS
   // to reject anything it shouldn't have allowed.
   const [membership, setMembership] = useState<Membership>({ status: "pending" });
+  // App-wide, campaign-independent: see the maintainer lookup below.
+  const [isMaintainer, setIsMaintainer] = useState(false);
   const [membershipVersion, setMembershipVersion] = useState(0);
   const refreshMembership = useCallback(() => setMembershipVersion((v) => v + 1), []);
   const [presenceUsers, setPresenceUsers] = useState<PresenceUser[]>([]);
@@ -590,6 +642,35 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
       });
     return () => { cancelled = true; };
   }, [campaignId, user?.id, user?.is_anonymous, membershipVersion]);
+
+  // Maintainer lookup (0041): may this account triage the app-wide feedback
+  // board — move a report's status, delete a duplicate. NOT keyed on campaignId,
+  // which is the whole point: the board is app-wide, so this capability can't
+  // come from being some campaign's DM. It used to (0040), and that could not
+  // survive going app-wide — sign-ups are open and founding a campaign makes you
+  // its DM, so "any DM" would have let a stranger found a throwaway campaign and
+  // then edit the whole party's board.
+  //
+  // Fails CLOSED, unlike the membership lookup above, and the asymmetry is
+  // deliberate. Membership fails open because a network blip must not strip a
+  // real member of every edit affordance in their own campaign; here the only
+  // cost of failing closed is that a status <select> renders as a plain chip
+  // until reload, and the safe default for a privileged control is off.
+  useEffect(() => {
+    setIsMaintainer(false);
+    if (!user || user.is_anonymous) return;
+    let cancelled = false;
+    supabase
+      .from("app_maintainers")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .then(({ data, error: maintErr }) => {
+        if (cancelled) return;
+        if (maintErr) { console.error(maintErr); return; }
+        setIsMaintainer((data?.length ?? 0) > 0);
+      });
+    return () => { cancelled = true; };
+  }, [user?.id, user?.is_anonymous]);
 
   // Profiles lookup (issue #114): auth uuid -> name/avatar, so any surface can
   // name a user without its own fetch. Deliberately its own effect rather than
@@ -799,6 +880,44 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
         };
         const refetchConnectionsSoon = debounce("connections", refetchConnections);
         const refetchBoardSoon = debounce("board", refetchBoard);
+
+        // Feedback (0040) refetches the PAIR of tables on a change to either,
+        // because the client-side shape is one array with votes folded in and a
+        // vote event carries no way to find its report's current row. Both
+        // subscriptions share this one debounce slot on purpose: filing a report
+        // and voting on it produce events on two tables that must not each
+        // trigger their own round trip.
+        //
+        // The reports table is tiny (tens of rows) and only an open panel is
+        // looking, so refetch-the-world is cheaper here than anywhere it's
+        // already accepted.
+        //
+        // Unfiltered since 0041 — app-wide, like the initial load above. This
+        // one refetch is therefore NOT campaign-scoped even though it lives on
+        // the campaign channel; the setCampaign guard below still keys on
+        // campaignId, so a result arriving after a switch is dropped rather than
+        // spliced into the wrong campaign's object.
+        const refetchFeedback = () => {
+          Promise.all([
+            supabase.from("feedback").select("*"),
+            supabase.from("feedback_votes").select("feedback_id,user_id"),
+          ]).then(([itemsRes, votesRes]) => {
+            if (cancelled) return;
+            // A failed half would fold to "every vote withdrawn" or "the board
+            // is empty" — both indistinguishable from the real thing on screen,
+            // so leave the last good array in place and let the next event retry.
+            if (itemsRes.error || votesRes.error) {
+              console.error("feedback refetch failed", itemsRes.error ?? votesRes.error);
+              return;
+            }
+            const next = foldFeedbackVotes(
+              (itemsRes.data ?? []).map(mapFeedbackRow),
+              (votesRes.data ?? []).map(mapFeedbackVoteRow),
+            );
+            setCampaign((c) => c && c.id === campaignId ? { ...c, feedback: next } : c);
+          });
+        };
+        const refetchFeedbackSoon = debounce("feedback", refetchFeedback);
 
         // The shared pin lives on the campaigns row itself, so it's filtered by
         // `id`, not `campaign_id`. Keep both the React state and the module-level
@@ -1051,6 +1170,24 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
             });
           },
         );
+        // Both feedback tables, one debounced handler, and NO `filter` — the
+        // board is app-wide (0041), so a campaign_id filter would be wrong here
+        // and `feedback_votes` no longer even has the column. Dropping the
+        // filter also removes the reason 0040 needed REPLICA IDENTITY FULL (a
+        // delete publishing only the PK had no campaign_id for the filter to
+        // match, which would have silently lost every un-vote); 0041 keeps the
+        // setting anyway so that reintroducing a filter can't quietly bring the
+        // bug back.
+        channel.on(
+          "postgres_changes" as any,
+          { event: "*", schema: "public", table: "feedback" },
+          refetchFeedbackSoon,
+        );
+        channel.on(
+          "postgres_changes" as any,
+          { event: "*", schema: "public", table: "feedback_votes" },
+          refetchFeedbackSoon,
+        );
 
         channel.subscribe((status) => {
           if (cancelled) return;
@@ -1120,7 +1257,7 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
   );
 
   return (
-    <CampaignContext.Provider value={{ campaign: visibleCampaign, loading, error, campaigns, activeCampaignId: campaignId, switchCampaign, adoptCampaign, retireCampaign, isDm, isRealDm, isMember, seatless, viewAsPlayer, setViewAsPlayer, membershipVersion, refreshMembership, presenceUsers, profilesById }}>
+    <CampaignContext.Provider value={{ campaign: visibleCampaign, loading, error, campaigns, activeCampaignId: campaignId, switchCampaign, adoptCampaign, retireCampaign, isDm, isRealDm, isMaintainer, isMember, seatless, viewAsPlayer, setViewAsPlayer, membershipVersion, refreshMembership, presenceUsers, profilesById }}>
       <AuthContext.Provider value={scopedAuth}>
         {children}
       </AuthContext.Provider>

@@ -20,7 +20,7 @@ function searchHits(
   fullIndex: Indexed[],
   campaign: Campaign,
   query: string,
-  // Byline resolver for note snippets (0040) — the snippet is prefixed with who
+  // Byline resolver for note snippets (0042) — the snippet is prefixed with who
   // wrote it, and a renamed editor should read as their current name here too.
   resolveName: (userId: string) => string | null | undefined,
 ): RankedHit[] {
