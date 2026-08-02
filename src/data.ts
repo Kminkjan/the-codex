@@ -591,12 +591,18 @@ export function authorName(
 // the same rule on both of their endpoints.
 //
 // `resolveName` is the byline's counterpart to resolveEntity — same shape, same
-// reason (this module is pure and can't reach the profiles map). Optional so a
-// caller with no profiles to hand still renders the stored snapshots.
+// reason (this module is pure and can't reach the profiles map). REQUIRED, with
+// no default, deliberately: this digest is frozen into the public
+// `sessions.summary`, so a caller that forgot to pass one would publish
+// pre-rename names with nothing on screen to say they're stale, and no way to
+// correct them afterwards. That is exactly the silent-failure shape this
+// function's harness exists to catch, so it is worth a compile error instead.
+// A caller with genuinely no profiles to hand passes `() => undefined` and says
+// so out loud.
 export function sessionFeedToMarkdown(
   events: SessionEvent[],
   resolveEntity: (id?: string | null) => Entity | null,
-  resolveName: (userId: string) => string | null | undefined = () => undefined,
+  resolveName: (userId: string) => string | null | undefined,
 ): string {
   const fmtTime = (iso: string) =>
     new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });

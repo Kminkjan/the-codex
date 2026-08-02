@@ -74,6 +74,13 @@ const annotateEv = (over: Partial<SessionEvent> = {}): SessionEvent => ({
   createdAt: "2026-07-26T20:05:00.000Z", ...over,
 });
 
+// The byline resolver for the sections that are about something else. Explicit
+// rather than defaulted: sessionFeedToMarkdown requires it precisely so nobody
+// publishes stale names by forgetting, and a harness that quietly opted out
+// would be asserting a signature the app can no longer produce. "Knows nobody"
+// is also a real state — a viewer whose profiles fetch hasn't landed.
+const noNames = () => undefined;
+
 // A plain composer row — the fallthrough branch, and the only one whose byline
 // is load-bearing enough to have its own "Anonymous" wording.
 const noteEv = (over: Partial<SessionEvent> = {}): SessionEvent => ({
@@ -106,7 +113,7 @@ console.log("\nrecap markdown: the link branch, and the public-summary leak");
   };
   const resolve = (id?: string | null) => (id ? ents[id] ?? null : null);
 
-  const md = sessionFeedToMarkdown([linkEv()], resolve);
+  const md = sessionFeedToMarkdown([linkEv()], resolve, noNames);
   check("names both endpoints", md.includes("**Ana**") && md.includes("**Bel**"), md);
   check("carries the string's own label", md.includes('"ally of"'), md);
   check("signs the author", md.includes("Kris"), md);
@@ -114,13 +121,13 @@ console.log("\nrecap markdown: the link branch, and the public-summary leak");
   // "- *hh:mm* — Kris: ally of" — plausible-looking and wrong.
   check("did NOT fall through to the plain-note shape", !md.includes("Kris: ally of"), md);
 
-  const leak = sessionFeedToMarkdown([linkEv({ entityIdB: "h" })], resolve);
+  const leak = sessionFeedToMarkdown([linkEv({ entityIdB: "h" })], resolve, noNames);
   check("a hidden endpoint drops the whole row from the digest",
     !leak.includes("Secret") && !leak.includes("Ana"), leak);
 
   // The feed is history: rows outlive their entities, and unlike a reveal a
   // link has no label snapshot in `text` to fall back on.
-  const dangling = sessionFeedToMarkdown([linkEv({ entityIdB: "gone" })], resolve);
+  const dangling = sessionFeedToMarkdown([linkEv({ entityIdB: "gone" })], resolve, noNames);
   check("a deleted endpoint degrades rather than vanishing or throwing",
     dangling.includes("**Ana**") && dangling.includes("struck from the codex"), dangling);
 }
@@ -154,7 +161,7 @@ console.log("\nrecap markdown: the annotate branch");
   };
   const resolve = (id?: string | null) => (id ? ents[id] ?? null : null);
 
-  const md = sessionFeedToMarkdown([annotateEv()], resolve);
+  const md = sessionFeedToMarkdown([annotateEv()], resolve, noNames);
   check("names the annotated entity", md.includes("**Ana**"), md);
   check("carries the note excerpt", md.includes('"she\'s lying about the ledger"'), md);
   check("signs the author", md.includes("Kris"), md);
@@ -163,22 +170,22 @@ console.log("\nrecap markdown: the annotate branch");
   check("did NOT fall through to the plain-note shape",
     !md.includes("Kris: she's lying"), md);
 
-  const renamed = sessionFeedToMarkdown([annotateEv({ entityId: "r" })], resolve);
+  const renamed = sessionFeedToMarkdown([annotateEv({ entityId: "r" })], resolve, noNames);
   check("live label beats the stale snapshot",
     renamed.includes("**Ana Maerwyn**") && !renamed.includes("**Ana**"), renamed);
 
-  const leak = sessionFeedToMarkdown([annotateEv({ entityId: "h", entityLabel: "Secret" })], resolve);
+  const leak = sessionFeedToMarkdown([annotateEv({ entityId: "h", entityLabel: "Secret" })], resolve, noNames);
   check("a hidden entity drops the whole row from the public digest",
     !leak.includes("Secret") && !leak.includes("ledger"), leak);
 
   // The feed is history: rows outlive their entities. This is what the snapshot
   // is FOR — a struck entity still names itself.
-  const struck = sessionFeedToMarkdown([annotateEv({ entityId: "gone" })], resolve);
+  const struck = sessionFeedToMarkdown([annotateEv({ entityId: "gone" })], resolve, noNames);
   check("a deleted entity degrades to its label snapshot",
     struck.includes("**Ana**") && !struck.includes("struck from the codex"), struck);
 
   // Pre-0032 rows carry no snapshot, so the stock phrase is still reachable.
-  const noSnap = sessionFeedToMarkdown([annotateEv({ entityId: "gone", entityLabel: undefined })], resolve);
+  const noSnap = sessionFeedToMarkdown([annotateEv({ entityId: "gone", entityLabel: undefined })], resolve, noNames);
   check("no snapshot and no entity → the stock phrase, no throw",
     noSnap.includes("struck from the codex"), noSnap);
 }
@@ -239,11 +246,13 @@ console.log("\nrecap markdown: bylines resolve live in the PUBLIC digest");
   check("no branch leaks the stale snapshot into the published digest",
     !/\bKris\b(?! Minkjan)/.test(all), all);
 
-  // Omitting the resolver must not throw or print "undefined" — every existing
-  // caller that hasn't been threaded yet still renders the stored names.
-  const legacy = sessionFeedToMarkdown([noteEv()], resolve);
-  check("with no resolver the stored snapshot still prints",
-    legacy.includes("Kris:") && !legacy.includes("undefined"), legacy);
+  // A resolver that knows nobody is a real state, not a degenerate one: the
+  // profiles map loads outside fetchCampaign's Promise.all, so an early render
+  // legitimately has it empty. It must print the stored snapshot rather than
+  // "undefined" or a bare colon.
+  const unknown = sessionFeedToMarkdown([noteEv()], resolve, noNames);
+  check("a resolver that knows nobody still prints the stored snapshot",
+    unknown.includes("Kris:") && !unknown.includes("undefined"), unknown);
 
   // The fallthrough branch is the only one that words the empty case, and it
   // must not degrade to a bare colon.

@@ -40,13 +40,31 @@ alter table public.connections
   add column if not exists author_user_id uuid references auth.users(id) on delete set null;
 
 -- ==========================================================================
+-- Indexes
+-- ==========================================================================
+-- Not for reads: the client resolves a byline by uuid lookup against an
+-- already-loaded profiles map, never with a WHERE clause. These exist for the
+-- FK's own sake. `on delete set null` has to find the referencing rows when an
+-- account is deleted, and unindexed that is a sequential scan of all three
+-- tables per deleted user. Cheap insurance either way, and it matches 0030,
+-- which indexed people.player_user_id — the directly analogous auth.users FK.
+--
+-- Partial, like 0030's. Every row written before this migration is NULL and
+-- stays NULL — that is most of the table today and all of the seeded
+-- back-catalogue — and no lookup by uuid can ever hit one, so there is nothing
+-- to gain from carrying them.
+create index if not exists party_notes_author_user_idx
+  on public.party_notes (author_user_id) where author_user_id is not null;
+
+create index if not exists session_events_author_user_idx
+  on public.session_events (author_user_id) where author_user_id is not null;
+
+create index if not exists connections_author_user_idx
+  on public.connections (author_user_id) where author_user_id is not null;
+
+-- ==========================================================================
 -- Deliberate omissions
 -- ==========================================================================
--- No index. 0031/0032 indexed their new columns because (campaign_id, session_id)
--- is a query path; nothing queries by author yet — the column is read by uuid
--- lookup against an already-loaded profiles map, never by a WHERE clause. Add one
--- with the first feature that filters on it.
---
 -- No RLS change. 0031 and 0032 each rewrote the session_events write policy, but
 -- only because they added a value to its `type` CHECK; this adds none, so all
 -- three tables' existing policies apply unchanged. Note this leaves author_user_id
