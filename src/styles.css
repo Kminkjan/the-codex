@@ -818,17 +818,27 @@ button.attend-chip.is-present:hover { border-color: var(--mustard); color: var(-
    sidebar. Keep it hugging its longest arc title. */
 .sidebar > select { align-self: flex-start; }
 /* "This app" / feedback lives at the FOOT of the sidebar, not at the end of
-   the scroll. Two rules, one for each case: margin-top:auto drops it to the
+   the scroll. Two rules, one for each case: an auto top margin drops it to the
    bottom edge when the campaign is short enough to fit, sticky keeps it on
-   screen once the sessions list overflows. Sticky needs an opaque backing —
-   the gradient above ends at --vellum, which is exactly the colour at the
-   foot, so the seam is invisible.
+   screen once the sessions list overflows.
 
-   It carries the sidebar's bottom padding itself. Sticky resolves bottom:0
-   against the scrollport's PADDING box, so leaving the padding on .sidebar
-   would strand the footer 14px up with scrolled content visible underneath. */
+   The auto margin goes on whichever element is the last one ABOVE the footer,
+   so no gap opens between them: that's the quote on the parchment themes, and
+   the footer itself on Atlas, which hides the quote. Putting it on both would
+   split the slack and leave a gap in the middle.
+
+   Sticky needs an opaque backing. The gradient behind it runs to --vellum at
+   the very bottom, so the fill matches exactly at the footer's lower edge and
+   is off by under 4/255 across the rest of its height — below the visible
+   threshold on both parchment and grimoire.
+
+   The footer carries the sidebar's bottom padding itself. Sticky resolves
+   bottom:0 against the scrollport's PADDING box, so leaving the padding on
+   .sidebar would strand the footer 14px up with scrolled content in the gap.
+
+   (The quote's auto margin is an inline style in components.tsx, since the
+   rest of that block's styling is inline there too.) */
 .sidebar-footer {
-  margin-top: auto;
   position: sticky;
   bottom: 0;
   background: var(--vellum);
@@ -4113,8 +4123,11 @@ button.attend-chip.is-present:hover { border-color: var(--mustard); color: var(-
   padding: 12px 0 0;
 }
 /* Atlas drops the gradient, so the sticky footer's backing has to follow the
-   flat sidebar colour — and the aside's padding is 12, not 14. */
+   flat sidebar colour — and the aside's padding is 12, not 14. It also takes
+   the auto top margin the quote carries on parchment, because Atlas hides the
+   quote (below) and an auto margin on a display:none element pushes nothing. */
 [data-theme="modern"] .sidebar-footer {
+  margin-top: auto;
   background: var(--vellum-light);
   padding-bottom: 12px;
   border-top: 1px solid var(--vellum-deep);

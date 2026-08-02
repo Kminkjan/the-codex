@@ -595,7 +595,25 @@ export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, onOpenF
           flow: the sessions list above is unbounded, so in flow this row is
           reachable only by scrolling past the whole campaign. See
           .sidebar-footer in styles.css — margin-top:auto when the content is
-          short, sticky when it overflows. */}
+          short, sticky when it overflows.
+
+          The quote stays OUT of that block deliberately: it's decoration, and
+          pinning it cost a quarter of the parchment sidebar while the sessions
+          list was already overflowing. It sits directly above the footer so
+          the bottom composition still reads as one piece, and scrolls away
+          under it when the campaign is long. */}
+      {/* marginTop auto, not 12: as the last element above the pinned footer
+          it absorbs the sidebar's leftover height (see .sidebar-footer). It
+          collapses to 0 once the content overflows, where the block's own
+          16px padding and rule already separate it. */}
+      <div className="sidebar-quote" style={{
+        padding: "16px", marginTop: "auto", borderTop: "1px dashed var(--vellum-deep)",
+        fontFamily: "var(--font-body)", fontStyle: "italic", fontSize: 12,
+        color: "var(--ink-faded)", textAlign: "center",
+      }}>
+        <em>"Bound in vellum,<br />writ in iron."</em>
+      </div>
+
       <div className="sidebar-footer">
         <div className="sidebar-label"><span><ThemedLabel parchment="The Codex Itself" atlas="This app" /></span></div>
         <div
@@ -608,14 +626,6 @@ export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, onOpenF
           {openFeedbackCount(campaign.feedback) > 0 && (
             <span className="count">{openFeedbackCount(campaign.feedback)}</span>
           )}
-        </div>
-
-        <div className="sidebar-quote" style={{
-          padding: "16px", marginTop: 12, borderTop: "1px dashed var(--vellum-deep)",
-          fontFamily: "var(--font-body)", fontStyle: "italic", fontSize: 12,
-          color: "var(--ink-faded)", textAlign: "center",
-        }}>
-          <em>"Bound in vellum,<br />writ in iron."</em>
         </div>
       </div>
     </aside>
