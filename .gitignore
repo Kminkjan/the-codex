@@ -7,7 +7,13 @@ dist
 *.tsbuildinfo
 vite.config.js
 vite.config.d.ts
-.claude/
+# Everything under .claude/ stays local — settings.local.json, launch.json, and
+# .claude/worktrees/, whose checkouts each carry a real .env with the
+# service-role key. The one exception is skills/: repo-specific authoring
+# knowledge that belongs next to the schema it describes. Keep this scoped —
+# a bare `!.claude/` would publish those .env files.
+.claude/*
+!.claude/skills/
 .playwright-mcp/
 *.png
 !docs/fist-of-ilmater/images/*.png
