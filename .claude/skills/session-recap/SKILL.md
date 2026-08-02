@@ -278,7 +278,11 @@ Rules for the write:
   rows use `fw-gN`. Include `campaign_id`.
 - **This bypasses [src/mutations.ts](../../../src/mutations.ts) and RLS.** That is acceptable for an
   out-of-band authoring task run by the DM, and it is exactly why Steps 2 and 6 gate on approval.
-  Do not extend the pattern to anything the app itself should be doing.
+  Do not extend the pattern to anything the app itself should be doing. Step 5's sheet appends and new
+  rows sit *just* inside that line — the app can create a location and edit a `desc`, and normally
+  should. What makes them out-of-band here is that they are the byproduct of authoring a recap: the
+  DM is reviewing one diff at the end of the night, not opening nine sheets by hand. Anything a player
+  would do mid-session still belongs in the app, behind `canEdit` and RLS.
 - **Appending to a sheet means reading it back first.** Step 5's writes land on rows the DM authored.
   PATCH replaces the column outright, so fetch the current `desc`/`text`/`notes`, append to it, and send
   the whole value — never send only the new paragraph.
