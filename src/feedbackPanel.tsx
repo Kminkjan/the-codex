@@ -25,7 +25,7 @@
 // ============================================================================
 
 import { useMemo, useState } from "react";
-import { useCampaign, useCampaignSwitcher, useFindEntity, useIsMaintainer } from "./hooks";
+import { useAuthorName, useCampaign, useCampaignSwitcher, useFindEntity, useIsMaintainer } from "./hooks";
 import { useAuth } from "./auth";
 import { Fleurons, NoteComposer, ThemedLabel } from "./components";
 import { Icon } from "./icons";
@@ -62,6 +62,7 @@ export function FeedbackPanel({ onClose }: FeedbackPanelProps) {
   const campaign = useCampaign();
   const findEntity = useFindEntity();
   const isMaintainer = useIsMaintainer();
+  const byline = useAuthorName();
   // Titles for the provenance chip. The picker's list is already loaded and
   // covers every campaign, so this needs no fetch of its own.
   const { campaigns } = useCampaignSwitcher();
@@ -69,7 +70,7 @@ export function FeedbackPanel({ onClose }: FeedbackPanelProps) {
     () => new Map(campaigns.map((c) => [c.id, c.title])),
     [campaigns],
   );
-  const { canEdit, user, displayName } = useAuth();
+  const { canEdit, user } = useAuth();
   const [kind, setKind] = useState<FeedbackKind>("bug");
   // The row with a write in flight, so its controls can't be double-fired. One
   // slot rather than a set: every control here is per-row and a person operates
@@ -104,7 +105,9 @@ export function FeedbackPanel({ onClose }: FeedbackPanelProps) {
     // absent exactly when no theme has been set, which IS the default parchment
     // theme rather than an unknown one.
     const theme = document.documentElement.dataset.theme || "cartographer";
-    await insertFeedback({ kind, text, author: displayName || "someone", route, theme });
+    // No byline argument: insertFeedback signs itself from the signer store
+    // (0042's pattern, extended to this table by 0043).
+    await insertFeedback({ kind, text, route, theme });
   };
 
   const vote = (item: FeedbackItem) => {
@@ -207,7 +210,10 @@ export function FeedbackPanel({ onClose }: FeedbackPanelProps) {
                         ? <ThemedLabel parchment="Fault" atlas="Bug" />
                         : <ThemedLabel parchment="Petition" atlas="Idea" />}
                     </span>
-                    <span>{item.author}</span>
+                    {/* Through the hook, never item.author: a reporter who has
+                        since renamed themselves should read under the new name
+                        on every report they ever filed (0043). */}
+                    <span>{byline(item) ?? "someone"}</span>
                     <span className="feedback-dot">·</span>
                     <span>{relativeDay(item.createdAt)}</span>
                     {item.route && (

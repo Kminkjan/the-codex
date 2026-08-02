@@ -53,8 +53,10 @@ function expectRows(count: number | null) {
 }
 
 // ===== Signing (0042) =======================================================
-// The three provenance-carrying tables (party_notes, session_events,
-// connections) all sign a row the same way, so they share one spread. Both
+// Three of the provenance-carrying tables (party_notes, session_events,
+// connections) sign a row the same way, so they share one spread. `feedback`
+// (0043) writes the same pair by hand, because 0040 made its `author` NOT NULL
+// and the placeholder that implies doesn't belong in the shared helper. Both
 // columns are written together and neither is ever written alone — that is the
 // whole point of taking them from one store rather than from a parameter.
 //
@@ -190,16 +192,25 @@ export async function insertPartyNote(
 
 // ===== Feedback (0040) ======================================================
 
-// `author`, `route` and `theme` are the CALLER's, for the same reason
-// insertPartyNote's are: this module can't reach React context (the display
-// name) or make a judgment about what the reporter was looking at.
+// `route` and `theme` are the CALLER's — this module can't make a judgment
+// about what the reporter was looking at. The byline is NOT: it's signed from
+// the store like every other provenance-carrying write (see Signing above).
+// This was the last mutation taking an `author` argument.
+//
+// It can't use signature() verbatim, though, because 0040 declared
+// `feedback.author` NOT NULL where 0032's is nullable — so the empty-name case
+// has to resolve to a placeholder here rather than to null. That's the same
+// "someone" the panel used to pass, moved one layer down so there's still
+// exactly one place that decides it. It applies to an editor who hasn't passed
+// the DisplayNameGate; an anonymous viewer has no signer at all, and RLS
+// rejects their insert regardless.
 export async function insertFeedback(input: {
   kind: FeedbackKind;
   text: string;
-  author: string;
   route?: string;
   theme?: string;
 }) {
+  const signer = getSigner();
   const { error } = await supabase.from("feedback").insert({
     // PROVENANCE, not scope, since 0041 — recorded so a report can be
     // reproduced, never filtered on. The board itself is app-wide, because a
@@ -207,7 +218,8 @@ export async function insertFeedback(input: {
     campaign_id: getActiveCampaignId(),
     kind: input.kind,
     text: input.text,
-    author: input.author,
+    author: signer?.displayName || "someone",
+    author_user_id: signer?.userId ?? null,
     // "" → null: an unparseable hash and a missing theme attribute are absence,
     // and an empty string in a nullable context column would read as a fact.
     route: input.route || null,

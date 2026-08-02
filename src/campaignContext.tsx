@@ -392,6 +392,7 @@ const mapFeedbackRow = (r: any): Omit<FeedbackItem, "voters"> => ({
   status: r.status,
   text: r.text ?? "",
   author: r.author ?? "",
+  authorUserId: r.author_user_id ?? undefined,
   // Provenance since 0041, and nullable — the campaign it was filed from may
   // since have been deleted.
   campaignId: r.campaign_id ?? undefined,
