@@ -3,7 +3,7 @@ import { pathToSweep } from "./storagePath";
 import { BUCKET } from "./upload";
 import { getActiveCampaignId } from "./activeCampaign";
 import { getActiveSessionId } from "./activeSession";
-import { SHOW_MARK, noteExcerpt, type KindKey, type PartyNote, type BoardPosition, type CampaignSummary, type SessionEventType, type Status } from "./data";
+import { SHOW_MARK, noteExcerpt, type FeedbackKind, type FeedbackStatus, type KindKey, type PartyNote, type BoardPosition, type CampaignSummary, type SessionEventType, type Status } from "./data";
 
 // Realtime subscriptions in campaignContext.tsx reflect writes back into UI
 // state, so callers do not need to patch local state (fire-and-forget is fine).
@@ -165,6 +165,100 @@ export async function insertPartyNote(
     entityLabel: opts.entityLabel,
     text: noteExcerpt(note.text),
   }, { silent: true }).catch((e) => console.error("annotate session event failed", e));
+}
+
+// ===== Feedback (0040) ======================================================
+
+// `author`, `route` and `theme` are the CALLER's, for the same reason
+// insertPartyNote's are: this module can't reach React context (the display
+// name) or make a judgment about what the reporter was looking at.
+export async function insertFeedback(input: {
+  kind: FeedbackKind;
+  text: string;
+  author: string;
+  route?: string;
+  theme?: string;
+}) {
+  const { error } = await supabase.from("feedback").insert({
+    campaign_id: getActiveCampaignId(),
+    kind: input.kind,
+    text: input.text,
+    author: input.author,
+    // "" → null: an unparseable hash and a missing theme attribute are absence,
+    // and an empty string in a nullable context column would read as a fact.
+    route: input.route || null,
+    theme: input.theme || null,
+    // status defaults to 'open' in the DB — never sent from here, because the
+    // client has no business proposing one and RLS wouldn't let it move one.
+  });
+  if (error) raiseWriteError(error);
+}
+
+// The "me too" toggle. `voted` is what the CALLER currently sees, so this is
+// insert-or-delete rather than a read-then-write: the vote's identity is its
+// primary key, so both halves are idempotent against the real state and a
+// stale `voted` costs one wasted round trip, never a wrong count.
+//
+// `userId` is passed in for the same reason `author` is — but note it's a uuid
+// here and a display name there, and the difference is load-bearing: this value
+// has to equal auth.uid() or the RLS insert policy rejects it. That check is
+// the only thing making one-vote-per-person mean anything, so this argument is
+// never the place to be clever.
+export async function toggleFeedbackVote(feedbackId: number, userId: string, voted: boolean) {
+  if (voted) {
+    // Silent on 0 rows, deliberately, unlike the row-targeted writes that go
+    // through expectRows: the delete policy gates on user_id alone (no
+    // membership clause), so the only way to affect nothing is that the vote is
+    // already gone — another tab, or a double tap. That is the outcome the user
+    // asked for, not a change that vanished.
+    const { error } = await supabase
+      .from("feedback_votes")
+      .delete()
+      .eq("feedback_id", feedbackId)
+      .eq("user_id", userId);
+    if (error) raiseWriteError(error);
+    return;
+  }
+  const { error } = await supabase.from("feedback_votes").insert({
+    feedback_id: feedbackId,
+    // Sent, then overwritten by the 0040 trigger from the parent row — the
+    // client's value is a hint the database doesn't trust, so a wrong one here
+    // can't file a vote into another campaign.
+    campaign_id: getActiveCampaignId(),
+    user_id: userId,
+  });
+  // 23505 is the composite PK: the vote already existed, which is exactly the
+  // state being asked for. Toasting "that change wasn't saved" over an
+  // already-satisfied request would be a lie about a count that is correct.
+  if (error && error.code !== "23505") raiseWriteError(error);
+}
+
+// DM-only (0040). Row-targeted and the row is known to exist in the loaded
+// campaign, so this takes the expectRows treatment: a non-DM's UPDATE is
+// RLS-*filtered* to 0 rows with no error, and without the count the status chip
+// would appear to move and then snap back on the next refetch.
+export async function setFeedbackStatus(feedbackId: number, status: FeedbackStatus) {
+  const { error, count } = await supabase
+    .from("feedback")
+    .update({ status }, { count: "exact" })
+    .eq("id", feedbackId)
+    .eq("campaign_id", getActiveCampaignId());
+  if (error) raiseWriteError(error);
+  expectRows(count);
+}
+
+// DM-only escape hatch for a duplicate or a misfire. Votes go with it through
+// `on delete cascade` (0040), so there's no sweep to do here — the contrast
+// with deleteEntity's app-side connection sweep is just that these rows have a
+// real FK to cascade along.
+export async function deleteFeedback(feedbackId: number) {
+  const { error, count } = await supabase
+    .from("feedback")
+    .delete({ count: "exact" })
+    .eq("id", feedbackId)
+    .eq("campaign_id", getActiveCampaignId());
+  if (error) raiseWriteError(error);
+  expectRows(count);
 }
 
 // ===== Board positions ======================================================

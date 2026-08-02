@@ -16,6 +16,7 @@ import { DetailSheet } from "./detail";
 import { LivePanel } from "./livePanel";
 import { CommandPalette, useCommandPaletteHotkey } from "./commandPalette";
 import { CleanupPanel } from "./cleanupPanel";
+import { FeedbackPanel } from "./feedbackPanel";
 import { JoinFlow } from "./join";
 
 function LoadingSheet() {
@@ -110,6 +111,7 @@ function AppLoaded() {
   const [writeErrorToast, setWriteErrorToast] = useState<{ message: string } | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [cleanupOpen, setCleanupOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   // Ephemeral "jump to this card on the board" intent, raised by the command
   // palette and consumed by NoticeBoard (which owns pan/zoom). seq (a
   // monotonic counter that survives the null reset) lets the same card be
@@ -307,7 +309,7 @@ function AppLoaded() {
     <>
       <div className="app">
         <Topbar view={view} onShare={onShare} onOpenCharter={() => setView("campaign")} onSearch={() => setPaletteOpen(true)} />
-        <Sidebar active={view} onSelect={setView} onOpenEntity={setOpenId} onOpenCleanup={() => setCleanupOpen(true)} counts={counts} />
+        <Sidebar active={view} onSelect={setView} onOpenEntity={setOpenId} onOpenCleanup={() => setCleanupOpen(true)} onOpenFeedback={() => setFeedbackOpen(true)} counts={counts} />
         <main className="main">
           {view === "board" && (
             <NoticeBoard
@@ -362,6 +364,8 @@ function AppLoaded() {
           onOpenEntity={(id) => { setOpenId(id); setCleanupOpen(false); }}
         />
       )}
+
+      {feedbackOpen && <FeedbackPanel onClose={() => setFeedbackOpen(false)} />}
 
       {shareToast && (
         <BottomToast>

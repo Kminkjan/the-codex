@@ -6,7 +6,7 @@ type IconName =
   | "monster"
   | "session" | "board" | "share" | "link" | "plus" | "search" | "filter"
   | "close" | "compass" | "sparkle" | "sword" | "scroll" | "layers"
-  | "check" | "chevron" | "trash" | "eye";
+  | "check" | "chevron" | "trash" | "eye" | "feedback";
 
 interface IconProps extends Omit<SVGProps<SVGSVGElement>, "name"> {
   name: IconName;
@@ -52,6 +52,10 @@ export const Icon = ({ name, size = 16, ...p }: IconProps) => {
     case "chevron":   return <svg {...common}><path d="M9 6l6 6-6 6"/></svg>;
     case "trash":     return <svg {...common}><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>;
     case "eye":       return <svg {...common}><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="2.5"/></svg>;
+    // Feedback (0040) — a speech bubble, deliberately not a megaphone or a bug:
+    // the surface takes both faults and requests, and either of those icons
+    // would name only half of it.
+    case "feedback":  return <svg {...common}><path d="M4 5h16v11H9l-4 4V5z"/><path d="M8 9h8M8 12h5"/></svg>;
     default: return null;
   }
 };

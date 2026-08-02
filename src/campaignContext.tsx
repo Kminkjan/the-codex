@@ -5,12 +5,15 @@ import { AuthContext, useAuth } from "./auth";
 import { setActiveCampaignId } from "./activeCampaign";
 import { setActiveSessionId } from "./activeSession";
 import { parseHash, writeCampaignHash } from "./route";
+import { foldFeedbackVotes } from "./feedback";
 import {
   projectCampaignForViewers,
   type Campaign,
   type CampaignSummary,
   type BoardPosition,
   type Connection,
+  type FeedbackItem,
+  type FeedbackVote,
   type KindKey,
   type PartyNote,
   type PresenceUser,
@@ -369,6 +372,27 @@ const mapPartyNoteRow = (r: any): { entityId: string; note: PartyNote } => ({
   },
 });
 
+// 0040. `voters` is attached by foldFeedbackVotes, not here — a mapper sees one
+// table and the votes live in another.
+const mapFeedbackRow = (r: any): Omit<FeedbackItem, "voters"> => ({
+  id: r.id,
+  // The CHECK constraints pin both columns, so no fallback: a value outside the
+  // union means the DB and this union have diverged, and defaulting it would
+  // hide that behind a row that renders as something it isn't.
+  kind: r.kind,
+  status: r.status,
+  text: r.text ?? "",
+  author: r.author ?? "",
+  route: r.route ?? undefined,
+  theme: r.theme ?? undefined,
+  createdAt: r.created_at,
+});
+
+const mapFeedbackVoteRow = (r: any): FeedbackVote => ({
+  feedbackId: r.feedback_id,
+  userId: r.user_id,
+});
+
 async function fetchCampaign(id: string): Promise<Campaign> {
   const [
     campaignRes,
@@ -392,6 +416,8 @@ async function fetchCampaign(id: string): Promise<Campaign> {
     connectionsRes,
     boardRes,
     notesRes,
+    feedbackRes,
+    feedbackVotesRes,
   ] = await Promise.all([
     supabase.from("campaigns").select("*").eq("id", id).single(),
     supabase.from("sessions").select("*").eq("campaign_id", id).order("num"),
@@ -427,6 +453,10 @@ async function fetchCampaign(id: string): Promise<Campaign> {
     supabase.from("connections").select("*").eq("campaign_id", id).order("id"),
     supabase.from("board_positions").select("*").eq("campaign_id", id),
     supabase.from("party_notes").select("*").eq("campaign_id", id).order("created_at"),
+    // No order: orderFeedback() owns the reading order and it isn't expressible
+    // here (it sorts on a vote count that lives in the other table).
+    supabase.from("feedback").select("*").eq("campaign_id", id),
+    supabase.from("feedback_votes").select("feedback_id,user_id").eq("campaign_id", id),
   ]);
 
   const first = [
@@ -434,6 +464,7 @@ async function fetchCampaign(id: string): Promise<Campaign> {
     sessionParticipantsRes, sessionAttendanceRes, sessionStagingRes, sessionEventsRes, dmNotesRes,
     peopleRes, locationsRes, questsRes, goalsRes, factionsRes, itemsRes,
     loreRes, monstersRes, connectionsRes, boardRes, notesRes,
+    feedbackRes, feedbackVotesRes,
   ].find((r) => r.error);
   if (first?.error) throw new Error(first.error.message);
 
@@ -469,6 +500,10 @@ async function fetchCampaign(id: string): Promise<Campaign> {
     connections: (connectionsRes.data ?? []).map(mapConnection),
     board: Object.fromEntries((boardRes.data ?? []).map(mapBoardPosition)),
     notes: notesByEntity,
+    feedback: foldFeedbackVotes(
+      (feedbackRes.data ?? []).map(mapFeedbackRow),
+      (feedbackVotesRes.data ?? []).map(mapFeedbackVoteRow),
+    ),
   };
 }
 
@@ -797,6 +832,38 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
         const refetchConnectionsSoon = debounce("connections", refetchConnections);
         const refetchBoardSoon = debounce("board", refetchBoard);
 
+        // Feedback (0040) refetches the PAIR of tables on a change to either,
+        // because the client-side shape is one array with votes folded in and a
+        // vote event carries no way to find its report's current row. Both
+        // subscriptions share this one debounce slot on purpose: filing a report
+        // and voting on it produce events on two tables that must not each
+        // trigger their own round trip.
+        //
+        // The reports table is tiny (tens of rows) and only an open panel is
+        // looking, so refetch-the-world is cheaper here than anywhere it's
+        // already accepted.
+        const refetchFeedback = () => {
+          Promise.all([
+            supabase.from("feedback").select("*").eq("campaign_id", campaignId),
+            supabase.from("feedback_votes").select("feedback_id,user_id").eq("campaign_id", campaignId),
+          ]).then(([itemsRes, votesRes]) => {
+            if (cancelled) return;
+            // A failed half would fold to "every vote withdrawn" or "the board
+            // is empty" — both indistinguishable from the real thing on screen,
+            // so leave the last good array in place and let the next event retry.
+            if (itemsRes.error || votesRes.error) {
+              console.error("feedback refetch failed", itemsRes.error ?? votesRes.error);
+              return;
+            }
+            const next = foldFeedbackVotes(
+              (itemsRes.data ?? []).map(mapFeedbackRow),
+              (votesRes.data ?? []).map(mapFeedbackVoteRow),
+            );
+            setCampaign((c) => c && c.id === campaignId ? { ...c, feedback: next } : c);
+          });
+        };
+        const refetchFeedbackSoon = debounce("feedback", refetchFeedback);
+
         // The shared pin lives on the campaigns row itself, so it's filtered by
         // `id`, not `campaign_id`. Keep both the React state and the module-level
         // store (read by mutations) in sync when another client moves the pin.
@@ -1047,6 +1114,21 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
               setCampaign((c) => c && c.id === campaignId ? { ...c, notes: byEntity } : c);
             });
           },
+        );
+        // Both feedback tables, one debounced handler. The DELETE half of each
+        // only arrives because 0040 sets REPLICA IDENTITY FULL — under the
+        // default identity a delete publishes the PK alone, which the
+        // campaign_id filter can't match, so un-voting would never reach anyone
+        // else's screen.
+        channel.on(
+          "postgres_changes" as any,
+          { event: "*", schema: "public", table: "feedback", filter },
+          refetchFeedbackSoon,
+        );
+        channel.on(
+          "postgres_changes" as any,
+          { event: "*", schema: "public", table: "feedback_votes", filter },
+          refetchFeedbackSoon,
         );
 
         channel.subscribe((status) => {

@@ -252,6 +252,42 @@ export interface PartyNote {
   hand: boolean;
 }
 
+// ===== Feedback (0040) ======================================================
+// Bugs and ideas the party raises about the codex itself, rather than about the
+// campaign. Append-only for players — `status` is the only mutable field and
+// only the DM may move it. The derivations live in src/feedback.ts.
+
+export type FeedbackKind = "bug" | "idea";
+export type FeedbackStatus = "open" | "planned" | "done" | "wontfix";
+
+export interface FeedbackItem {
+  id: number;
+  kind: FeedbackKind;
+  text: string;
+  // A display name, like every other byline here (party_notes, connections,
+  // session_attendance) — it must survive the account going away.
+  author: string;
+  // Captured context: the hash the reporter was looking at, and their theme.
+  // Both absent on a report filed from an unparseable hash, and both are only
+  // ever rendered as a hint — never resolved against an entity table, because
+  // a report outlives the thing it was filed about.
+  route?: string;
+  theme?: string;
+  status: FeedbackStatus;
+  createdAt: string;
+  // User ids that said "me too". A set by contract (see foldFeedbackVotes) —
+  // uuids and not display names, because this decides one-vote-per-person and
+  // nothing renders WHO voted, only the count and whether you did.
+  voters: string[];
+}
+
+// One feedback_votes row, as read. Exists only so the fold has a shape to take;
+// nothing keeps these around after foldFeedbackVotes runs.
+export interface FeedbackVote {
+  feedbackId: number;
+  userId: string;
+}
+
 // One row of the free-form `connections` table (a hand-drawn "string"). Was a
 // positional [from, to, label] tuple until 0031 added provenance; the object
 // form is what lets a reader ask WHEN a string was drawn.
@@ -386,6 +422,11 @@ export interface Campaign {
   connections: Connection[];
   board: Record<string, BoardPosition>;
   notes: Record<string, PartyNote[]>;
+  // Bugs and ideas about the codex itself (0040), votes already folded in.
+  // Unsorted here — orderFeedback() in src/feedback.ts decides reading order,
+  // and unlike every array above this one is NOT campaign content, so
+  // projectCampaignForViewers passes it through untouched.
+  feedback: FeedbackItem[];
 }
 
 // Lightweight row for the campaign picker (full data loads per-campaign).

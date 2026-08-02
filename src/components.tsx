@@ -7,6 +7,7 @@ import { Icon, MapScribble, kindIcon } from "./icons";
 import { rankIndex, KIND_LABEL, type Indexed } from "./entitySearch";
 import { focusImageStyle } from "./imageFocus";
 import { arcSubtreeIds, sagaTree } from "./saga";
+import { openFeedbackCount } from "./feedback";
 import { useCampaign, useCampaignSwitcher, useDismiss, useKinds, usePresence, useSeatless, useViewAsPlayer } from "./hooks";
 import { createCampaign, createEntity, endLiveSession, setActiveSession, startLiveSession, switchLiveSession } from "./mutations";
 import { requestCharterOnNextLoad } from "./route";
@@ -397,13 +398,14 @@ interface SidebarProps {
   onSelect: (v: string) => void;
   onOpenEntity: (id: string) => void;
   onOpenCleanup: () => void;
+  onOpenFeedback: () => void;
   counts: Record<string, { active: number; archived: number }>;
 }
 
 // Sessions rendered before the "… N earlier sessions" fold.
 const SESSION_CAP = 8;
 
-export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, counts }: SidebarProps) {
+export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, onOpenFeedback, counts }: SidebarProps) {
   const campaign = useCampaign();
   const kinds = useKinds();
   const { canEdit } = useAuth();
@@ -581,6 +583,23 @@ export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, counts 
             : `… ${hiddenSessions} earlier ${hiddenSessions === 1 ? "session" : "sessions"}`}
         </div>
       )}
+
+      {/* Last section on purpose: feedback is about the software, not the
+          campaign, so it sits below everything that IS the campaign. Open to
+          read-only viewers — the board is world-readable and a viewer who can't
+          write should still be able to see what's already been asked for. */}
+      <div className="sidebar-label"><span><ThemedLabel parchment="The Codex Itself" atlas="This app" /></span></div>
+      <div
+        className="nav-item"
+        onClick={onOpenFeedback}
+        title="Report a bug or suggest a feature"
+      >
+        <span className="icon"><Icon name="feedback" /></span>
+        <ThemedLabel parchment="Petitions &amp; Grievances" atlas="Feedback" />
+        {openFeedbackCount(campaign.feedback) > 0 && (
+          <span className="count">{openFeedbackCount(campaign.feedback)}</span>
+        )}
+      </div>
 
       <div className="sidebar-quote" style={{
         padding: "16px", marginTop: 12, borderTop: "1px dashed var(--vellum-deep)",

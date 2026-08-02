@@ -3131,6 +3131,124 @@ button.attend-chip.is-present:hover { border-color: var(--mustard); color: var(-
   padding: 0;
 }
 
+/* ── Feedback panel (0040) ─────────────────────────────────────────────────
+   Rides the .cleanup-* chrome above (overlay, panel, header, body, footer);
+   only the composer head, the report rows and the vote/status controls are its
+   own. Every colour is a theme variable — the grimoire theme inverts the paper,
+   so a hardcoded parchment tint would vanish there, and the vote button in
+   particular has to read as "pressed" on all three. */
+.feedback-compose {
+  padding: 12px 24px 14px;
+  border-bottom: 1px solid var(--vellum-deep);
+  background: var(--vellum-light);
+}
+.feedback-kind {
+  display: flex; gap: 6px;
+  margin-bottom: 8px;
+}
+.feedback-kind-btn {
+  background: transparent;
+  border: 1px solid var(--ink-ghost);
+  color: var(--ink-secondary);
+  font-family: var(--font-fell-sc);
+  letter-spacing: .14em;
+  font-size: 11px;
+  padding: 3px 12px;
+  cursor: pointer;
+}
+.feedback-kind-btn.active {
+  background: var(--bloodred);
+  border-color: var(--bloodred);
+  color: var(--paper-cream);
+}
+.feedback-row {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 10px 6px;
+  border-bottom: 1px solid var(--hairline);
+}
+/* Answered reports are kept for the record, not for reading — dimmed rather
+   than removed, so filing something that got built still shows it got built. */
+.feedback-row.settled { opacity: .58; }
+.feedback-vote {
+  flex: 0 0 auto;
+  display: flex; flex-direction: column; align-items: center;
+  gap: 1px;
+  min-width: 38px;
+  padding: 4px 2px;
+  background: transparent;
+  border: 1px solid var(--ink-ghost);
+  color: var(--ink-secondary);
+  cursor: pointer;
+  font-family: var(--font-body);
+}
+.feedback-vote:hover:not(:disabled) { border-color: var(--bloodred); color: var(--bloodred); }
+.feedback-vote:disabled { cursor: default; }
+.feedback-vote.voted {
+  border-color: var(--bloodred);
+  background: var(--bloodred);
+  color: var(--paper-cream);
+}
+.feedback-vote-caret { font-size: 9px; line-height: 1; }
+.feedback-vote-count { font-size: 13px; line-height: 1.1; }
+.feedback-main { flex: 1; min-width: 0; }
+.feedback-text {
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--ink);
+  /* Reports arrive from a contentEditable, so their paragraph breaks are real
+     newlines in a text column — without this they'd collapse into one run. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.feedback-meta {
+  display: flex; align-items: center; gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--ink-secondary);
+}
+.feedback-dot { color: var(--ink-ghost); }
+.feedback-where { font-style: italic; color: var(--ink-faded); }
+.feedback-tag {
+  font-family: var(--font-fell-sc);
+  letter-spacing: .14em;
+  font-size: 10px;
+  padding: 1px 6px;
+  border: 1px solid var(--ink-ghost);
+  color: var(--ink-secondary);
+}
+.feedback-tag.bug { border-color: var(--bloodred); color: var(--bloodred); }
+.feedback-status {
+  flex: 0 0 auto;
+  font-family: var(--font-fell-sc);
+  letter-spacing: .12em;
+  font-size: 10px;
+  color: var(--ink-secondary);
+  padding-top: 4px;
+}
+.feedback-status.done { color: var(--bloodred); }
+.feedback-dm { flex: 0 0 auto; display: flex; align-items: center; gap: 4px; }
+.feedback-status-select {
+  background: transparent;
+  border: 1px dashed var(--ink-faded);
+  color: var(--ink-secondary);
+  font-family: var(--font-fell-sc);
+  letter-spacing: .08em;
+  font-size: 11px;
+  padding: 2px 4px;
+  cursor: pointer;
+}
+.feedback-del {
+  background: transparent;
+  border: none;
+  color: var(--ink-ghost);
+  cursor: pointer;
+  padding: 2px;
+  display: grid; place-items: center;
+}
+.feedback-del:hover { color: var(--bloodred); }
+
 /* ── Sagas & Arcs page: two tiers (migration 0025) ─────────────────────────
    A saga is the heading, its arcs are indented beneath a rule that reads as a
    spine down the left. Every colour is a theme variable: the grimoire theme
@@ -3751,7 +3869,8 @@ button.attend-chip.is-present:hover { border-color: var(--mustard); color: var(-
   .m-type, .m-threat, .m-cr, .plate-stamp, .plate-lightbox-type,
   .saga-meta, .arc-meta, .saga-seal, .saga-step, .saga-choice,
   .saga-wizard-label, .saga-wizard-facts dt, .saga-unclaimed-head,
-  .cleanup-window-label, .note-send-btn) {
+  .cleanup-window-label, .note-send-btn,
+  .feedback-tag, .feedback-status, .feedback-kind-btn) {
   text-transform: uppercase;
 }
 
@@ -4675,6 +4794,21 @@ button.attend-chip.is-present:hover { border-color: var(--mustard); color: var(-
 [data-theme="modern"] .cleanup-empty { font-style: normal; }
 [data-theme="modern"] .cleanup-link-btn { font-style: normal; font-size: 12px; color: var(--ink-ghost); text-underline-offset: 3px; }
 [data-theme="modern"] .cleanup-link-btn:hover { color: var(--ink-secondary); }
+
+/* Feedback panel in Modern Atlas. Short for the same reason the saga block
+   below is: the font variables are already remapped to Inter, so this is only
+   the flat dress — no italics, soft radii, and the panel-surface swaps. The
+   uppercase treatment for .feedback-tag / .feedback-status / .feedback-kind-btn
+   lives in the shared :is() list near the top of this section. */
+[data-theme="modern"] .feedback-compose { background: transparent; border-bottom: 1px solid var(--vellum-deep); }
+[data-theme="modern"] .feedback-kind-btn { border-radius: 6px; border-color: var(--card-edge); font-weight: 600; }
+[data-theme="modern"] .feedback-vote { border-radius: 6px; border-color: var(--card-edge); }
+[data-theme="modern"] .feedback-row:hover { background: #20242f; }
+[data-theme="modern"] .feedback-text { font-size: 13px; }
+[data-theme="modern"] .feedback-where { font-style: normal; }
+[data-theme="modern"] .feedback-tag { border-radius: 4px; font-weight: 600; }
+[data-theme="modern"] .feedback-status { font-weight: 600; }
+[data-theme="modern"] .feedback-status-select { border-radius: 6px; border-style: solid; border-color: var(--card-edge); }
 
 /* Sagas & Arcs + the Complete Saga wizard in Modern Atlas.
    Deliberately short: the variable remap at the top of the file already turns
