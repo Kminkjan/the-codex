@@ -25,6 +25,15 @@ export function useIsDm(): boolean {
   return useContext(CampaignContext).isDm;
 }
 
+// May triage the app-wide feedback board (0041): move a report's status, remove
+// a duplicate. Deliberately NOT useIsDm — the board spans every campaign, and
+// deriving the capability from DM-ness would grant it to anyone who founds one.
+// Unaffected by "view as player", which is a campaign-view toggle and says
+// nothing about maintaining the app.
+export function useIsMaintainer(): boolean {
+  return useContext(CampaignContext).isMaintainer;
+}
+
 // "View as player" (#71). isRealDm ignores the toggle — it gates the toggle
 // affordance and banner themselves (which must survive the flip) and write
 // paths whose mutation choice depends on real DM-ness (SessionPin brackets).
