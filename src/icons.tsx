@@ -6,7 +6,7 @@ type IconName =
   | "monster"
   | "session" | "board" | "share" | "link" | "plus" | "search" | "filter"
   | "close" | "compass" | "sparkle" | "sword" | "scroll" | "layers"
-  | "check" | "chevron" | "trash" | "eye" | "feedback";
+  | "check" | "chevron" | "trash" | "eye" | "feedback" | "star";
 
 interface IconProps extends Omit<SVGProps<SVGSVGElement>, "name"> {
   name: IconName;
@@ -52,6 +52,10 @@ export const Icon = ({ name, size = 16, ...p }: IconProps) => {
     case "chevron":   return <svg {...common}><path d="M9 6l6 6-6 6"/></svg>;
     case "trash":     return <svg {...common}><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>;
     case "eye":       return <svg {...common}><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="2.5"/></svg>;
+    // Party mark. A five-point star, not a shield or a crown: `faction` is
+    // already a shield silhouette, and a crown says rank — wrong for five
+    // equals. Distinct from `sparkle` (an asterisk burst) at sigil size.
+    case "star":      return <svg {...common}><path d="M12 3.5l2.6 5.5 6 .8-4.4 4.2 1.1 6-5.3-2.9-5.3 2.9 1.1-6L3.4 9.8l6-.8L12 3.5z"/></svg>;
     // Feedback (0040) — a speech bubble, deliberately not a megaphone or a bug:
     // the surface takes both faults and requests, and either of those icons
     // would name only half of it.

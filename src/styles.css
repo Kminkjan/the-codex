@@ -1259,29 +1259,31 @@ button.attend-chip.is-present:hover { border-color: var(--mustard); color: var(-
   filter: sepia(.25) contrast(.95);
 }
 
-/* Portrait frames (PC / hostile). One axis, two marked states, unframed as the
+/* Portrait sigil (PC / hostile). One axis, two marked states, unmarked as the
    common case — see the derivation in PosterCard.
-   An ::after ring rather than a thicker border or an inset shadow, for two
-   reasons: a wider border would resize the aspect-ratio well and shift every
-   card, and an inset shadow paints UNDER .portrait-img, so it would vanish on
-   exactly the cards that have artwork. The ring is inset by its own width so
-   it sits inside the well, and it also carries a weight difference (2px vs
-   1px) so the two frames aren't distinguished by hue alone — colour is a poor
-   sole channel, and at board zoom-out a 1px hairline is close to invisible. */
-.card-poster .portrait.frame-pc::after,
-.card-poster .portrait.frame-hostile::after {
-  content: '';
-  position: absolute; inset: 0;
+   A notch of card stock cut into the well's corner rather than a badge floated
+   on top of the artwork: it borrows the surface the card already has, so it
+   needs no scrim to stay legible over a portrait and reads as part of the
+   frame instead of a sticker. Bottom-right because the seen-live dot owns the
+   card's top-right. Monochrome by design — the glyph is the carrier, so the
+   ink stays --ink-secondary in both states (the contrast floor small marks
+   need on grimoire) and no hue is spent distinguishing them. */
+.card-poster .portrait-sigil {
+  position: absolute;
+  right: 0; bottom: 0;
+  width: 20px; height: 20px;
+  display: grid; place-items: center;
+  background: var(--paper-scroll);
+  color: var(--ink-secondary);
+  /* --card-edge, not --ink-faded: this is card stock meeting the well, the
+     same join the card's own outline describes, and it's the one edge var
+     tuned per theme. --ink-faded is a light hairline on the two dark stocks
+     and would draw a bright L over the artwork. */
+  border-top: 1px solid var(--card-edge);
+  border-left: 1px solid var(--card-edge);
   pointer-events: none;
-  border-radius: inherit;
+  z-index: 2;
 }
-.card-poster .portrait.frame-pc::after { border: 2px solid var(--mustard); }
-.card-poster .portrait.frame-hostile::after { border: 1px solid var(--bloodred); }
-/* Parchment inks the well's own edge to match, so the frame reads as one rule
-   rather than a ring floating inside a brown border. Atlas drops the border
-   entirely (below), so there it's the ring alone — which is the flat look. */
-.card-poster .portrait.frame-pc { border-color: var(--mustard); }
-.card-poster .portrait.frame-hostile { border-color: var(--bloodred); }
 
 .card-poster .name {
   font-family: var(--font-fell-sc);

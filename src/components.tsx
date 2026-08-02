@@ -234,19 +234,26 @@ export function PosterCard({ person }: { person: any }) {
   // "Wanted" claimed a bounty the data never recorded. Cards carry uniform top
   // clearance now, so the portrait sits below the pin-head and the seen-live
   // dot instead of flush under them.
-  // Portrait frame — the band's replacement, and deliberately a much smaller
+  // Corner sigil — the band's replacement, and deliberately a much smaller
   // claim. ONE axis (what is this person to the party), only the two
-  // exceptional states marked, everyone else unframed: with most NPCs neutral
+  // exceptional states marked, everyone else unmarked: with most NPCs neutral
   // or unmarked, absence has to be the common case or the mark means nothing
   // again. Deceased is intentionally NOT here — the strikethrough name and the
-  // † tag already carry it twice, and a frame is one channel, so stacking a
+  // † tag already carry it twice, and the sigil is one channel, so stacking a
   // second axis onto it just re-creates the precedence problem. Hostile
   // outranks PC (rare, but a turned party member should read as the threat).
-  const frame = person.disposition === "hostile" ? "hostile" : isPc(person) ? "pc" : null;
+  //
+  // The glyph is the carrier and the ink is flat --ink-secondary in both
+  // states: hue alone fails for the ~8% of men with colour-vision deficiency,
+  // and a ring reads as presence/status by convention everywhere else (this
+  // card already spends a coloured dot on exactly that).
+  const sigil = person.disposition === "hostile"
+    ? { icon: "sword" as const, title: "Hostile" }
+    : isPc(person) ? { icon: "star" as const, title: "Party member" } : null;
   return (
     <div className="card-poster">
       {seenLive && <span className="seen-live-dot" title="Seen this session" />}
-      <div className={`portrait${frame ? ` frame-${frame}` : ""}`}>
+      <div className="portrait">
         {person.imageUrl
           ? <img
               src={person.imageUrl}
@@ -255,6 +262,11 @@ export function PosterCard({ person }: { person: any }) {
               style={focusImageStyle(person.imageFocus)}
             />
           : <span className="silhouette" />}
+        {sigil && (
+          <span className="portrait-sigil" title={sigil.title}>
+            <Icon name={sigil.icon} size={14} />
+          </span>
+        )}
       </div>
       <div className={`name${person.status === "dead" ? " is-dead" : ""}`}>{person.name}</div>
       {person.status === "dead" && <div className="deceased-tag">† deceased</div>}
