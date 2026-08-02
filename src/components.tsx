@@ -559,8 +559,10 @@ export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, counts 
         >
           <option value="all">every arc</option>
           {/* Sagas, each followed by its own arcs — a flat list can't tell the
-              two altitudes apart, and picking a saga filters its whole subtree. */}
-          {sagaTree(campaign).map(({ saga, arcs }) => [
+              two altitudes apart, and picking a saga filters its whole subtree.
+              Newest saga first, matching the Arcs page and the sessions list
+              right below this control, which is already newest-first. */}
+          {sagaTree(campaign, "recent").map(({ saga, arcs }) => [
             <option key={saga.id} value={saga.id}>{saga.title}</option>,
             ...arcs.map((a) => (
               <option key={a.id} value={a.id}>{`  ↳ ${a.title}`}</option>

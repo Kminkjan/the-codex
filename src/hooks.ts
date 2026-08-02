@@ -3,6 +3,7 @@ import { CampaignContext } from "./campaignContext";
 import { buildKinds, findEntity, type Campaign, type Entity, type KindKey } from "./data";
 import { readListSort, writeListSort } from "./listPrefs";
 import { isSortKey, type SortKey } from "./listSort";
+import { isChronicleOrder, type ChronicleOrder } from "./chronicle";
 
 export function useCampaign(): Campaign {
   const { campaign } = useContext(CampaignContext);
@@ -91,6 +92,24 @@ export function useListSort(kind: KindKey): [SortKey, (next: SortKey) => void] {
     writeListSort(kind, next);
   }, [kind]);
   return [sort, choose];
+}
+
+// The Chronicle of Events' order control. Shares listPrefs' store — sort is
+// exactly the kind of state that file exists for — under a key no KindKey can
+// collide with, since `events` isn't one of the nine kinds. No `kind` prop to
+// react to here, so unlike useListSort this needs no resync effect.
+const CHRONICLE_KEY = "events:chronicle";
+
+export function useChronicleOrder(): [ChronicleOrder, (next: ChronicleOrder) => void] {
+  const [order, setOrder] = useState<ChronicleOrder>(() => {
+    const stored = readListSort(CHRONICLE_KEY);
+    return isChronicleOrder(stored) ? stored : "default";
+  });
+  const choose = useCallback((next: ChronicleOrder) => {
+    setOrder(next);
+    writeListSort(CHRONICLE_KEY, next);
+  }, []);
+  return [order, choose];
 }
 
 export function useFindEntity() {
