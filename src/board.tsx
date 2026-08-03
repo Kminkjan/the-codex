@@ -162,14 +162,23 @@ export function NoticeBoard({
   );
 
   // The entities tied to the focused session: quests logged in it and people
-  // last seen there (sessions link to nothing else in the model). null means
-  // "no focus" — either "All sessions", or a session with nothing linked to it
-  // (an empty set would otherwise recede the whole board, spotlighting nothing).
+  // who appeared in it. null means "no focus" — either "All sessions", or a
+  // session with nothing linked to it (an empty set would otherwise recede the
+  // whole board, spotlighting nothing).
+  //
+  // People come from the session_participants junction, NOT from `lastSeen`.
+  // The pointer is that junction collapsed to its highest-num session, so
+  // matching on it means a person only ever lights up under the LAST chapter
+  // they appeared in — focus chapter 3 and someone seen in both 3 and 5 stays
+  // dark. That has been wrong since 0013 gave appearances a junction; it was
+  // just hard to notice while the only writer was the live-session tap, which
+  // usually made the two agree. The Cast register makes multi-chapter histories
+  // ordinary, so the difference is now the common case.
   const sessionFocus: Set<string> | null = (() => {
     if (filters.sessions === "all") return null;
     const s = new Set([
       ...campaign.quests.filter((q) => q.session === filters.sessions).map((q) => q.id),
-      ...campaign.people.filter((p) => p.lastSeen === filters.sessions).map((p) => p.id),
+      ...(campaign.sessionParticipants[filters.sessions] ?? []),
     ]);
     return s.size > 0 ? s : null;
   })();

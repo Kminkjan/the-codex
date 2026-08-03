@@ -733,6 +733,156 @@ function AttendanceRegister({ sessionId }: { sessionId: string }) {
   );
 }
 
+// "Those Who Appeared" — the session_participants register (0013), on the
+// chapter's own sheet. The counterpart to the "+ Seen this session" toggle on a
+// person's sheet, and the reason markSeen now takes a session id: that toggle
+// can only ever write the LIVE chapter, so reconstructing an old one meant
+// going live on it in turn, which flips the shared pin for every player
+// watching. A DM backfilling history works chapter by chapter, so the control
+// belongs here.
+//
+// Read the boundary before extending this. It is NOT AttendanceRegister above
+// (session_attendance, 0039 — who sat at the table, which is a different fact:
+// a PC can appear in a chapter their player missed). It is NOT the prep queue
+// below (what the DM intends to reveal). And it is NOT presence.
+//
+// TWO CONSEQUENCES THE UI HAS TO SAY OUT LOUD, because the write is silent and
+// the column it feeds is derived:
+//   * `people.last_seen_session_id` is the MAX session num in this junction. So
+//     adding someone to a chapter LATER than anything they already appear in
+//     moves their Last-seen ribbon, their place in the People sort and the
+//     cleanup panel's staleness verdict — while adding them to an EARLIER one
+//     changes nothing visible at all. The second looks like a bug.
+//   * Removing a person's only appearance nulls that pointer outright rather
+//     than falling back to a previous chapter, because there is no previous
+//     chapter to fall back to. Hence the confirm — but only in that case, since
+//     a confirm on every removal would train the DM to click through it.
+function CastRegister({ sessionId }: { sessionId: string }) {
+  const campaign = useCampaign();
+  const { canEdit } = useAuth();
+
+  // The `?? []` has to be memoized, not inlined: the junction map is sparse, so
+  // a session with nobody recorded yet would mint a fresh array every render
+  // and defeat every useMemo downstream that depends on it — precisely in the
+  // state a DM starting a backfill is looking at.
+  const appeared = useMemo(
+    () => campaign.sessionParticipants[sessionId] ?? [],
+    [campaign.sessionParticipants, sessionId],
+  );
+  const byId = useMemo(
+    () => new Map(campaign.people.map((p) => [p.id, p])),
+    [campaign.people],
+  );
+  // Sorted by name, and deliberately NOT with the dead sunk to the bottom the
+  // way the attendance roster does it. That roster is the standing party, where
+  // a dead PC is an exception; a chapter's cast is whoever was on screen, and
+  // in a long campaign plenty of them are dead now. Burying them would scramble
+  // the register for no gain.
+  const cast = appeared
+    .flatMap((id) => { const p = byId.get(id); return p ? [p] : []; })
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  // How many chapters each person appears in, so removal knows whether it is
+  // about to null a pointer. Counting the junction directly rather than reading
+  // `lastSeen`, which is the collapsed form and can't distinguish one
+  // appearance from ten.
+  const appearanceCount = useMemo(() => {
+    const n = new Map<string, number>();
+    for (const ids of Object.values(campaign.sessionParticipants)) {
+      for (const id of ids) n.set(id, (n.get(id) ?? 0) + 1);
+    }
+    return n;
+  }, [campaign.sessionParticipants]);
+
+  // Everyone not already on the register. Archived and dead people stay in the
+  // list for the attendance roster's reason (detail.tsx above): back-filling an
+  // old chapter needs exactly the people who have since been retired or killed.
+  const options = useMemo<EntityOption[]>(() => {
+    const already = new Set(appeared);
+    return campaign.people
+      .filter((p) => !already.has(p.id))
+      .map((p) => ({
+        id: p.id,
+        label: p.name,
+        kind: "people" as const,
+        archived: p.archived,
+        hidden: p.hidden,
+      }));
+  }, [campaign.people, appeared]);
+
+  const sessionNum = campaign.sessions.find((s) => s.id === sessionId)?.num;
+
+  // "session", not "chapter": a native confirm() can't go through ThemedLabel,
+  // so like a pure module's strings this has to be voice-neutral. `session` is
+  // the word both dresses already share here — the Last seen ribbon reads
+  // "Session N" untranslated in every theme.
+  const remove = (p: { id: string; name: string }) => {
+    const only = (appearanceCount.get(p.id) ?? 0) <= 1;
+    if (only && !window.confirm(
+      `This is the only session ${p.name} appears in. Removing it clears their Last seen entirely — it won't fall back to an earlier one. Remove anyway?`,
+    )) return;
+    unmarkSeen(p.id, sessionId).catch(console.error);
+  };
+
+  return (
+    <div style={{ marginBottom: 26 }}>
+      <h3><ThemedLabel parchment="Those Who Appeared" atlas="Cast" /></h3>
+      {cast.length > 0 && (
+        <div className="cast-register">
+          {cast.map((p) => {
+            const label = <><span className="cast-tick">✓</span>{p.name}</>;
+            if (!canEdit) {
+              return <span key={p.id} className="cast-chip is-present">{label}</span>;
+            }
+            return (
+              <button
+                key={p.id}
+                className="cast-chip is-present"
+                title={`${p.name} appeared here — click to remove`}
+                onClick={() => remove(p)}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      <div className="cast-note">
+        {cast.length === 0
+          ? canEdit
+            ? <ThemedLabel
+                parchment="None are recorded as having appeared in this chapter."
+                atlas="No appearances recorded for this session yet."
+              />
+            : <ThemedLabel
+                parchment="None are recorded as having appeared in this chapter."
+                atlas="No appearances recorded."
+              />
+          : `${cast.length} ${cast.length === 1 ? "person" : "people"} appeared.`}
+      </div>
+      {canEdit && (
+        <>
+          <EntityCombobox
+            options={options}
+            onSelect={(id) => {
+              if (!id) return;
+              markSeen(id, sessionId).catch(console.error);
+            }}
+            placeholder="Record someone as appearing here…"
+            style={{ marginTop: 8, fontSize: 13 }}
+          />
+          <div className="cast-note" style={{ marginTop: 6 }}>
+            <ThemedLabel
+              parchment={`Last seen follows the latest chapter a soul appears in, so adding to this one only moves that ribbon if ${sessionNum ? `Session ${sessionNum}` : "this chapter"} is their latest.`}
+              atlas={`Last seen tracks the latest session a person appears in, so adding them here only changes it if ${sessionNum ? `session ${sessionNum}` : "this session"} is their latest.`}
+            />
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // The session's prep queue, on the session's own sheet — the counterpart to
 // StageControls, so a DM can prepare a whole evening from one page instead of
 // visiting nine entity sheets. DM-only (the queue is projected out for everyone
@@ -1672,6 +1822,7 @@ export function DetailSheet({ entityId, onClose, onOpen }: DetailSheetProps) {
           <div className="detail-body">
             <div className="detail-notes">
               {kind === "sessions" && <AttendanceRegister sessionId={entityId} />}
+              {kind === "sessions" && <CastRegister sessionId={entityId} />}
 
               <h3>Chronicle</h3>
 

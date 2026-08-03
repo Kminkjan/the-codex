@@ -544,8 +544,21 @@ export async function upsertMyProfile(userId: string, displayName: string | null
   if (error) throw error;
 }
 
-export async function markSeen(personId: string) {
-  const sessionId = getActiveSessionId();
+// `session` defaults to the live pin, which is what the "+ Seen this session"
+// tap and the create-while-live path want. Pass it explicitly to record an
+// appearance in a chapter that isn't live — the Cast register on a session's
+// own sheet does, because a DM reconstructing history is working chapter by
+// chapter and going live on each one in turn would flip the shared pin for
+// every player watching. The junction never had a live-session concept; only
+// this function did.
+//
+// One consequence to keep in mind at every call site: the write is silent, and
+// `people.last_seen_session_id` is derived from the MAX session num in here. So
+// marking a later chapter moves that pointer (and the ribbon, the People sort,
+// the cleanup panel's staleness verdict), while marking an earlier one changes
+// nothing visible. Neither says so on its own.
+export async function markSeen(personId: string, session?: string) {
+  const sessionId = session ?? getActiveSessionId();
   if (!sessionId) {
     console.warn("markSeen: no active session — nothing to mark against");
     return;
@@ -564,8 +577,13 @@ export async function markSeen(personId: string) {
   if (error) raiseWriteError(error);
 }
 
-export async function unmarkSeen(personId: string) {
-  const sessionId = getActiveSessionId();
+// Same defaulting as markSeen. Note what removing the LAST row for a person
+// does: the trigger recomputes their pointer over an empty set and nulls it, so
+// the Last-seen ribbon disappears entirely rather than falling back to a
+// previous chapter. Correct by derivation, surprising on screen — the Cast
+// register confirms before it calls this.
+export async function unmarkSeen(personId: string, session?: string) {
+  const sessionId = session ?? getActiveSessionId();
   if (!sessionId) return;
   const { error } = await supabase
     .from("session_participants")
@@ -709,8 +727,11 @@ export async function releaseEntity(
     insertSessionEvent({ type: "reveal", sessionId, entityId, text: opts.label }),
   ]);
   // A released person has, by definition, shown up on screen. Idempotent and
-  // non-fatal — the release itself already succeeded.
-  if (kind === "people") markSeen(entityId).catch(console.error);
+  // non-fatal — the release itself already succeeded. Marked against THIS
+  // session, not the live pin: the reveal above lands on `sessionId`, so
+  // re-reading the pin here could file the appearance under a different chapter
+  // than the event that caused it, or drop it entirely when nothing is live.
+  if (kind === "people") markSeen(entityId, sessionId).catch(console.error);
 }
 
 // The loud sibling of releaseEntity ("show now", #69): same permanent unlock,
@@ -747,7 +768,7 @@ export async function showEntity(
       text: SHOW_MARK + (opts.label ?? ""),
     }),
   ]);
-  if (kind === "people") markSeen(entityId).catch(console.error);
+  if (kind === "people") markSeen(entityId, sessionId).catch(console.error);
 }
 
 // DM ceremony around the shared pin: moving it also brackets the feed with
