@@ -761,7 +761,14 @@ function CastRegister({ sessionId }: { sessionId: string }) {
   const campaign = useCampaign();
   const { canEdit } = useAuth();
 
-  const appeared = campaign.sessionParticipants[sessionId] ?? [];
+  // The `?? []` has to be memoized, not inlined: the junction map is sparse, so
+  // a session with nobody recorded yet would mint a fresh array every render
+  // and defeat every useMemo downstream that depends on it — precisely in the
+  // state a DM starting a backfill is looking at.
+  const appeared = useMemo(
+    () => campaign.sessionParticipants[sessionId] ?? [],
+    [campaign.sessionParticipants, sessionId],
+  );
   const byId = useMemo(
     () => new Map(campaign.people.map((p) => [p.id, p])),
     [campaign.people],
@@ -805,10 +812,14 @@ function CastRegister({ sessionId }: { sessionId: string }) {
 
   const sessionNum = campaign.sessions.find((s) => s.id === sessionId)?.num;
 
+  // "session", not "chapter": a native confirm() can't go through ThemedLabel,
+  // so like a pure module's strings this has to be voice-neutral. `session` is
+  // the word both dresses already share here — the Last seen ribbon reads
+  // "Session N" untranslated in every theme.
   const remove = (p: { id: string; name: string }) => {
     const only = (appearanceCount.get(p.id) ?? 0) <= 1;
     if (only && !window.confirm(
-      `This is the only chapter ${p.name} appears in. Removing it clears their Last seen entirely — it won't fall back to an earlier session. Remove anyway?`,
+      `This is the only session ${p.name} appears in. Removing it clears their Last seen entirely — it won't fall back to an earlier one. Remove anyway?`,
     )) return;
     unmarkSeen(p.id, sessionId).catch(console.error);
   };
@@ -827,7 +838,7 @@ function CastRegister({ sessionId }: { sessionId: string }) {
               <button
                 key={p.id}
                 className="cast-chip is-present"
-                title={`${p.name} appeared in this chapter — click to remove`}
+                title={`${p.name} appeared here — click to remove`}
                 onClick={() => remove(p)}
               >
                 {label}
