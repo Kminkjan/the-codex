@@ -692,12 +692,20 @@ button.session-pin { line-height: 1; }
 
 /* "Those Who Sat" — the attendance register on a session sheet. A chip is a
    two-state control, so absent must read as a real (empty) slot rather than as
-   missing: dashed and faded, the same grammar as the .seen-toggle above. */
-.attend-register {
+   missing: dashed and faded, the same grammar as the .seen-toggle above.
+
+   The .cast-* selectors ride along: "Those Who Appeared" (session_participants)
+   is a visually identical register of a deliberately different fact, so it
+   shares these rules rather than cloning them — one Atlas override block below
+   to keep in sync instead of two. The names stay distinct because 0039 exists
+   precisely to keep attendance and appearance from being conflated. Note the
+   cast register only ever renders present chips (it lists who appeared, and
+   absence is the absence of a chip), so it uses the .is-present half only. */
+.attend-register, .cast-register {
   display: flex; flex-wrap: wrap; gap: 6px;
   margin-bottom: 8px;
 }
-.attend-chip {
+.attend-chip, .cast-chip {
   display: inline-flex; align-items: center; gap: 5px;
   padding: 4px 11px;
   background: transparent;
@@ -709,16 +717,17 @@ button.session-pin { line-height: 1; }
   cursor: pointer;
   white-space: nowrap;
 }
-button.attend-chip:hover { border-color: var(--mustard); color: var(--mustard-deep); }
-.attend-chip.is-present {
+button.attend-chip:hover, button.cast-chip:hover { border-color: var(--mustard); color: var(--mustard-deep); }
+.attend-chip.is-present, .cast-chip.is-present {
   background: var(--paper-cream);
   border-style: solid;
   border-color: var(--forest);
   color: var(--ink);
 }
-button.attend-chip.is-present:hover { border-color: var(--mustard); color: var(--mustard-deep); }
-.attend-tick { color: var(--forest); font-size: 12px; }
-.attend-note {
+button.attend-chip.is-present:hover,
+button.cast-chip.is-present:hover { border-color: var(--mustard); color: var(--mustard-deep); }
+.attend-tick, .cast-tick { color: var(--forest); font-size: 12px; }
+.attend-note, .cast-note {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   font-family: var(--font-body);
   font-style: italic;
@@ -4668,7 +4677,8 @@ button.attend-chip.is-present:hover { border-color: var(--mustard); color: var(-
 /* Attendance register: Atlas keeps the dashed/solid distinction (it's the state
    signal) and drops the paper fill for the flat tinted pill it uses elsewhere
    for "on" — see .seen-toggle.seen just above. */
-[data-theme="modern"] .attend-chip {
+[data-theme="modern"] .attend-chip,
+[data-theme="modern"] .cast-chip {
   border-radius: 8px;
   border-color: #3d4353;
   font-family: var(--font-ui);
@@ -4679,14 +4689,18 @@ button.attend-chip.is-present:hover { border-color: var(--mustard); color: var(-
      floor. Parchment keeps --ink-faded, where contrast is ample. */
   color: var(--ink-secondary);
 }
-[data-theme="modern"] button.attend-chip:hover { border-color: #4a5162; color: var(--ink-body); }
-[data-theme="modern"] .attend-chip.is-present {
+[data-theme="modern"] button.attend-chip:hover,
+[data-theme="modern"] button.cast-chip:hover { border-color: #4a5162; color: var(--ink-body); }
+[data-theme="modern"] .attend-chip.is-present,
+[data-theme="modern"] .cast-chip.is-present {
   background: rgba(127,174,110,.12);
   border-color: transparent;
   color: var(--forest);
 }
-[data-theme="modern"] button.attend-chip.is-present:hover { border-color: var(--forest); color: var(--forest); }
-[data-theme="modern"] .attend-note { font-style: normal; font-size: 12px; color: var(--ink-secondary); }
+[data-theme="modern"] button.attend-chip.is-present:hover,
+[data-theme="modern"] button.cast-chip.is-present:hover { border-color: var(--forest); color: var(--forest); }
+[data-theme="modern"] .attend-note,
+[data-theme="modern"] .cast-note { font-style: normal; font-size: 12px; color: var(--ink-secondary); }
 [data-theme="modern"] .attend-propose {
   border-radius: 6px;
   border-color: var(--card-edge);
