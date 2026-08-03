@@ -8,8 +8,17 @@
 -- person recomputes the pointer from a junction holding only the row just
 -- created. This directory's README has warned about it since 0029 and every
 -- seed here did it anyway; 0029 fixed Fendwick, and this migration finishes the
--- job for everyone else (36 people at time of writing, all Fist of Ilmater,
--- hand-written by 0011/0012).
+-- job for everyone else.
+--
+-- THE SET IS 36 IN PROD AND 31 ON A PREVIEW BRANCH, and the gap is not an
+-- error — it is the 0014 anomaly this directory's README documents. Of prod's
+-- 36 (all Fist of Ilmater): 29 got their pointer from the 0011/0012 seeds, 2
+-- got one from a seed and had it corrected later, and 5 were null in the seeds
+-- and were only ever written by ../history/0014_foi_last_seen_and_archive.sql —
+-- a script applied to prod out of band that deliberately does NOT live in this
+-- directory and so never replays. A preview branch therefore sees only the 31
+-- the chain itself produces. Both numbers are right; neither is a target the
+-- SQL aims at, because the statement is data-driven.
 --
 -- WHY NOW. Until now the hazard was survivable, because the only writer was the
 -- app's "+ Seen this session" tap, which always writes the LIVE session — so a
@@ -47,9 +56,9 @@
 --
 -- NOT a no-op on preview branches. They are created with_data = false but they
 -- replay 0001 -> head, and the FOI seeds are in that chain — so a preview
--- branch inserts its own ~33 rows here and ends up in prod's post-fix shape.
--- That is the point. Idempotent on replay: once a person has rows, the NOT
--- EXISTS is false.
+-- branch inserts its own 31 rows here (see the count note above) and ends up in
+-- the same shape prod will be in. That is the point. Idempotent on replay: once
+-- a person has rows, the NOT EXISTS is false.
 --
 -- Two side effects worth knowing, neither harmful:
 --   * tg_people_touch (0005) bumps people.updated_at on every row the trigger
@@ -57,8 +66,9 @@
 --     People order keys on the resolved session number first and only falls
 --     through to updated_at as a tiebreak, so the visible order barely moves —
 --     but the `recent` / `oldest` sorts will. 0029 did this to Fendwick too.
---   * Both tables are in the supabase_realtime publication (0013 §5), so this
---     publishes ~72 events in one burst. Merge it when nobody is live.
+--   * Both tables are in the supabase_realtime publication (`people` since
+--     0001, `session_participants` since 0013 §5), so this publishes ~72 events
+--     in one burst. Merge it when nobody is live.
 -- ===========================================================================
 
 -- Guard. The insert below copies the PERSON's campaign_id onto the junction
