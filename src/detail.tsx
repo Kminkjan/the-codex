@@ -30,6 +30,7 @@ import {
 import { findFreeSpot } from "./boardLayout";
 import { PlateLightbox } from "./bestiary";
 import { crLabel, crToThreat, parseCr } from "./monsters";
+import { orderStaged } from "./staging";
 import { FeedRow } from "./livePanel";
 import { uploadEntityImage, type UploadableKind } from "./upload";
 import { deriveRelations } from "./relations";
@@ -892,18 +893,22 @@ function SessionPrepList({ sessionId, onOpen }: { sessionId: string; onOpen: (id
   const campaign = useCampaign();
   const findEntity = useFindEntity();
 
-  const rows = campaign.sessionStaging
-    .filter((r) => r.sessionId === sessionId)
-    // A staging row can transiently dangle between an entity delete and the
-    // staging sweep landing — skip rather than render a ghost.
-    .flatMap((r) => {
-      const ent = findEntity(r.entityId);
-      return ent ? [{ row: r, ent }] : [];
-    })
-    .sort((a, b) =>
-      (a.row.releasedAt ? 1 : 0) - (b.row.releasedAt ? 1 : 0)
-      || entityLabel(a.ent).localeCompare(entityLabel(b.ent)),
-    );
+  // Same reading order as the live panel's desk, through the same pure module
+  // (src/staging.ts): prep order first, unknown staged_at last, released rows
+  // after the queue. These were two hand-rolled alphabetical sorts before 0045
+  // gave the table an order of its own.
+  const rows = orderStaged(
+    campaign.sessionStaging
+      .filter((r) => r.sessionId === sessionId)
+      // A staging row can transiently dangle between an entity delete and the
+      // staging sweep landing — skip rather than render a ghost.
+      .flatMap((r) => {
+        const ent = findEntity(r.entityId);
+        return ent
+          ? [{ entityId: r.entityId, stagedAt: r.stagedAt, releasedAt: r.releasedAt, label: entityLabel(ent), row: r, ent }]
+          : [];
+      }),
+  );
 
   // Only the archivable kinds carry `hidden` and a reveal ceremony — sessions,
   // arcs and events are never staged.
@@ -940,11 +945,13 @@ function SessionPrepList({ sessionId, onOpen }: { sessionId: string; onOpen: (id
           <Icon name={kindIcon[ent._kind as KindKey]} size={13} />
           <span className="lbl" onClick={() => onOpen(row.entityId)} title={entityLabel(ent)}>
             {entityLabel(ent)}
-            {/* Staged-but-visible is legal (the STAGE flow allows it) — surface
-                it so a later "reveal" of something the party already sees is
-                deliberate, not a surprise. */}
-            {!row.releasedAt && !isHidden(ent) && <span className="live-visible-hint">visible</span>}
           </span>
+          {/* Outside the .lbl span, deliberately — inside it the chip was
+              clipped by the ellipsis on exactly the long names that need the
+              warning. Staged-but-visible is legal (the STAGE flow allows it),
+              so a later "reveal" of something the party already sees should
+              read as deliberate rather than a surprise. */}
+          {!row.releasedAt && !isHidden(ent) && <span className="live-visible-hint">visible</span>}
           {row.releasedAt ? (
             <span className="live-released" title="Released during this session">✓ revealed</span>
           ) : (

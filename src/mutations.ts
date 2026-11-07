@@ -641,12 +641,20 @@ export async function stageEntity(sessionId: string, entityId: string) {
   // Merge (NOT ignoreDuplicates, unlike markSeen): re-staging a previously
   // released row must reset released_at to null — "staged" always means
   // queued-and-unreleased. The staging UPDATE policy permits the merge path.
+  //
+  // staged_at (0045) is sent explicitly rather than left to the column default,
+  // because the default only fires on INSERT: on the merge path it would keep
+  // the row's original timestamp. Bumping it is deliberate — re-staging means
+  // "queue this again", so the row belongs at the back of the queue it just
+  // rejoined, and that makes re-staging the desk's only reordering gesture.
+  // Client clock, like released_at above, so a skewed DM stays self-consistent.
   const { error } = await supabase.from("session_staging").upsert(
     {
       campaign_id: getActiveCampaignId(),
       session_id: sessionId,
       entity_id: entityId,
       released_at: null,
+      staged_at: new Date().toISOString(),
     },
     { onConflict: "session_id,entity_id" },
   );
