@@ -33,6 +33,21 @@ propose *replacing* it with prose, keeping the digest below the prose only if th
 npx tsx .claude/skills/session-recap/gather.ts --campaign=<id> --session=<num|latest>
 ```
 
+**In a cloud session (claude.ai/code), run it as**
+`NODE_USE_ENV_PROXY=1 npx tsx .claude/skills/session-recap/gather.ts …`. Outbound traffic there goes
+through an HTTPS proxy, and Node's built-in `fetch` ignores `HTTPS_PROXY` unless that flag is set
+(Node ≥ 22.21). Without it every request dies as a bare `TypeError: fetch failed`, which reads like a
+bad key or URL but isn't. `curl` honours the proxy on its own, so the Step 3 and Step 6 commands
+need nothing extra. Two more cloud-only snags, both seen on the FoI S194/S195 run:
+
+- **`gather.ts` reads `.env`, not the process environment**, and a cloud checkout has no `.env` even
+  when the environment exports both variables. Write one from them first (it is gitignored):
+  `printf 'VITE_SUPABASE_URL=%s\nSUPABASE_SERVICE_ROLE_KEY=%s\n' "$VITE_SUPABASE_URL" "$SUPABASE_SERVICE_ROLE_KEY" > .env`
+- **The Supabase host must be on the environment's network allowlist.** If it isn't, the proxy
+  refuses the CONNECT (curl exits 56; `curl -sS "$HTTPS_PROXY/__agentproxy/status"` lists the host
+  under `recentRelayFailures`). The user adds `nsemknuzupcnvctevgfd.supabase.co` under the
+  environment's Network access settings; nothing in the session can work around it.
+
 Write the JSON to the scratchpad rather than reading it inline if it is large. The bundle holds
 `feed`, `notes`, `connections`, `touchedEntities`, `openGoals`, a `styleExemplar` (the most recent
 previous session that has a written summary), and an `excluded` block.
