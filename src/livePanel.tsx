@@ -17,6 +17,11 @@ import { focusImageStyle } from "./imageFocus";
 // mirror of any DB state (collapse and in-flight release are UI-only, and the
 // composer's unsent draft is pre-DB by definition — see src/noteDrafts.ts).
 
+// Stable DOM ids for the desk's rows, so the listbox can name its active
+// option through aria-activedescendant — selection here is roving state, not
+// focus, so without this a screen reader is never told what Enter would act on.
+const stageRowId = (entityId: string) => `stage-row-${entityId}`;
+
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
@@ -120,7 +125,13 @@ export function FeedRow({ ev, onOpenEntity }: { ev: SessionEvent; onOpenEntity: 
 // 97px and truncated 19 of 24 real entity names, clustering lookalikes like
 // "Adult Red Dracolich" / "Adult Red Dragon" into rows that read identically.
 // With one action bar at the foot of the desk the name gets 245px at the same
-// panel width, nothing truncates, and the rows get shorter rather than taller.
+// panel width and nothing truncates.
+//
+// That is a trade, not a free win, and the direction is worth stating plainly:
+// rows do get shorter (37px → 31.8px), but the bar costs 73px, so the desk
+// shows FEWER rows until the queue passes ~14. Measured at a 900px window with
+// 24 staged: 7.38 rows visible before, 6.08 after. Legibility and a labelled
+// target were judged worth about one row of density.
 //
 // The bar is also the safety fix. RELEASE and ⚡ SHOW NOW are one-way, public
 // acts; naming their target in full, in a place with room for it, beats two
@@ -142,6 +153,10 @@ function DmSection({ sessionId, onOpenEntity }: { sessionId: string; onOpenEntit
   // and whether tonight's record is expanded. Never mirrored to the DB.
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showReleased, setShowReleased] = useState(false);
+  // Arrow keys move the selection through a list that scrolls, so the selected
+  // row has to be brought into view — otherwise Enter releases an entity the
+  // DM cannot see. "nearest" so it never scrolls when the row is already shown.
+  const rowRefs = useRef(new Map<string, HTMLDivElement>());
 
   const items = campaign.sessionStaging
     .filter((r) => r.sessionId === sessionId)
@@ -163,8 +178,18 @@ function DmSection({ sessionId, onOpenEntity }: { sessionId: string; onOpenEntit
   // the selection means that retires the action bar instead of stranding it.
   const selected = visible.find((i) => i.entityId === selectedId) ?? null;
 
+  useEffect(() => {
+    if (selectedId) rowRefs.current.get(selectedId)?.scrollIntoView({ block: "nearest" });
+  }, [selectedId]);
+
   const onRelease = (kind: KindKey, entityId: string, label: string) => {
     setReleasing((prev) => new Set(prev).add(entityId));
+    // The row is about to move from the queue into tonight's record. With the
+    // record folded that would take it off the desk mid-act, dropping the
+    // selection and the action bar with it — and the usual next beat is ⚡ SHOW
+    // NOW on the thing just released, which showEntity explicitly supports.
+    // Opening the record keeps it selected and on screen.
+    setShowReleased(true);
     releaseEntity(kind, entityId, sessionId, { label }).catch((e) => {
       console.error("releaseEntity failed", e);
       setReleasing((prev) => {
@@ -179,6 +204,9 @@ function DmSection({ sessionId, onOpenEntity }: { sessionId: string; onOpenEntit
   // every player client. Legal on both queued and already-released rows.
   const onShow = (kind: KindKey, entityId: string, label: string, unhide: boolean) => {
     setShowing((prev) => new Set(prev).add(entityId));
+    // Same reason as onRelease: a show on a queued row releases it too, so the
+    // row would otherwise vanish into a folded record the moment it fires.
+    setShowReleased(true);
     showEntity(kind, entityId, sessionId, { label, unhide })
       .catch((e) => console.error("showEntity failed", e))
       .finally(() => setShowing((prev) => {
@@ -192,6 +220,11 @@ function DmSection({ sessionId, onOpenEntity }: { sessionId: string; onOpenEntit
     <div
       className={`live-stage-row is-pickable${selectedId === i.entityId ? " is-selected" : ""}`}
       key={i.entityId}
+      id={stageRowId(i.entityId)}
+      ref={(el) => {
+        if (el) rowRefs.current.set(i.entityId, el);
+        else rowRefs.current.delete(i.entityId);
+      }}
       role="option"
       aria-selected={selectedId === i.entityId}
       onClick={() => setSelectedId(i.entityId)}
@@ -242,27 +275,37 @@ function DmSection({ sessionId, onOpenEntity }: { sessionId: string; onOpenEntit
       )}
 
       {items.length > 0 && (
-        <div
-          className="live-desk-list"
-          role="listbox"
-          aria-label="Staged for this session"
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-              e.preventDefault();
-              setSelectedId(stepSelection(visible, selectedId, e.key === "ArrowDown" ? 1 : -1));
-            } else if (e.key === "Enter" && selected && !selected.releasedAt && !relBusy) {
-              // Enter is RELEASE, never SHOW: the quiet verb is the safe one to
-              // put under a key that fires without the pointer moving.
-              e.preventDefault();
-              onRelease(selected.ent._kind as KindKey, selected.entityId, selected.label);
-            } else if (e.key === "Escape" && selectedId) {
-              e.preventDefault();
-              setSelectedId(null);
-            }
-          }}
-        >
-          {queued.map(stageRow)}
+        <div className="live-desk-scroll">
+          {/* The listbox wraps ONLY the option rows. The disclosure below used
+              to sit inside it, which was both invalid ARIA and a live hazard:
+              a <button>'s Enter activation bubbles, so expanding the record
+              from the keyboard also ran the Enter branch here and released the
+              selected entity to the whole table. Keyboard navigation covers the
+              queue — the work — while released rows stay click-selectable. */}
+          <div
+            className="live-desk-list"
+            role="listbox"
+            aria-label="Staged for this session"
+            aria-activedescendant={selected ? stageRowId(selected.entityId) : undefined}
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                e.preventDefault();
+                setSelectedId(stepSelection(queued, selectedId, e.key === "ArrowDown" ? 1 : -1));
+              } else if (e.key === "Enter" && selected && !selected.releasedAt && !relBusy) {
+                // Enter is RELEASE, never SHOW: the quiet verb is the safe one
+                // to put under a key that fires without the pointer moving.
+                e.preventDefault();
+                onRelease(selected.ent._kind as KindKey, selected.entityId, selected.label);
+              } else if (e.key === "Escape" && selectedId) {
+                e.preventDefault();
+                setSelectedId(null);
+              }
+            }}
+          >
+            {queued.map(stageRow)}
+            {showReleased && released.map(stageRow)}
+          </div>
 
           {released.length > 0 && (
             <button
@@ -278,7 +321,6 @@ function DmSection({ sessionId, onOpenEntity }: { sessionId: string; onOpenEntit
               />
             </button>
           )}
-          {showReleased && released.map(stageRow)}
         </div>
       )}
 

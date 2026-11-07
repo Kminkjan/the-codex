@@ -3841,7 +3841,11 @@ button.cast-chip.is-present:hover { border-color: var(--mustard); color: var(--m
    the name 245px instead of 97px at the same panel width. The session sheet's
    prep list keeps the plain .live-stage-row above: it has its own ✕ control
    and nothing to select. */
-.live-desk-list { outline: none; overflow-y: auto; min-height: 0; flex: 1; }
+/* The scroller holds the listbox and the record's disclosure; the listbox
+   itself holds only option rows, so the button can't bubble a keystroke into
+   the list's Enter branch. */
+.live-desk-scroll { overflow-y: auto; min-height: 0; flex: 1; }
+.live-desk-list { outline: none; }
 .live-desk-list:focus-visible { box-shadow: 0 0 0 2px var(--mustard); border-radius: 3px; }
 .live-stage-row.is-pickable { cursor: pointer; padding-inline: 6px; margin-inline: -6px; }
 .live-stage-row.is-pickable .lbl { cursor: inherit; }
