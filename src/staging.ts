@@ -29,6 +29,8 @@
 //
 // Guarded by scripts/staging-check.ts.
 
+import { isShowEvent } from "./data";
+
 // The shape both callers project their rows into. Deliberately structural
 // rather than SessionStagingRow + a lookup: the label comes from entityLabel()
 // over a resolved entity, which this module must not know about.
@@ -109,4 +111,71 @@ export function stepSelection<T extends StagedItem>(
   if (i === -1) return (delta === 1 ? visible[0] : visible[visible.length - 1]).entityId;
   const next = Math.min(visible.length - 1, Math.max(0, i + delta));
   return visible[next].entityId;
+}
+
+// ===== The control room's monitors (#167) ===================================
+// The control room splits the desk into two monitors: PROGRAM, what every
+// player's screen was last sent, and PREVIEW, what the DM has selected and is
+// about to act on. Both are derived here so the live panel's "now showing" card
+// and the control room's Program can never disagree about what is on screen.
+
+// The minimum of a feed row these derivations read. Structural, like
+// StagedItem, so this module needs nothing from the feed's renderers.
+export interface FeedEventLike {
+  readonly sessionId: string;
+  readonly type: string;
+  readonly text?: string;
+  readonly entityId?: string;
+}
+
+// What PROGRAM shows: the live session's LATEST show. Quiet releases never
+// qualify — a release unhides without pushing anything onto a screen, so
+// counting it would claim the table is looking at something it was never sent.
+// Other sessions' shows never qualify either: the feed array spans every
+// session, and a show from last week is not on anyone's screen tonight.
+//
+// Returns the event, not the entity: resolving it is the caller's job, and a
+// show whose entity has since been deleted or re-hidden must retire the
+// monitor rather than leave a ghost on it.
+export function latestShow<T extends FeedEventLike>(
+  events: readonly T[],
+  sessionId: string | null,
+): T | undefined {
+  if (!sessionId) return undefined;
+  for (let i = events.length - 1; i >= 0; i--) {
+    const e = events[i];
+    if (e.sessionId === sessionId && isShowEvent(e)) return e;
+  }
+  return undefined;
+}
+
+// What PREVIEW says about the entity under the DM's cursor, from loudest to
+// quietest. The order is the rule: each state outranks the ones below it.
+//
+//   * on-screen — it is what PROGRAM shows. Outranks "released": every shown
+//     entity is also released, and the DM needs to know it is up right now.
+//   * released  — its staging row for this session carries released_at.
+//   * hidden    — players cannot see it; releasing will reveal it.
+//   * visible   — players can already see it. Releasing only logs a line,
+//     which is legal (staging something visible is allowed) but must never be
+//     a surprise.
+export type PreviewState = "on-screen" | "released" | "hidden" | "visible";
+
+export function previewState(input: {
+  onScreen: boolean;
+  releasedAt: string | null;
+  hidden: boolean;
+}): PreviewState {
+  if (input.onScreen) return "on-screen";
+  if (input.releasedAt !== null) return "released";
+  return input.hidden ? "hidden" : "visible";
+}
+
+// Whether RELEASE QUIETLY is on offer. Only for a row still queued tonight:
+// releasing is the staging queue's verb, and a released row has nothing left
+// to release. A visible queued row stays releasable on purpose — the live
+// desk has always allowed it, and it is how the DM records "they learned
+// this now" for something they could already see.
+export function canReleaseQuietly(input: { staged: boolean; releasedAt: string | null }): boolean {
+  return input.staged && input.releasedAt === null;
 }

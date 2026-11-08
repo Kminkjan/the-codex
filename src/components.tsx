@@ -8,7 +8,7 @@ import { rankIndex, KIND_LABEL, type Indexed } from "./entitySearch";
 import { focusImageStyle } from "./imageFocus";
 import { arcSubtreeIds, sagaTree } from "./saga";
 import { openFeedbackCount } from "./feedback";
-import { useCampaign, useCampaignSwitcher, useDismiss, useKinds, usePresence, useSeatless, useViewAsPlayer } from "./hooks";
+import { useCampaign, useCampaignSwitcher, useDismiss, useIsDm, useKinds, usePresence, useSeatless, useViewAsPlayer } from "./hooks";
 import { createCampaign, createEntity, endLiveSession, setActiveSession, startLiveSession, switchLiveSession } from "./mutations";
 import { requestCharterOnNextLoad } from "./route";
 import { clearDraft, readDraft, writeDraft } from "./noteDrafts";
@@ -407,6 +407,7 @@ export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, onOpenF
   const campaign = useCampaign();
   const kinds = useKinds();
   const { canEdit } = useAuth();
+  const isDm = useIsDm();
   const totalArchived = kinds.reduce((sum, k) => sum + (counts[k.key]?.archived ?? 0), 0);
   // View filter, not a write — available to read-only viewers too.
   const [arcFilter, setArcFilter] = useState<string>("all");
@@ -469,6 +470,20 @@ export function Sidebar({ active, onSelect, onOpenEntity, onOpenCleanup, onOpenF
         <span className="icon"><Icon name="board" /></span>
         Notice Board
       </div>
+      {/* The DM's full-page desk (#167). Offered whether or not a session is
+          live: the room says so itself rather than the entry appearing and
+          vanishing with the pin. */}
+      {isDm && (
+        <div
+          className={`nav-item ${active === "control" ? "active" : ""}`}
+          onClick={() => onSelect("control")}
+          title="Run the live session from one full page"
+        >
+          <span className="icon"><Icon name="eye" /></span>
+          <ThemedLabel parchment="The DM's Screen" atlas="Control room" />
+          {campaign.activeSessionId && <span className="nav-live-dot" aria-label="A session is live" />}
+        </div>
+      )}
 
       <div className="sidebar-label"><span>Codex</span></div>
       {kinds.map((k) => {
@@ -904,6 +919,7 @@ export function Topbar({ view, onShare, onOpenCharter, onSearch }: {
     : view === "arcs" ? "Sagas & Arcs"
     : view === "events" ? "Events"
     : view === "campaign" ? "Charter"
+    : view === "control" ? "Control room"
     : kinds.find((k) => k.key === view)?.label ?? "";
   return (
     <header className="topbar">

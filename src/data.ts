@@ -402,7 +402,7 @@ export function noteExcerpt(text: string): string {
 // through stripShowMark, or the invisible sentinel leaks into the UI/exports.
 export const SHOW_MARK = "\u200b⚡";
 
-export function isShowEvent(e: SessionEvent): boolean {
+export function isShowEvent(e: { type: string; text?: string }): boolean {
   return e.type === "reveal" && !!e.text?.startsWith(SHOW_MARK);
 }
 
