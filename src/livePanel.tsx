@@ -439,10 +439,13 @@ export function LivePanel({ onOpenEntity, onOpenControlRoom }: {
   // chronological chat, but the thing currently on display keeps a persistent
   // slot with its portrait. Quiet 🕯 releases don't qualify; the takeover is
   // the "everyone look at this" act. A re-hidden or deleted entity drops out
-  // of findEntity, so the card retires itself with the projection. Derived in
-  // src/staging.ts so the control room's PROGRAM monitor reads the same rule.
+  // of findEntity on player clients, so the card retires itself with the
+  // projection; the DM's campaign keeps hidden rows, so the hidden check is
+  // explicit for them. Derived in src/staging.ts so the control room's PROGRAM
+  // monitor reads the same rule.
   const lastShow = latestShow(events, sessionId);
-  const shownEnt = lastShow ? findEntity(lastShow.entityId) : null;
+  const resolvedShow = lastShow ? findEntity(lastShow.entityId) : null;
+  const shownEnt = resolvedShow && !isHidden(resolvedShow) ? resolvedShow : null;
 
   // Going live (or switching sessions) re-opens a collapsed panel — the state
   // change is the moment the panel earns attention again.
@@ -538,7 +541,10 @@ export function LivePanel({ onOpenEntity, onOpenControlRoom }: {
         ))}
       </div>
 
-      {isDm && <DmSection sessionId={sessionId} onOpenEntity={onOpenEntity} onOpenControlRoom={onOpenControlRoom} />}
+      {/* Keyed on the session: useDeskActions never clears a successful
+          release, so a desk carried across switchLiveSession would keep an
+          entity re-staged in the new session locked. */}
+      {isDm && <DmSection key={sessionId} sessionId={sessionId} onOpenEntity={onOpenEntity} onOpenControlRoom={onOpenControlRoom} />}
 
       {/* One-line chat rows, so Enter sends (issue #67) and Shift+Enter breaks.
           Never sends on blur — see the rule on NoteComposer. */}

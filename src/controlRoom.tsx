@@ -96,6 +96,17 @@ function MonitorArt({ ent }: { ent: Entity & Record<string, any> }) {
   );
 }
 
+// The header's elapsed clock, ticking on its own so the twice-a-minute update
+// re-renders one label rather than the whole room.
+function SessionClock({ startedAt }: { startedAt: string }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(t);
+  }, []);
+  return <span className="cr-clock" title={`Started ${fmtTime(startedAt)}`}>{elapsedSince(startedAt, now)}</span>;
+}
+
 export function ControlRoom({ onOpenEntity }: { onOpenEntity: (id: string) => void }) {
   const campaign = useCampaign();
   const isDm = useIsDm();
@@ -144,8 +155,10 @@ function Switcher({ sessionId, onOpenEntity }: { sessionId: string; onOpenEntity
   // In-flight attendance writes. markAttended is idempotent, but the toggle
   // reads its state from realtime, so without this a quick second click lands
   // before the first echo and flips it straight back.
-  const [marking, setMarking] = useState<ReadonlySet<string>>(new Set());
-  const [now, setNow] = useState(() => Date.now());
+  // Keyed person → the state the write is heading for, and held until realtime
+  // shows that state: clearing when the write merely resolves would reopen the
+  // button before the echo, and a tap then would re-send the same verb.
+  const [marking, setMarking] = useState<ReadonlyMap<string, boolean>>(new Map());
   const rowRefs = useRef(new Map<string, HTMLDivElement>());
   const feedRef = useRef<HTMLDivElement>(null);
   const nearBottomRef = useRef(true);
@@ -153,11 +166,6 @@ function Switcher({ sessionId, onOpenEntity }: { sessionId: string; onOpenEntity
   // A show or release on a queued row moves it into tonight's record; opening
   // the record keeps it on screen and selected (same reason as the live desk).
   const desk = useDeskActions(sessionId, () => setShowReleased(true));
-
-  useEffect(() => {
-    const t = window.setInterval(() => setNow(Date.now()), 30_000);
-    return () => window.clearInterval(t);
-  }, []);
 
   const session = campaign.sessions.find((s) => s.id === sessionId);
   const events = campaign.sessionEvents.filter((e) => e.sessionId === sessionId);
@@ -178,8 +186,11 @@ function Switcher({ sessionId, onOpenEntity }: { sessionId: string; onOpenEntity
   // ---- Program ----------------------------------------------------------------
   const lastShow = latestShow(campaign.sessionEvents, sessionId);
   // A show whose entity was since deleted or re-hidden retires the monitor
-  // rather than leaving a ghost on it — findEntity is the projection.
-  const programEnt = lastShow ? findEntity(lastShow.entityId) : null;
+  // rather than leaving a ghost on it. Deletion drops it from findEntity, but
+  // re-hiding doesn't — the DM's campaign holds hidden rows — so the hidden
+  // check is explicit: RLS has already taken it off every player's screen.
+  const shownEnt = lastShow ? findEntity(lastShow.entityId) : null;
+  const programEnt = shownEnt && !isHidden(shownEnt) ? shownEnt : null;
 
   // ---- Preview ----------------------------------------------------------------
   // Derived, never stored: an entity deleted under the DM's cursor just empties
@@ -193,6 +204,10 @@ function Switcher({ sessionId, onOpenEntity }: { sessionId: string; onOpenEntity
     : null;
   const canRelease = !!previewEnt && canReleaseQuietly({ staged: !!previewRow, releasedAt: previewRow?.releasedAt ?? null });
   const dmNote = previewEnt ? campaign.dmNotes[previewEnt.id] : undefined;
+  const previewLabel = previewEnt ? entityLabel(previewEnt) : "";
+  const previewBlurb = previewEnt ? publicBlurb(previewEnt) : "";
+  const programLabel = programEnt ? entityLabel(programEnt) : "";
+  const programBlurb = programEnt ? publicBlurb(programEnt) : "";
 
   useEffect(() => {
     if (selectedId) rowRefs.current.get(selectedId)?.scrollIntoView({ block: "nearest" });
@@ -205,11 +220,11 @@ function Switcher({ sessionId, onOpenEntity }: { sessionId: string; onOpenEntity
 
   const releasePreview = () => {
     if (!previewEnt || !canRelease || desk.releaseBusy(previewEnt.id)) return;
-    desk.release(previewEnt._kind as KindKey, previewEnt.id, entityLabel(previewEnt));
+    desk.release(previewEnt._kind as KindKey, previewEnt.id, previewLabel);
   };
   const showPreview = () => {
     if (!previewEnt) return;
-    desk.show(previewEnt._kind as KindKey, previewEnt.id, entityLabel(previewEnt), isHidden(previewEnt));
+    desk.show(previewEnt._kind as KindKey, previewEnt.id, previewLabel, isHidden(previewEnt));
   };
   const showBusy = previewEnt ? desk.showBusy(previewEnt.id, previewRow?.releasedAt ?? null) : true;
 
@@ -231,16 +246,33 @@ function Switcher({ sessionId, onOpenEntity }: { sessionId: string; onOpenEntity
     .sort((a, b) => a.name.localeCompare(b.name));
   const pursuing = campaign.quests.filter((q) => q.status === "pursuing" && !q.archived);
 
+  const dropMarking = (personId: string) => setMarking((prev) => {
+    const next = new Map(prev);
+    next.delete(personId);
+    return next;
+  });
+
+  // Retire a guard once the register shows the state it was heading for.
+  const attendanceKey = [...present].sort().join(",");
+  useEffect(() => {
+    for (const [personId, target] of marking) {
+      if (present.has(personId) === target) dropMarking(personId);
+    }
+    // present is rebuilt every render; attendanceKey is its identity.
+  }, [attendanceKey, marking]);
+
   const toggleAttendance = (personId: string, isHere: boolean) => {
     if (marking.has(personId)) return;
-    setMarking((prev) => new Set(prev).add(personId));
+    setMarking((prev) => new Map(prev).set(personId, !isHere));
     (isHere ? markAbsent(sessionId, personId) : markAttended(sessionId, personId))
-      .catch(console.error)
-      .finally(() => setMarking((prev) => {
-        const next = new Set(prev);
-        next.delete(personId);
-        return next;
-      }));
+      // A write RLS filters to zero rows resolves without an error and no echo
+      // ever comes, so the guard also lapses on its own rather than leaving
+      // the button stuck on "…".
+      .then(() => window.setTimeout(() => dropMarking(personId), 5000))
+      .catch((e) => {
+        console.error(e);
+        dropMarking(personId);
+      });
   };
 
   const rundownRow = (i: typeof items[number]) => (
@@ -273,9 +305,7 @@ function Switcher({ sessionId, onOpenEntity }: { sessionId: string; onOpenEntity
         <span className="cr-live-dot" aria-hidden="true" />
         <span className="cr-live-label">LIVE · {session ? sessionLabel(session.num) : "—"}</span>
         <h1 className="cr-title">{session?.title ?? "—"}</h1>
-        {startedAt && (
-          <span className="cr-clock" title={`Started ${fmtTime(startedAt)}`}>{elapsedSince(startedAt, now)}</span>
-        )}
+        {startedAt && <SessionClock startedAt={startedAt} />}
         <span className="cr-head-spacer" />
         {presenceUsers.length > 0 && (
           <span className="cr-presence" title={presenceUsers.map((u) => u.name).join(", ")}>
@@ -420,8 +450,8 @@ function Switcher({ sessionId, onOpenEntity }: { sessionId: string; onOpenEntity
                     <MonitorArt ent={previewEnt} />
                     <div className="cr-monitor-text">
                       <span className="cr-kind">{previewEnt._kindLabel}</span>
-                      <h2 className="cr-name" title={entityLabel(previewEnt)}>{entityLabel(previewEnt)}</h2>
-                      {publicBlurb(previewEnt) && <p className="cr-blurb">{publicBlurb(previewEnt)}</p>}
+                      <h2 className="cr-name" title={previewLabel}>{previewLabel}</h2>
+                      {previewBlurb && <p className="cr-blurb">{previewBlurb}</p>}
                       {dmNote && (
                         <div className="cr-dmnote">
                           <div className="cr-dmnote-label">
@@ -437,7 +467,7 @@ function Switcher({ sessionId, onOpenEntity }: { sessionId: string; onOpenEntity
                       className="cr-btn"
                       disabled={!canRelease || desk.releaseBusy(previewEnt.id)}
                       onClick={releasePreview}
-                      title={canRelease ? `Reveal “${entityLabel(previewEnt)}” without putting it on anyone's screen` : undefined}
+                      title={canRelease ? `Reveal “${previewLabel}” without putting it on anyone's screen` : undefined}
                     >
                       {desk.isReleasing(previewEnt.id) ? "…" : "Release quietly"}
                     </button>
@@ -479,7 +509,7 @@ function Switcher({ sessionId, onOpenEntity }: { sessionId: string; onOpenEntity
                 className="cr-take-btn"
                 disabled={!previewEnt || showBusy}
                 onClick={showPreview}
-                aria-label={previewEnt ? `Show ${entityLabel(previewEnt)} on every player's screen` : "Show now"}
+                aria-label={previewEnt ? `Show ${previewLabel} on every player's screen` : "Show now"}
               >
                 <span className="cr-take-bolt" aria-hidden="true">⚡</span>
                 <span className="cr-take-label">
@@ -515,8 +545,8 @@ function Switcher({ sessionId, onOpenEntity }: { sessionId: string; onOpenEntity
                     <MonitorArt ent={programEnt} />
                     <div className="cr-monitor-text">
                       <span className="cr-kind">{programEnt._kindLabel}</span>
-                      <h2 className="cr-name" title={entityLabel(programEnt)}>{entityLabel(programEnt)}</h2>
-                      {publicBlurb(programEnt) && <p className="cr-blurb">{publicBlurb(programEnt)}</p>}
+                      <h2 className="cr-name" title={programLabel}>{programLabel}</h2>
+                      {programBlurb && <p className="cr-blurb">{programBlurb}</p>}
                     </div>
                   </div>
                   <div className="cr-monitor-foot">
@@ -560,7 +590,9 @@ function Switcher({ sessionId, onOpenEntity }: { sessionId: string; onOpenEntity
                 }}
               >
                 {events.length === 0 && (
-                  <div className="live-empty">The table is quiet. The record waits.</div>
+                  <div className="live-empty">
+                    <ThemedLabel parchment="The table is quiet. The record waits." atlas="Nothing recorded yet this session." />
+                  </div>
                 )}
                 {events.map((ev) => <FeedRow key={ev.id} ev={ev} onOpenEntity={onOpenEntity} />)}
               </div>
