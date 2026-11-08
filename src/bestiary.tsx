@@ -6,7 +6,7 @@ import { useCampaign, useIsDm, useListSort } from "./hooks";
 import { useAuth } from "./auth";
 import { Icon } from "./icons";
 import { Fleurons, ThemedLabel } from "./components";
-import { NEW_ENTITY_DEFAULTS } from "./board";
+import { newEntityFields } from "./board";
 import { createEntity } from "./mutations";
 import { creatureTypes, crLabel, inkedMonsters, type Encounter } from "./monsters";
 import { focusImageStyle } from "./imageFocus";
@@ -239,12 +239,9 @@ export function BestiaryPage({ onOpenEntity }: { onOpenEntity: (id: string) => v
 
   const onNew = () => {
     const id = crypto.randomUUID();
-    // Same prep-time visibility default as the board's "Pin new" and the
-    // people list's "New person" (#107): a DM writing up a monster outside a
-    // live session is prepping a spoiler, and there's no draft state, so a
-    // visible insert would broadcast the half-typed beast to the whole party.
-    const hide = isDm && !campaign.activeSessionId;
-    createEntity("monsters", id, { ...NEW_ENTITY_DEFAULTS.monsters, ...(hide ? { hidden: true } : {}) })
+    // Same prep-time visibility default as the board's "Pin new" and the list
+    // pages' "New …" buttons (#107) — shared via newEntityFields.
+    createEntity("monsters", id, newEntityFields("monsters", { isDm, activeSessionId: campaign.activeSessionId }))
       .then(() => onOpenEntity(id))
       .catch(console.error);
   };

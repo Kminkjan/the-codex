@@ -29,7 +29,9 @@ import {
 // Exported because creation isn't only the board's job — the Bestiary page has
 // its own "new creature" button, and a second copy of these literals would
 // drift the moment a column changes.
-export const NEW_ENTITY_DEFAULTS: Record<Exclude<KindKey, "sessions" | "arcs" | "events">, Record<string, unknown>> = {
+export type NewableKind = Exclude<KindKey, "sessions" | "arcs" | "events">;
+
+export const NEW_ENTITY_DEFAULTS: Record<NewableKind, Record<string, unknown>> = {
   people:    { name: "Unnamed wayfarer" },
   locations: { name: "Unnamed place", kind: "other" },
   quests:    { title: "Untitled quest" },
@@ -39,6 +41,22 @@ export const NEW_ENTITY_DEFAULTS: Record<Exclude<KindKey, "sessions" | "arcs" | 
   lore:      { title: "Untitled lore", text: "" },
   monsters:  { name: "Unnamed beast", kind: "beast" },
 };
+
+// The fields for a fresh entity, with the creation-only visibility default
+// every "new" button shares: the DM's prep-time creations start hidden. There's
+// no draft state, so a visible insert would broadcast the half-typed spoiler to
+// every player. While a session is live the entity is usually "the thing the
+// party just met", so it stays visible (and the effective isDm is false in
+// view-as-player, where a hidden creation would vanish from the DM's own
+// projected view). One copy, so the board, the list pages and the Bestiary
+// can't drift apart on it.
+export function newEntityFields(
+  kind: NewableKind,
+  { isDm, activeSessionId }: { isDm: boolean; activeSessionId?: string | null },
+): Record<string, unknown> {
+  const hide = isDm && !activeSessionId;
+  return { ...NEW_ENTITY_DEFAULTS[kind], ...(hide ? { hidden: true } : {}) };
+}
 
 interface Filters {
   sessions: string;
@@ -235,19 +253,11 @@ export function NoticeBoard({
   useDismiss(addMenuRef, addMenuOpen, () => setAddMenuOpen(false));
   useDismiss(viewMenuRef, viewMenuOpen, () => setViewMenuOpen(false));
 
-  // Creation-only visibility default: the DM's prep-time creations start
-  // hidden — there's no draft state, so a visible insert would broadcast the
-  // half-typed spoiler to every player. While a session is live the entity is
-  // usually "the thing the party just met", so it stays visible (and the
-  // effective isDm is false in view-as-player, where a hidden creation would
-  // vanish from the DM's own projected view).
-  const createHidden = isDm && !campaign.activeSessionId;
-
-  const onCreate = async (k: Exclude<KindKey, "sessions" | "arcs" | "events">) => {
+  const onCreate = async (k: NewableKind) => {
     setAddMenuOpen(false);
     const id = crypto.randomUUID();
     try {
-      await createEntity(k, id, { ...NEW_ENTITY_DEFAULTS[k], ...(createHidden ? { hidden: true } : {}) });
+      await createEntity(k, id, newEntityFields(k, { isDm, activeSessionId: campaign.activeSessionId }));
       // Creating a person while live implies they showed up this session —
       // auto-mark them seen (people have no session_id, so this is their
       // creation-only link, mirroring the events/quests default in createEntity).
@@ -583,7 +593,7 @@ export function NoticeBoard({
                 <div
                   key={k.key}
                   className="view-menu-row"
-                  onClick={() => onCreate(k.key as Exclude<KindKey, "sessions" | "arcs" | "events">)}
+                  onClick={() => onCreate(k.key as NewableKind)}
                 >
                   <span className="swatch" style={{ background: k.color, width: 10, height: 10, display: "inline-block", borderRadius: 2 }} />
                   <Icon name={kindIcon[k.key]} size={14} />
@@ -722,12 +732,12 @@ export function NoticeBoard({
 // Kinds whose list page offers a direct "New …" button — a codex entry with no
 // board card. Being in the codex is not the same as having shown up on screen,
 // so this seeds no board position and no markSeen.
-const LIST_ADD: Partial<Record<string, { kind: keyof typeof NEW_ENTITY_DEFAULTS; label: string; title: string }>> = {
-  people: { kind: "people", label: "New person", title: "Add a person to the codex without pinning them to the board" },
-  locations: { kind: "locations", label: "New location", title: "Add a location to the codex without pinning it to the board" },
+const LIST_ADD: Partial<Record<NewableKind, { label: string; title: string }>> = {
+  people: { label: "New person", title: "Add a person to the codex without pinning them to the board" },
+  locations: { label: "New location", title: "Add a location to the codex without pinning it to the board" },
 };
 
-const NO_FACETS ={ tier: "all", status: "all", faction: "all", race: "all", pc: "all" };
+const NO_FACETS = { tier: "all", status: "all", faction: "all", race: "all", pc: "all" };
 
 export function KindList({ kind, onOpenEntity }: { kind: string; onOpenEntity: (id: string) => void }) {
   const kinds = useKinds();
@@ -769,7 +779,7 @@ export function KindList({ kind, onOpenEntity }: { kind: string; onOpenEntity: (
   const all = k.list() as any[];
   const facetsActive = nameQuery.trim() !== "" || Object.values(facets).some((v) => v !== "all");
   const sortOptions = sortOptionsFor(k.key as KindKey);
-  const addable = LIST_ADD[kind];
+  const addable = LIST_ADD[kind as NewableKind];
   const { archivedCount, backgroundCount, sorted } = useMemo(() => {
     const numById = new Map(campaign.sessions.map((s) => [s.id, s.num]));
     const sessionNum = (id: string) => numById.get(id) ?? 0;
@@ -817,9 +827,7 @@ export function KindList({ kind, onOpenEntity }: { kind: string; onOpenEntity: (
               title={addable.title}
               onClick={() => {
                 const id = crypto.randomUUID();
-                // Same prep-time visibility default as the board's "Pin new".
-                const hide = isDm && !campaign.activeSessionId;
-                createEntity(addable.kind, id, { ...NEW_ENTITY_DEFAULTS[addable.kind], ...(hide ? { hidden: true } : {}) })
+                createEntity(kind as NewableKind, id, newEntityFields(kind as NewableKind, { isDm, activeSessionId: campaign.activeSessionId }))
                   .then(() => onOpenEntity(id))
                   .catch(console.error);
               }}
