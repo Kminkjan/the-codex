@@ -330,6 +330,9 @@ const mapSessionStaging = (r: any): SessionStagingRow => ({
   sessionId: r.session_id,
   entityId: r.entity_id,
   releasedAt: r.released_at ?? null,
+  // `?? null` is load-bearing: a row staged before 0045 has no staged_at, and
+  // the desk's comparator reads null as "unknown order, sort last".
+  stagedAt: r.staged_at ?? null,
 });
 
 const mapSessionEvent = (r: any): SessionEvent => ({

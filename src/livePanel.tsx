@@ -5,6 +5,7 @@ import { useAuthorName, useCampaign, useFindEntity, useIsDm, usePresence } from 
 import { useAuth } from "./auth";
 import { Fleurons, NoteComposer, ThemedLabel } from "./components";
 import { liveDraftKey } from "./noteDrafts";
+import { splitStaged, stepSelection, visibleStaged } from "./staging";
 import { endLiveSession, insertSessionEvent, releaseEntity, showEntity } from "./mutations";
 import { focusImageStyle } from "./imageFocus";
 
@@ -15,6 +16,11 @@ import { focusImageStyle } from "./imageFocus";
 // reads from useCampaign() and writes through mutations; there is no local
 // mirror of any DB state (collapse and in-flight release are UI-only, and the
 // composer's unsent draft is pre-DB by definition — see src/noteDrafts.ts).
+
+// Stable DOM ids for the desk's rows, so the listbox can name its active
+// option through aria-activedescendant — selection here is roving state, not
+// focus, so without this a screen reader is never told what Enter would act on.
+const stageRowId = (entityId: string) => `stage-row-${entityId}`;
 
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -110,9 +116,28 @@ export function FeedRow({ ev, onOpenEntity }: { ev: SessionEvent; onOpenEntity: 
   );
 }
 
-// The DM's release desk: tonight's staged queue, each row one click from live,
-// plus the end-of-session control. Released rows stay listed (tonight's
-// record), marked with their release time.
+// The DM's release desk: tonight's staged queue plus the end-of-session
+// control. Released rows stay listed (tonight's record), folded behind a
+// disclosure because a record is not work.
+//
+// The row carries NO buttons. A pair of controls repeated down the list spent
+// 142px of the panel's 276 on furniture — which is what starved the name to
+// 97px and truncated 19 of 24 real entity names, clustering lookalikes like
+// "Adult Red Dracolich" / "Adult Red Dragon" into rows that read identically.
+// With one action bar at the foot of the desk the name gets 245px at the same
+// panel width and nothing truncates.
+//
+// That is a trade, not a free win, and the direction is worth stating plainly:
+// rows do get shorter (37px → 31.8px), but the bar costs 73px, so the desk
+// shows FEWER rows until the queue passes ~14. Measured at a 900px window with
+// 24 staged: 7.38 rows visible before, 6.08 after. Legibility and a labelled
+// target were judged worth about one row of density.
+//
+// The bar is also the safety fix. RELEASE and ⚡ SHOW NOW are one-way, public
+// acts; naming their target in full, in a place with room for it, beats two
+// identical 64px buttons 6px apart in a list of twenty-four. Selection is
+// single on purpose — releasing several at once is a different verb with its
+// own partial-failure story, and this panel has no transactions.
 function DmSection({ sessionId, onOpenEntity }: { sessionId: string; onOpenEntity: (id: string) => void }) {
   const campaign = useCampaign();
   const findEntity = useFindEntity();
@@ -124,22 +149,47 @@ function DmSection({ sessionId, onOpenEntity }: { sessionId: string; onOpenEntit
   // AND failure), unlike `releasing`: the SHOW button never unmounts (released
   // rows keep it) and a deliberate re-show is legitimate.
   const [showing, setShowing] = useState<ReadonlySet<string>>(new Set());
+  // UI-only, like `collapsed` on the panel: which row the action bar acts on,
+  // and whether tonight's record is expanded. Never mirrored to the DB.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [showReleased, setShowReleased] = useState(false);
+  // Arrow keys move the selection through a list that scrolls, so the selected
+  // row has to be brought into view — otherwise Enter releases an entity the
+  // DM cannot see. "nearest" so it never scrolls when the row is already shown.
+  const rowRefs = useRef(new Map<string, HTMLDivElement>());
 
-  const rows = campaign.sessionStaging
+  const items = campaign.sessionStaging
     .filter((r) => r.sessionId === sessionId)
     // A staging row can transiently dangle between an entity delete and the
     // staging sweep landing — skip rather than render a ghost.
     .flatMap((r) => {
       const ent = findEntity(r.entityId);
-      return ent ? [{ row: r, ent }] : [];
-    })
-    .sort((a, b) =>
-      (a.row.releasedAt ? 1 : 0) - (b.row.releasedAt ? 1 : 0)
-      || entityLabel(a.ent).localeCompare(entityLabel(b.ent)),
-    );
+      return ent
+        ? [{ entityId: r.entityId, stagedAt: r.stagedAt, releasedAt: r.releasedAt, label: entityLabel(ent), ent }]
+        : [];
+    });
+
+  // Order, split and keyboard stepping all live in src/staging.ts so this list,
+  // the arrow keys and the session sheet's prep list cannot drift apart.
+  const { queued, released } = splitStaged(items);
+  const visible = visibleStaged(items, showReleased);
+  // Derived, never stored: a row the DM had selected can leave the desk under
+  // them (deleted, unstaged, or hidden by collapsing the record), and deriving
+  // the selection means that retires the action bar instead of stranding it.
+  const selected = visible.find((i) => i.entityId === selectedId) ?? null;
+
+  useEffect(() => {
+    if (selectedId) rowRefs.current.get(selectedId)?.scrollIntoView({ block: "nearest" });
+  }, [selectedId]);
 
   const onRelease = (kind: KindKey, entityId: string, label: string) => {
     setReleasing((prev) => new Set(prev).add(entityId));
+    // The row is about to move from the queue into tonight's record. With the
+    // record folded that would take it off the desk mid-act, dropping the
+    // selection and the action bar with it — and the usual next beat is ⚡ SHOW
+    // NOW on the thing just released, which showEntity explicitly supports.
+    // Opening the record keeps it selected and on screen.
+    setShowReleased(true);
     releaseEntity(kind, entityId, sessionId, { label }).catch((e) => {
       console.error("releaseEntity failed", e);
       setReleasing((prev) => {
@@ -154,6 +204,9 @@ function DmSection({ sessionId, onOpenEntity }: { sessionId: string; onOpenEntit
   // every player client. Legal on both queued and already-released rows.
   const onShow = (kind: KindKey, entityId: string, label: string, unhide: boolean) => {
     setShowing((prev) => new Set(prev).add(entityId));
+    // Same reason as onRelease: a show on a queued row releases it too, so the
+    // row would otherwise vanish into a folded record the moment it fires.
+    setShowReleased(true);
     showEntity(kind, entityId, sessionId, { label, unhide })
       .catch((e) => console.error("showEntity failed", e))
       .finally(() => setShowing((prev) => {
@@ -163,10 +216,51 @@ function DmSection({ sessionId, onOpenEntity }: { sessionId: string; onOpenEntit
       }));
   };
 
+  const stageRow = (i: typeof items[number]) => (
+    <div
+      className={`live-stage-row is-pickable${selectedId === i.entityId ? " is-selected" : ""}`}
+      key={i.entityId}
+      id={stageRowId(i.entityId)}
+      ref={(el) => {
+        if (el) rowRefs.current.set(i.entityId, el);
+        else rowRefs.current.delete(i.entityId);
+      }}
+      role="option"
+      aria-selected={selectedId === i.entityId}
+      onClick={() => setSelectedId(i.entityId)}
+      title={i.label}
+    >
+      <Icon name={kindIcon[i.ent._kind as KindKey]} size={13} />
+      <span className="lbl">{i.label}</span>
+      {/* Outside the .lbl span, deliberately. Inside it the chip was clipped by
+          the ellipsis on exactly the long names that need the warning — the one
+          hint that a "reveal" of something the party can already see is
+          deliberate rather than a surprise. */}
+      {!i.releasedAt && !isHidden(i.ent) && <span className="live-visible-hint">visible</span>}
+      {i.releasedAt && (
+        <span className="live-released" title="Released this session">✓ {fmtTime(i.releasedAt)}</span>
+      )}
+    </div>
+  );
+
+  // Two guards, not one. `releasing` is deliberately never cleared on success
+  // (releaseEntity isn't idempotent and realtime lands too late to disable the
+  // button in time) — which is fine for RELEASE, since that control leaves as
+  // soon as the row is released. ⚡ SHOW NOW stays, and a deliberate re-show is
+  // legitimate, so once the row IS released `releasing` must stop gating it or
+  // the row could never be shown again for the rest of the session.
+  const relBusy = selected ? releasing.has(selected.entityId) || showing.has(selected.entityId) : false;
+  const showBusy = selected
+    ? showing.has(selected.entityId) || (!selected.releasedAt && releasing.has(selected.entityId))
+    : false;
+
   return (
     <div className="live-dm">
       <div className="live-dm-head">
         <span style={{ flex: 1 }}><Fleurons>THE DM'S DESK</Fleurons></span>
+        {queued.length > 0 && (
+          <span className="live-desk-tally" title="Still queued for tonight">{queued.length} queued</span>
+        )}
         <button
           className="live-end-btn"
           title="End the session — stamps the feed and stands the pin down"
@@ -175,45 +269,108 @@ function DmSection({ sessionId, onOpenEntity }: { sessionId: string; onOpenEntit
           END SESSION
         </button>
       </div>
-      {rows.length === 0 && (
+
+      {items.length === 0 && (
         <div className="live-dm-empty">Nothing staged. Stage entities from their detail sheets.</div>
       )}
-      {rows.map(({ row, ent }) => {
-        const kind = ent._kind as KindKey;
-        const label = entityLabel(ent);
-        return (
-          <div className="live-stage-row" key={row.entityId}>
-            <Icon name={kindIcon[kind]} size={13} />
-            <span className="lbl" onClick={() => onOpenEntity(row.entityId)} title={label}>
-              {label}
-              {/* Staged-but-visible is legal (the sheet's STAGE flow allows it)
-                  — surface it so a "reveal" of something the party already
-                  sees is deliberate, not a surprise. */}
-              {!row.releasedAt && !isHidden(ent) && <span className="live-visible-hint">visible</span>}
-            </span>
-            {row.releasedAt ? (
-              <span className="live-released" title="Released this session">✓ {fmtTime(row.releasedAt)}</span>
-            ) : (
-              <button
-                className="release-btn"
-                disabled={releasing.has(row.entityId) || showing.has(row.entityId)}
-                onClick={() => onRelease(kind, row.entityId, label)}
-                title={`Reveal “${label}” to the party — unhides it, stamps the queue, and lands in the feed`}
-              >
-                {releasing.has(row.entityId) ? "…" : "RELEASE"}
-              </button>
-            )}
-            <button
-              className="release-btn show-btn"
-              disabled={showing.has(row.entityId) || releasing.has(row.entityId)}
-              onClick={() => onShow(kind, row.entityId, label, isHidden(ent))}
-              title={`Show “${label}” now — ${row.releasedAt ? "" : "releases it and "}opens it on every player's screen`}
-            >
-              {showing.has(row.entityId) ? "…" : "⚡ SHOW"}
-            </button>
+
+      {items.length > 0 && (
+        <div className="live-desk-scroll">
+          {/* The listbox wraps ONLY the option rows. The disclosure below used
+              to sit inside it, which was both invalid ARIA and a live hazard:
+              a <button>'s Enter activation bubbles, so expanding the record
+              from the keyboard also ran the Enter branch here and released the
+              selected entity to the whole table. Keyboard navigation covers the
+              queue — the work — while released rows stay click-selectable. */}
+          <div
+            className="live-desk-list"
+            role="listbox"
+            aria-label="Staged for this session"
+            aria-activedescendant={selected ? stageRowId(selected.entityId) : undefined}
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                e.preventDefault();
+                setSelectedId(stepSelection(queued, selectedId, e.key === "ArrowDown" ? 1 : -1));
+              } else if (e.key === "Enter" && selected && !selected.releasedAt && !relBusy) {
+                // Enter is RELEASE, never SHOW: the quiet verb is the safe one
+                // to put under a key that fires without the pointer moving.
+                e.preventDefault();
+                onRelease(selected.ent._kind as KindKey, selected.entityId, selected.label);
+              } else if (e.key === "Escape" && selectedId) {
+                e.preventDefault();
+                setSelectedId(null);
+              }
+            }}
+          >
+            {queued.map(stageRow)}
+            {showReleased && released.map(stageRow)}
           </div>
-        );
-      })}
+
+          {released.length > 0 && (
+            <button
+              className="live-fold"
+              aria-expanded={showReleased}
+              onClick={() => setShowReleased((v) => !v)}
+              title={showReleased ? "Fold tonight's record away" : "Show what has already been revealed"}
+            >
+              <span className="live-fold-caret">{showReleased ? "▾" : "▸"}</span>
+              <ThemedLabel
+                parchment={<><b>{released.length}</b> drawn forth tonight</>}
+                atlas={<><b>{released.length}</b> released tonight</>}
+              />
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* One pair of controls for the whole desk, naming its target in full. */}
+      {items.length > 0 && (
+        <div className="live-actionbar">
+          {selected ? (
+            <>
+              <div className="live-actionbar-target">
+                <Icon name={kindIcon[selected.ent._kind as KindKey]} size={12} />
+                <span className="lbl">{selected.label}</span>
+                <button
+                  className="live-open-sheet"
+                  onClick={() => onOpenEntity(selected.entityId)}
+                  title="Open this entity in the codex"
+                >
+                  <ThemedLabel parchment="Open in the codex ↗" atlas="Open sheet ↗" />
+                </button>
+              </div>
+              <div className="live-actionbar-acts">
+                {!selected.releasedAt && (
+                  <button
+                    className="release-btn"
+                    disabled={relBusy}
+                    onClick={() => onRelease(selected.ent._kind as KindKey, selected.entityId, selected.label)}
+                    title={`Reveal “${selected.label}” to the party — unhides it, stamps the queue, and lands in the feed`}
+                  >
+                    {releasing.has(selected.entityId) ? "…" : "RELEASE"}
+                  </button>
+                )}
+                <button
+                  className="release-btn show-btn"
+                  disabled={showBusy}
+                  onClick={() => onShow(selected.ent._kind as KindKey, selected.entityId, selected.label, isHidden(selected.ent))}
+                  title={`Show “${selected.label}” now — ${selected.releasedAt ? "" : "releases it and "}opens it on every player's screen`}
+                >
+                  {showing.has(selected.entityId) ? "…" : "⚡ SHOW NOW"}
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="live-actionbar-idle">
+              <ThemedLabel
+                parchment="Choose what the party shall see."
+                atlas="Select a row to release or show it."
+              />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

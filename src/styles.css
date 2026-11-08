@@ -3772,14 +3772,23 @@ button.cast-chip.is-present:hover { border-color: var(--mustard); color: var(--m
 .live-spotlight .live-meta { margin-top: 3px; }
 
 /* DM's desk: tonight's staged queue + end-session control. */
+/* The desk is a column, not a scroller: the head and the action bar are pinned
+   and only the row list scrolls. It used to scroll as one block, which was
+   harmless while every row carried its own buttons — with a single action bar
+   at the foot, scrolling the whole desk would carry the bar out of sight on
+   exactly the long queues it exists for. */
 .live-dm {
   border-top: 1px solid var(--vellum-deep);
   background: var(--vellum);
   padding: 10px 12px;
   max-height: 38%;
-  overflow-y: auto;
+  overflow: hidden;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
+.live-dm > .live-dm-head { flex-shrink: 0; }
 .live-dm-head {
   display: flex; align-items: center; gap: 8px;
   font-family: var(--font-fell-sc);
@@ -3826,6 +3835,110 @@ button.cast-chip.is-present:hover { border-color: var(--mustard); color: var(--m
   white-space: nowrap;
 }
 .live-stage-row .lbl:hover { color: var(--ink); text-decoration: underline; }
+
+/* The live desk's rows carry no buttons — the whole row is the target, and one
+   action bar at the foot of the desk acts on the selection. That is what gives
+   the name 245px instead of 97px at the same panel width. The session sheet's
+   prep list keeps the plain .live-stage-row above: it has its own ✕ control
+   and nothing to select. */
+/* The scroller holds the listbox and the record's disclosure; the listbox
+   itself holds only option rows, so the button can't bubble a keystroke into
+   the list's Enter branch. */
+.live-desk-scroll { overflow-y: auto; min-height: 0; flex: 1; }
+.live-desk-list { outline: none; }
+.live-desk-list:focus-visible { box-shadow: 0 0 0 2px var(--mustard); border-radius: 3px; }
+.live-stage-row.is-pickable { cursor: pointer; padding-inline: 6px; margin-inline: -6px; }
+.live-stage-row.is-pickable .lbl { cursor: inherit; }
+.live-stage-row.is-pickable .lbl:hover { text-decoration: none; }
+.live-stage-row.is-pickable:hover { background: rgba(139,94,40,.07); }
+.live-stage-row.is-selected {
+  background: rgba(139,94,40,.14);
+  border-radius: 3px;
+  border-bottom-color: transparent;
+}
+.live-stage-row.is-selected .lbl { color: var(--ink); font-weight: 600; }
+
+/* Tonight's record, folded. Released rows are not work, so they do not get to
+   spend the desk's scroll band by default. */
+.live-fold {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  margin-top: 4px;
+  padding: 7px 0 3px;
+  background: transparent;
+  border: none;
+  border-top: 1px solid var(--hairline);
+  cursor: pointer;
+  font-family: var(--font-fell-sc);
+  letter-spacing: .1em;
+  font-size: 10px;
+  color: var(--ink-secondary);
+  text-align: left;
+}
+.live-fold:hover { color: var(--ink); }
+.live-fold b { color: var(--mustard-deep); font-weight: 600; }
+.live-fold-caret { font-size: 9px; color: var(--ink-faded); flex-shrink: 0; }
+.live-desk-tally {
+  font-family: var(--font-fell-sc);
+  letter-spacing: .1em;
+  font-size: 9.5px;
+  color: var(--mustard-deep);
+  flex-shrink: 0;
+}
+
+/* One pair of controls for the whole desk. The target line exists to spell out
+   what is about to be revealed: RELEASE and ⚡ SHOW NOW are one-way and public,
+   and a full name on its own line is the thing a repeated 64px button could
+   never give. */
+.live-actionbar {
+  margin: 8px -12px -10px;
+  padding: 9px 12px 10px;
+  background: var(--vellum-light);
+  border-top: 1px solid var(--vellum-deep);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  flex-shrink: 0;
+}
+.live-actionbar-target {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  color: var(--ink);
+}
+.live-actionbar-target > svg { flex-shrink: 0; color: var(--ink-secondary); }
+.live-actionbar-target .lbl {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.live-open-sheet {
+  margin-left: auto;
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-fell-sc);
+  letter-spacing: .1em;
+  font-size: 9px;
+  color: var(--ink-secondary);
+  padding: 2px 0 2px 6px;
+}
+.live-open-sheet:hover { color: var(--bloodred); }
+.live-actionbar-acts { display: flex; gap: 7px; }
+.live-actionbar-acts .release-btn { flex: 1; padding: 6px 10px; }
+.live-actionbar-idle {
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 12px;
+  color: var(--ink-faded);
+}
 .live-visible-hint {
   margin-left: 6px;
   font-family: var(--font-fell-sc);
@@ -3907,7 +4020,8 @@ button.cast-chip.is-present:hover { border-color: var(--mustard); color: var(--m
   .saga-meta, .arc-meta, .saga-seal, .saga-step, .saga-choice,
   .saga-wizard-label, .saga-wizard-facts dt, .saga-unclaimed-head,
   .cleanup-window-label, .note-send-btn,
-  .feedback-tag, .feedback-status, .feedback-kind-btn) {
+  .feedback-tag, .feedback-status, .feedback-kind-btn,
+  .live-fold, .live-desk-tally, .live-open-sheet) {
   text-transform: uppercase;
 }
 
@@ -4781,6 +4895,32 @@ button.cast-chip.is-present:hover { border-color: var(--mustard); color: var(--m
 }
 [data-theme="modern"] .release-btn.show-btn:hover:not(:disabled) { background: var(--bloodred); color: #fff; }
 [data-theme="modern"] .live-visible-hint { border-radius: 4px; }
+/* The desk's selectable rows and its single action bar (one DOM, two dresses —
+   the parchment rules above carry the same structure). */
+[data-theme="modern"] .live-stage-row.is-pickable:hover { background: rgba(255,255,255,.035); border-radius: 5px; }
+[data-theme="modern"] .live-stage-row.is-selected { background: rgba(208,165,72,.13); border-radius: 5px; }
+[data-theme="modern"] .live-desk-list:focus-visible { box-shadow: 0 0 0 2px rgba(208,165,72,.55); border-radius: 5px; }
+[data-theme="modern"] .live-desk-tally { font-size: 10px; font-weight: 600; letter-spacing: .06em; }
+[data-theme="modern"] .live-fold {
+  font-size: 10px; font-weight: 600; letter-spacing: .06em;
+  border-top-color: #232734; border-radius: 5px;
+}
+[data-theme="modern"] .live-actionbar {
+  background: var(--vellum);
+  border-top-color: var(--card-edge);
+}
+[data-theme="modern"] .live-actionbar-target { font-size: 12px; }
+[data-theme="modern"] .live-actionbar-idle { font-style: normal; font-size: 12px; color: var(--ink-ghost); }
+[data-theme="modern"] .live-open-sheet { font-size: 9.5px; font-weight: 600; letter-spacing: .06em; }
+/* In the bar ⚡ SHOW NOW is the loud verb and gets the solid fill, inverting
+   the per-row treatment: there is only one of each here, so the contrast marks
+   intensity rather than separating repeated neighbours. */
+[data-theme="modern"] .live-actionbar-acts .release-btn.show-btn {
+  background: var(--bloodred); border-color: var(--bloodred); color: #fff;
+}
+[data-theme="modern"] .live-actionbar-acts .release-btn.show-btn:hover:not(:disabled) {
+  background: var(--bloodred-deep); border-color: var(--bloodred-deep);
+}
 [data-theme="modern"] .live-vertical { letter-spacing: .2em; }
 
 /* ── Command palette & entity combobox ───── */

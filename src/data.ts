@@ -334,6 +334,11 @@ export interface SessionStagingRow {
   sessionId: string;
   entityId: string;
   releasedAt: string | null;
+  // When the DM staged this row (0045). NULL for rows staged before the column
+  // existed — "predates the column", never "just now", exactly like
+  // connections.createdAt in 0031. The desk sorts unknowns LAST, the same rule
+  // listSort.ts applies to every other unknown value here.
+  stagedAt: string | null;
 }
 
 export type SessionEventType = "note" | "reveal" | "start" | "end" | "link" | "annotate";
