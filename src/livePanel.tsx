@@ -5,7 +5,7 @@ import { useAuthorName, useCampaign, useFindEntity, useIsDm, usePresence } from 
 import { useAuth } from "./auth";
 import { Fleurons, NoteComposer, ThemedLabel } from "./components";
 import { liveDraftKey } from "./noteDrafts";
-import { splitStaged, stepSelection, visibleStaged } from "./staging";
+import { latestShow, splitStaged, stepSelection, visibleStaged } from "./staging";
 import { endLiveSession, insertSessionEvent, releaseEntity, showEntity } from "./mutations";
 import { focusImageStyle } from "./imageFocus";
 
@@ -138,9 +138,15 @@ export function FeedRow({ ev, onOpenEntity }: { ev: SessionEvent; onOpenEntity: 
 // identical 64px buttons 6px apart in a list of twenty-four. Selection is
 // single on purpose — releasing several at once is a different verb with its
 // own partial-failure story, and this panel has no transactions.
-function DmSection({ sessionId, onOpenEntity }: { sessionId: string; onOpenEntity: (id: string) => void }) {
-  const campaign = useCampaign();
-  const findEntity = useFindEntity();
+// The two public verbs and their double-click guards, shared by the live
+// panel's desk and the control room (#167) so the rules below can't drift
+// between two copies. Mount it per session (the control room keys on the
+// session id): `releasing` is never cleared on success, so a hook outliving its
+// session would keep an entity re-staged for the next one locked.
+//
+// `onActed` fires just before either verb goes out. The desk uses it to open
+// its folded record so the row it just acted on stays on screen and selected.
+export function useDeskActions(sessionId: string, onActed?: () => void) {
   // In-flight releases: insertSessionEvent is not idempotent, and realtime lag
   // means released_at won't disable the button in time — guard double-clicks
   // locally. Cleared on failure so the button comes back.
@@ -149,6 +155,61 @@ function DmSection({ sessionId, onOpenEntity }: { sessionId: string; onOpenEntit
   // AND failure), unlike `releasing`: the SHOW button never unmounts (released
   // rows keep it) and a deliberate re-show is legitimate.
   const [showing, setShowing] = useState<ReadonlySet<string>>(new Set());
+
+  const release = (kind: KindKey, entityId: string, label: string) => {
+    setReleasing((prev) => new Set(prev).add(entityId));
+    onActed?.();
+    releaseEntity(kind, entityId, sessionId, { label }).catch((e) => {
+      console.error("releaseEntity failed", e);
+      setReleasing((prev) => {
+        const next = new Set(prev);
+        next.delete(entityId);
+        return next;
+      });
+    });
+  };
+
+  // "Show now" (#69): the loud reveal — release semantics plus a takeover on
+  // every player client. Legal on both queued and already-released rows.
+  const show = (kind: KindKey, entityId: string, label: string, unhide: boolean) => {
+    setShowing((prev) => new Set(prev).add(entityId));
+    onActed?.();
+    showEntity(kind, entityId, sessionId, { label, unhide })
+      .catch((e) => console.error("showEntity failed", e))
+      .finally(() => setShowing((prev) => {
+        const next = new Set(prev);
+        next.delete(entityId);
+        return next;
+      }));
+  };
+
+  // Two guards, not one. `releasing` is deliberately never cleared on success
+  // (releaseEntity isn't idempotent and realtime lands too late to disable the
+  // button in time) — which is fine for RELEASE, since that control leaves as
+  // soon as the row is released. ⚡ SHOW NOW stays, and a deliberate re-show is
+  // legitimate, so once the row IS released `releasing` must stop gating it or
+  // the row could never be shown again for the rest of the session.
+  const releaseBusy = (entityId: string) => releasing.has(entityId) || showing.has(entityId);
+  const showBusy = (entityId: string, releasedAt: string | null) =>
+    showing.has(entityId) || (!releasedAt && releasing.has(entityId));
+
+  return {
+    release,
+    show,
+    releaseBusy,
+    showBusy,
+    isReleasing: (entityId: string) => releasing.has(entityId),
+    isShowing: (entityId: string) => showing.has(entityId),
+  };
+}
+
+function DmSection({ sessionId, onOpenEntity, onOpenControlRoom }: {
+  sessionId: string;
+  onOpenEntity: (id: string) => void;
+  onOpenControlRoom?: () => void;
+}) {
+  const campaign = useCampaign();
+  const findEntity = useFindEntity();
   // UI-only, like `collapsed` on the panel: which row the action bar acts on,
   // and whether tonight's record is expanded. Never mirrored to the DB.
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -182,39 +243,15 @@ function DmSection({ sessionId, onOpenEntity }: { sessionId: string; onOpenEntit
     if (selectedId) rowRefs.current.get(selectedId)?.scrollIntoView({ block: "nearest" });
   }, [selectedId]);
 
-  const onRelease = (kind: KindKey, entityId: string, label: string) => {
-    setReleasing((prev) => new Set(prev).add(entityId));
-    // The row is about to move from the queue into tonight's record. With the
-    // record folded that would take it off the desk mid-act, dropping the
-    // selection and the action bar with it — and the usual next beat is ⚡ SHOW
-    // NOW on the thing just released, which showEntity explicitly supports.
-    // Opening the record keeps it selected and on screen.
-    setShowReleased(true);
-    releaseEntity(kind, entityId, sessionId, { label }).catch((e) => {
-      console.error("releaseEntity failed", e);
-      setReleasing((prev) => {
-        const next = new Set(prev);
-        next.delete(entityId);
-        return next;
-      });
-    });
-  };
-
-  // "Show now" (#69): the loud reveal — release semantics plus a takeover on
-  // every player client. Legal on both queued and already-released rows.
-  const onShow = (kind: KindKey, entityId: string, label: string, unhide: boolean) => {
-    setShowing((prev) => new Set(prev).add(entityId));
-    // Same reason as onRelease: a show on a queued row releases it too, so the
-    // row would otherwise vanish into a folded record the moment it fires.
-    setShowReleased(true);
-    showEntity(kind, entityId, sessionId, { label, unhide })
-      .catch((e) => console.error("showEntity failed", e))
-      .finally(() => setShowing((prev) => {
-        const next = new Set(prev);
-        next.delete(entityId);
-        return next;
-      }));
-  };
+  // Either verb moves the row from the queue into tonight's record (a show on a
+  // queued row releases it too). With the record folded that would take it off
+  // the desk mid-act, dropping the selection and the action bar with it — and
+  // the usual next beat is ⚡ SHOW NOW on the thing just released, which
+  // showEntity explicitly supports. Opening the record keeps it selected and on
+  // screen.
+  const desk = useDeskActions(sessionId, () => setShowReleased(true));
+  const onRelease = desk.release;
+  const onShow = desk.show;
 
   const stageRow = (i: typeof items[number]) => (
     <div
@@ -243,16 +280,9 @@ function DmSection({ sessionId, onOpenEntity }: { sessionId: string; onOpenEntit
     </div>
   );
 
-  // Two guards, not one. `releasing` is deliberately never cleared on success
-  // (releaseEntity isn't idempotent and realtime lands too late to disable the
-  // button in time) — which is fine for RELEASE, since that control leaves as
-  // soon as the row is released. ⚡ SHOW NOW stays, and a deliberate re-show is
-  // legitimate, so once the row IS released `releasing` must stop gating it or
-  // the row could never be shown again for the rest of the session.
-  const relBusy = selected ? releasing.has(selected.entityId) || showing.has(selected.entityId) : false;
-  const showBusy = selected
-    ? showing.has(selected.entityId) || (!selected.releasedAt && releasing.has(selected.entityId))
-    : false;
+  // The two-guard rule lives in useDeskActions.
+  const relBusy = selected ? desk.releaseBusy(selected.entityId) : false;
+  const showBusy = selected ? desk.showBusy(selected.entityId, selected.releasedAt) : false;
 
   return (
     <div className="live-dm">
@@ -260,6 +290,15 @@ function DmSection({ sessionId, onOpenEntity }: { sessionId: string; onOpenEntit
         <span style={{ flex: 1 }}><Fleurons>THE DM'S DESK</Fleurons></span>
         {queued.length > 0 && (
           <span className="live-desk-tally" title="Still queued for tonight">{queued.length} queued</span>
+        )}
+        {onOpenControlRoom && (
+          <button
+            className="live-open-sheet"
+            onClick={onOpenControlRoom}
+            title="Run the session from the full-page control room"
+          >
+            <ThemedLabel parchment="The DM's screen ↗" atlas="Control room ↗" />
+          </button>
         )}
         <button
           className="live-end-btn"
@@ -348,7 +387,7 @@ function DmSection({ sessionId, onOpenEntity }: { sessionId: string; onOpenEntit
                     onClick={() => onRelease(selected.ent._kind as KindKey, selected.entityId, selected.label)}
                     title={`Reveal “${selected.label}” to the party — unhides it, stamps the queue, and lands in the feed`}
                   >
-                    {releasing.has(selected.entityId) ? "…" : "RELEASE"}
+                    {desk.isReleasing(selected.entityId) ? "…" : "RELEASE"}
                   </button>
                 )}
                 <button
@@ -357,7 +396,7 @@ function DmSection({ sessionId, onOpenEntity }: { sessionId: string; onOpenEntit
                   onClick={() => onShow(selected.ent._kind as KindKey, selected.entityId, selected.label, isHidden(selected.ent))}
                   title={`Show “${selected.label}” now — ${selected.releasedAt ? "" : "releases it and "}opens it on every player's screen`}
                 >
-                  {showing.has(selected.entityId) ? "…" : "⚡ SHOW NOW"}
+                  {desk.isShowing(selected.entityId) ? "…" : "⚡ SHOW NOW"}
                 </button>
               </div>
             </>
@@ -375,7 +414,11 @@ function DmSection({ sessionId, onOpenEntity }: { sessionId: string; onOpenEntit
   );
 }
 
-export function LivePanel({ onOpenEntity }: { onOpenEntity: (id: string) => void }) {
+export function LivePanel({ onOpenEntity, onOpenControlRoom }: {
+  onOpenEntity: (id: string) => void;
+  // Offered on the DM's desk only; the control room is a DM view (#167).
+  onOpenControlRoom?: () => void;
+}) {
   const campaign = useCampaign();
   const findEntity = useFindEntity();
   const presenceUsers = usePresence();
@@ -396,9 +439,13 @@ export function LivePanel({ onOpenEntity }: { onOpenEntity: (id: string) => void
   // chronological chat, but the thing currently on display keeps a persistent
   // slot with its portrait. Quiet 🕯 releases don't qualify; the takeover is
   // the "everyone look at this" act. A re-hidden or deleted entity drops out
-  // of findEntity, so the card retires itself with the projection.
-  const lastShow = events.filter(isShowEvent).at(-1);
-  const shownEnt = lastShow ? findEntity(lastShow.entityId) : null;
+  // of findEntity on player clients, so the card retires itself with the
+  // projection; the DM's campaign keeps hidden rows, so the hidden check is
+  // explicit for them. Derived in src/staging.ts so the control room's PROGRAM
+  // monitor reads the same rule.
+  const lastShow = latestShow(events, sessionId);
+  const resolvedShow = lastShow ? findEntity(lastShow.entityId) : null;
+  const shownEnt = resolvedShow && !isHidden(resolvedShow) ? resolvedShow : null;
 
   // Going live (or switching sessions) re-opens a collapsed panel — the state
   // change is the moment the panel earns attention again.
@@ -494,7 +541,10 @@ export function LivePanel({ onOpenEntity }: { onOpenEntity: (id: string) => void
         ))}
       </div>
 
-      {isDm && <DmSection sessionId={sessionId} onOpenEntity={onOpenEntity} />}
+      {/* Keyed on the session: useDeskActions never clears a successful
+          release, so a desk carried across switchLiveSession would keep an
+          entity re-staged in the new session locked. */}
+      {isDm && <DmSection key={sessionId} sessionId={sessionId} onOpenEntity={onOpenEntity} onOpenControlRoom={onOpenControlRoom} />}
 
       {/* One-line chat rows, so Enter sends (issue #67) and Shift+Enter breaks.
           Never sends on blur — see the rule on NoteComposer. */}

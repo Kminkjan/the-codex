@@ -31,12 +31,16 @@
 //
 // Usage: npx tsx scripts/staging-check.ts   (exits non-zero on any failure)
 import {
+  canReleaseQuietly,
   compareStaged,
+  latestShow,
   orderStaged,
+  previewState,
   splitStaged,
   stepSelection,
   type StagedItem,
 } from "../src/staging";
+import { SHOW_MARK } from "../src/data";
 
 let failures = 0;
 function check(what: string, ok: boolean, got?: unknown) {
@@ -159,6 +163,52 @@ console.log("\nKeyboard selection survives a changing desk");
   check("a selection that has left the desk does not strand Up",
     stepSelection(vis, "gone", -1) === "c", stepSelection(vis, "gone", -1));
   check("an empty desk has nowhere to step", stepSelection([], "a", 1) === null);
+}
+
+console.log("\nPROGRAM: what the players' screens were last sent");
+{
+  // The control room's PROGRAM monitor and the live panel's "now showing" card
+  // read this. If it is wrong, the DM is told the table is looking at
+  // something it is not — and acts on that.
+  const show = (sessionId: string, entityId: string) =>
+    ({ sessionId, type: "reveal", entityId, text: SHOW_MARK + entityId });
+  const quiet = (sessionId: string, entityId: string) =>
+    ({ sessionId, type: "reveal", entityId, text: entityId });
+  const note = (sessionId: string) => ({ sessionId, type: "note", text: "x" });
+
+  const feed = [show("s1", "golem"), note("s1"), show("s1", "ledger"), quiet("s1", "gate")];
+  check("the latest show wins", latestShow(feed, "s1")?.entityId === "ledger", latestShow(feed, "s1")?.entityId);
+  // A quiet release after the show pushes nothing to any screen. Counting it
+  // would put "gate" on PROGRAM while every player is still looking at "ledger".
+  check("a later quiet release does NOT take PROGRAM", latestShow(feed, "s1")?.entityId !== "gate");
+  // The feed array spans every session; last week's show is on nobody's screen.
+  check("another session's show never counts", latestShow([show("s0", "old"), note("s1")], "s1") === undefined);
+  check("no live session, no PROGRAM", latestShow(feed, null) === undefined);
+  check("a session with no shows has an empty PROGRAM", latestShow([note("s1")], "s1") === undefined);
+}
+
+console.log("\nPREVIEW: the loudest true state wins");
+{
+  // Every shown entity is also released, so on-screen must outrank released or
+  // the DM loses the one fact that matters most: it is up right now.
+  check("on screen outranks released",
+    previewState({ onScreen: true, releasedAt: "2026-03-01T20:00:00Z", hidden: false }) === "on-screen");
+  check("released outranks hidden",
+    previewState({ onScreen: false, releasedAt: "2026-03-01T20:00:00Z", hidden: true }) === "released");
+  check("a queued hidden row is hidden",
+    previewState({ onScreen: false, releasedAt: null, hidden: true }) === "hidden");
+  // The surprise case: staged, never released, but players can already see it.
+  check("a queued row players can already see says so",
+    previewState({ onScreen: false, releasedAt: null, hidden: false }) === "visible");
+}
+
+console.log("\nRELEASE QUIETLY is only for tonight's queue");
+{
+  check("a queued row can be released", canReleaseQuietly({ staged: true, releasedAt: null }));
+  check("a released row cannot be released again",
+    !canReleaseQuietly({ staged: true, releasedAt: "2026-03-01T20:00:00Z" }));
+  check("something never staged tonight has no queue to release from",
+    !canReleaseQuietly({ staged: false, releasedAt: null }));
 }
 
 console.log(failures === 0 ? "\nAll staging-desk checks passed.\n" : `\n${failures} check(s) FAILED.\n`);

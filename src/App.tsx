@@ -14,6 +14,7 @@ import { EventsPage } from "./events";
 import { CampaignCharterPage } from "./campaign";
 import { DetailSheet } from "./detail";
 import { LivePanel } from "./livePanel";
+import { ControlRoom } from "./controlRoom";
 import { CommandPalette, useCommandPaletteHotkey } from "./commandPalette";
 import { CleanupPanel } from "./cleanupPanel";
 import { FeedbackPanel } from "./feedbackPanel";
@@ -121,6 +122,12 @@ function AppLoaded() {
   const locateSeq = useRef(0);
   const isDm = useIsDm();
   const { viewAsPlayer, setViewAsPlayer } = useViewAsPlayer();
+  // The control room (#167) is a DM view. Losing DM-ness while it's open —
+  // switching campaigns, or turning "view as player" on — drops back to the
+  // board rather than leaving a page that has nothing to show this user.
+  useEffect(() => {
+    if (view === "control" && !isDm) setView("board");
+  }, [view, isDm]);
   // Signed in as an editor but holding no seat here (#87 follow-up): every edit
   // affordance is correctly hidden, which without a word of explanation reads
   // as "the app is broken for me". Dismissible — the Topbar's NO SEAT chip is
@@ -323,13 +330,19 @@ function AppLoaded() {
           {view === "events" && <EventsPage onOpenEntity={setOpenId} />}
           {view === "campaign" && <CampaignCharterPage onOpenEntity={setOpenId} />}
           {view === "monsters" && <BestiaryPage onOpenEntity={setOpenId} />}
+          {view === "control" && <ControlRoom onOpenEntity={setOpenId} />}
           {/* Catch-all treats the view as a KindKey — every non-kind view must
               be excluded here or it double-renders a bogus KindList. "monsters"
               IS a kind (it's in buildKinds, so the sidebar and counts work) but
               it takes the bespoke Bestiary page above, so it's excluded too. */}
-          {!["board", "arcs", "events", "campaign", "monsters"].includes(view) && <KindList kind={view} onOpenEntity={setOpenId} />}
+          {!["board", "arcs", "events", "campaign", "monsters", "control"].includes(view) && <KindList kind={view} onOpenEntity={setOpenId} />}
         </main>
-        <LivePanel onOpenEntity={setOpenId} />
+        {/* Not while the control room is open: it carries the same feed, desk
+            and composer full-size, and the two composers share one draft key
+            (see liveDraftKey) — mounting both would hold one draft twice. */}
+        {view !== "control" && (
+          <LivePanel onOpenEntity={setOpenId} onOpenControlRoom={isDm ? () => setView("control") : undefined} />
+        )}
       </div>
 
       {/* Keyed on the entity: navigating the relations rail keeps this component
