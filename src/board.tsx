@@ -719,7 +719,15 @@ export function NoticeBoard({
   );
 }
 
-const NO_FACETS = { tier: "all", status: "all", faction: "all", race: "all", pc: "all" };
+// Kinds whose list page offers a direct "New …" button — a codex entry with no
+// board card. Being in the codex is not the same as having shown up on screen,
+// so this seeds no board position and no markSeen.
+const LIST_ADD: Partial<Record<string, { kind: keyof typeof NEW_ENTITY_DEFAULTS; label: string; title: string }>> = {
+  people: { kind: "people", label: "New person", title: "Add a person to the codex without pinning them to the board" },
+  locations: { kind: "locations", label: "New location", title: "Add a location to the codex without pinning it to the board" },
+};
+
+const NO_FACETS ={ tier: "all", status: "all", faction: "all", race: "all", pc: "all" };
 
 export function KindList({ kind, onOpenEntity }: { kind: string; onOpenEntity: (id: string) => void }) {
   const kinds = useKinds();
@@ -761,6 +769,7 @@ export function KindList({ kind, onOpenEntity }: { kind: string; onOpenEntity: (
   const all = k.list() as any[];
   const facetsActive = nameQuery.trim() !== "" || Object.values(facets).some((v) => v !== "all");
   const sortOptions = sortOptionsFor(k.key as KindKey);
+  const addable = LIST_ADD[kind];
   const { archivedCount, backgroundCount, sorted } = useMemo(() => {
     const numById = new Map(campaign.sessions.map((s) => [s.id, s.num]));
     const sessionNum = (id: string) => numById.get(id) ?? 0;
@@ -801,23 +810,21 @@ export function KindList({ kind, onOpenEntity }: { kind: string; onOpenEntity: (
           <span style={{ fontFamily: "var(--font-body)", fontStyle: "italic", fontSize: 16, color: "var(--ink-faded)" }}>
             {sorted.length} {k.plural} of note
           </span>
-          {/* Roster entry without a board card — unlike the board's "Pin new",
-              this seeds no position and no markSeen: being in the codex is not
-              the same as having shown up on screen this session. */}
-          {canEdit && isPeople && (
+          {/* Codex entry without a board card — see LIST_ADD. */}
+          {canEdit && addable && (
             <button
               className="btn btn-ghost"
-              title="Add a person to the codex without pinning them to the board"
+              title={addable.title}
               onClick={() => {
                 const id = crypto.randomUUID();
                 // Same prep-time visibility default as the board's "Pin new".
                 const hide = isDm && !campaign.activeSessionId;
-                createEntity("people", id, { ...NEW_ENTITY_DEFAULTS.people, ...(hide ? { hidden: true } : {}) })
+                createEntity(addable.kind, id, { ...NEW_ENTITY_DEFAULTS[addable.kind], ...(hide ? { hidden: true } : {}) })
                   .then(() => onOpenEntity(id))
                   .catch(console.error);
               }}
             >
-              <Icon name="plus" size={13} /> New person
+              <Icon name="plus" size={13} /> {addable.label}
             </button>
           )}
           <span style={{ marginLeft: "auto", display: "flex", gap: 14 }}>
